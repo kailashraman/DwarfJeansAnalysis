@@ -1,0 +1,52 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+dist/
+build/
+*.so
+.venv/
+venv/
+env/
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data files (large/generated)
+*.fits
+*.hdf5
+*.h5
+*.npy
+*.npz
+*.pkl
+*.pickle
+
+# Images and PDFs
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.gif
+*.pdf
+
+# Outputs / chains
+outputs/
+results/
+chains/
+
+# LaTeX build artifacts
+*.aux
+*.log
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.toc
+
+# OS
+.DS_Store
+*.swp
+*~
