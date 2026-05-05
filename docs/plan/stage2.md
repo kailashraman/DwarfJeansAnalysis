@@ -24,12 +24,23 @@ Proper motions are treated as independent (correlation `pmra_pmdec_corr` ignored
 
 ## Priors on free parameters
 
-- Jeffreys on `r_s` with `−2 ≤ log_10(r_s / kpc) ≤ 1`, plus the constraint `r_s > r_1/2(median)` (see "Median-r_1/2 implementation" below).
-- Jeffreys on `ρ_s` with `4 ≤ log_10(ρ_s / [M_⊙ kpc⁻³]) ≤ 14`, expanded to `0 ≤ log_10(ρ_s / [M_⊙ kpc⁻³]) ≤ 13` for unresolved galaxies (Stage 1 classification = "unresolved / upper limit").
-- `β̃ ∈ [-0.95, 1]`.
-- `V ∈ [V_lit - 10, V_lit + 10]` km/s (per-galaxy override on the half-width).
+The halo parameters `(ln ρ_s, ln r_s)` use the **conditional Jeffreys prior at fixed β** for the Walker+2006 likelihood — i.e., the Fisher-information determinant in `(ln ρ_s, ln r_s)` evaluated at each likelihood call. The derivation and closed-form recipe are in [`jeffreys_jeans_derivation.md`](./jeffreys_jeans_derivation.md). Implementation: `½ ln D` is added to the log-likelihood per evaluation, with
 
-The Jeffreys-prior numerical bounds are tied to the unit conventions of P&S 2018 (kpc, M⊙ kpc⁻³); they would need to change if a future implementation switched to other unit conventions.
+```
+D = S0 · Σ p_i w̃_i (T_i − T̄)²,    T̄ = Σ p_i w̃_i T_i / S0,    S0 = Σ p_i w̃_i,
+w̃_i = A_i² / (A_i + ε_i²)²,    A_i = σ_los²(R_i),    T_i = 3 − 𝒬_i / 𝒫_i.
+```
+
+`𝒬_i` is computed via one extra Jeans-style integral with the NFW dimensionless mass function `g(x) = ln(1+x) − x/(1+x)` replaced by `h(x) = x²/(1+x)²` (`jeans.sigma_los_with_T` does both in one pass; ~2× the cost of `sigma_los`). Note that `(ρ_s, r_s)` enter the Fisher matrix only through `A_i` and `T_i`; the `8πGρ_s r_s³` prefactor and `Σ(R_i)` cancel in `𝒬/𝒫`.
+
+The remaining priors are unchanged:
+- `β̃ ∈ [-0.95, 1)` uniform (the conditional Jeffreys above is at fixed β; the joint prior is `p(ln ρ_s, ln r_s | β) · p(β̃)`).
+- `V ∈ [V_lit - 10, V_lit + 10]` km/s (per-galaxy override on the half-width).
+- The `(ρ_s, r_s)` Jeffreys prior is truncated to a uniform-in-log10 box: `−2 ≤ log_10(r_s / kpc) ≤ 1` (plus `r_s > r_½(median)` — see below) and `4 ≤ log_10(ρ_s / [M_⊙ kpc⁻³]) ≤ 14`, expanded to `0 ≤ log_10(ρ_s / [M_⊙ kpc⁻³]) ≤ 13` for unresolved galaxies (Stage 1 classification = "unresolved / upper limit"). The truncation bounds are tied to P&S 2018 unit conventions (kpc, M⊙ kpc⁻³); they would need to change if a future implementation switched to other units.
+
+**Toggle.** A `use_jeffreys_prior` flag (default `True`) on `make_loglike`, `make_loglike_with_nuisances`, and `run_inference` falls back to log-flat priors on `(log_10 r_s, log_10 ρ_s)` when set to `False`. The Asimov dev-loop path (`make_loglike_asimov`) does not apply the Jeffreys term and is unaffected by the flag.
+
+**Calibration status.** The 15-realization MC recovery test below was performed with the previous **log-flat** priors. `run_ufd_population.py` therefore explicitly pins `use_jeffreys_prior=False` for the MC-realization path so the documented calibration result remains reproducible. **TODO:** rerun the MC calibration with `use_jeffreys_prior=True` and update the recovery summary.
 
 ### Median-r_1/2 implementation of the `r_s > r_1/2` constraint
 
@@ -139,6 +150,8 @@ The σ_los integrals do not require a tidal-radius cutoff — both integrate to 
 ### MC recovery test
 
 End-to-end statistical validation of the inference (separate from the numerical-correctness checks above). 15 mock UFD realizations at fixed truth (`r_s = 0.3 kpc`, `ρ_s = 3 × 10⁸ M⊙ kpc⁻³`, `r_p = 0.05 kpc`, `β = 0`, `N_stars = 30`, `σ_ε = 2 km/s`), varied seed, run through the full likelihood + dynesty pipeline. Recovery is unbiased and within posterior widths on every realization (max `|z| = 2.3` across all 7 halo / `M(r_½)` quantities + 8 J/D-factor reporting angles × 15 realizations).
+
+**Prior used for this calibration:** log-flat on `(log_10 r_s, log_10 ρ_s)` (the previous default). The conditional-Jeffreys prior introduced for the Segue 1 analysis has not yet been validated through this MC; `run_ufd_population.py` pins `use_jeffreys_prior=False` so the recovery numbers below remain reproducible. Re-running the MC under `use_jeffreys_prior=True` is on the TODO list — qualitatively, in the resolved-dispersion regime that this MC sits in (`A_i ≫ ε_i²`), the Jeffreys term becomes ρ_s-independent, so the recovery should be similar; this needs to be verified rather than assumed.
 
 The well-constrained derived quantity is **`M(r_½, 3D)`**, with mean 1σ width ≈ 0.15 dex, std(z) ≈ 1.1, KS p ≈ 0.7 against N(0,1), and median bias < 0.01 dex. The individual halo parameters `log r_s`, `log ρ_s`, and the combination `log(ρ_s · r_s³)` have 1σ widths of ~0.9, ~1.2, and ~1.5 dex respectively — the data don't constrain them individually at UFD-scale `N_stars`, and the prior box drives 100% credible-interval coverage. For UFDs `r_½ / r_s ~ 0.2` puts us in the small-x NFW limit `M(r) ∝ ρ_s · r_s · r²`, so `ρ_s · r_s³` is *not* the well-constrained axis at this scale. The Stage 3 / Stage 4 reporting strategy follows from this: J/D-factors are the headline output (also tightly constrained because they integrate the same well-constrained mass profile), but `M(r_½)` is reported as a sanity check against the Wolf+2010 estimator.
 

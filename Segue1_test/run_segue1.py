@@ -292,6 +292,8 @@ def main():
     logp(f"  nuisance priors: d ~ N({nuisance_priors['d_mean']}, {nuisance_priors['d_sigma']}) kpc, "
          f"ε ~ N({nuisance_priors['eps_mean']}, {nuisance_priors['eps_sigma']}) trunc [0,1), "
          f"rhalf ~ N({nuisance_priors['rhalf_mean']}, {nuisance_priors['rhalf_sigma']}) arcmin")
+    logp("  halo prior: conditional Jeffreys on (ln ρ_s, ln r_s) at fixed β "
+         "(jeffreys_jeans_derivation.md), truncated to LOG10_RS/RHOS_BOUNDS")
     t_inf = time.time()
     result = jeans_inference.run_inference(
         galaxy,
@@ -302,6 +304,7 @@ def main():
         print_progress=False,
         marginalize_nuisances=True,
         nuisance_priors=nuisance_priors,
+        use_jeffreys_prior=True,
     )
     logp(f"  done in {time.time()-t_inf:.1f}s")
     logp(f"  logZ = {result['logz']:.3f} ± {result['logz_err']:.3f}")

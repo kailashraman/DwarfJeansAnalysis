@@ -41,8 +41,17 @@ to avoid a division by zero in the Jeans projection u-grid.
 **Jeans inference (Stage 2):**
 - Sampler: dynesty, nlive=500, dlogz=0.1, rwalk, multi
 - Free parameters: V_sys, log10(r_s), log10(ρ_s), β̃
-- Priors: uniform V_sys ∈ [208.5 ± 10] km/s; Jeffreys log10(r_s) ∈ [−1.678, 1]
-  (r_s > r_p floor applied); Jeffreys log10(ρ_s) ∈ [4, 14]; uniform β̃ ∈ [−0.95, 1]
+- Priors:
+  - uniform V_sys ∈ [208.5 ± 10] km/s; uniform β̃ ∈ [−0.95, 1)
+  - **Conditional Jeffreys prior on (ln ρ_s, ln r_s) at fixed β** (Fisher
+    determinant for the Walker+2006 likelihood — see
+    `jeffreys_jeans_derivation.md`), truncated by the box
+    `log10 r_s ∈ [−2, 1]`, `log10 ρ_s ∈ [4, 14]`. Implementation: per-call,
+    add `½ ln D` to the log-likelihood with
+    `D = S0 · Σ p_i w̃_i (T_i − T̄)²`,
+    `w̃_i = A_i² / (A_i + ε_i²)²`,
+    `T_i = 3 − 𝒬_i / 𝒫_i` (one extra Jeans-style integral with `g(x) → x²/(1+x)²`).
+  - r_s > r_p enforced inside the likelihood per draw (no deterministic floor).
 - Halo: NFW; tracer: Plummer with r_p = 0.021 kpc fixed
 - Membership weights p_i = Bpr (0.8–1.0 after hard cut)
 - Runtime: ~290 s on a single CPU
@@ -73,27 +82,34 @@ Sampled parameters: 4 halo (V_sys, log10 r_s, log10 ρ_s, β̃) + 3 nuisances (d
 | V_sys (Walker, constant-σ block) | 209.4 | [208.5, 210.3] | km/s |
 | **σ_los (Walker, proper Jeffreys)** | **3.96** | **[2.80, 5.13]** | km/s |
 | σ_los profile-LL Δlnℒ=½ (prior-indep) | 3.95 | [2.81, 5.13] | km/s |
-| V_sys (Jeans) | 209.1 | [208.2, 210.0] | km/s |
-| σ_los at R_half (Jeans) | 2.84 | [0.65, 4.12] | km/s |
-| log10 r_s | −0.60 | [−1.41, +0.44] | log10(kpc) |
-| β | 0.52 | [−0.39, +0.83] | — |
-| **d_kpc** (nuisance) | 23.0 | [21.0, 24.9] | kpc |
-| **ε** (nuisance) | 0.47 | [0.36, 0.57] | — |
-| **rhalf_arcmin** (nuisance) | 4.35 | [3.40, 5.38] | arcmin |
-| **r_p (derived)** | 0.0207 | [0.0156, 0.0270] | kpc |
-| **r_half_3d (derived)** | 0.0270 | [0.0204, 0.0352] | kpc |
-| **α_c (derived)** | 0.137 | [0.104, 0.172] | deg |
-| log10 M_half (2D) | 5.02 | [3.84, 5.36] | log10(M☉) |
-| log10 M_half (3D) | 5.23 | [4.05, 5.56] | log10(M☉) |
-| log10 J(0.5°) | 19.21 | [17.49, 19.88] | log10(GeV²/cm⁵) |
-| log10 J(α_c≈0.137°) | 18.99 | [17.30, 19.65] | log10(GeV²/cm⁵) |
-| log10 D(α_c/2) | 17.03 | [16.29, 17.38] | log10(GeV/cm²) |
+| V_sys (Jeans) | 209.2 | [208.3, 210.1] | km/s |
+| **σ_los at R_½ (Jeans)** | **3.86** | **[2.89, 4.92]** | km/s |
+| log10 r_s | −1.22 | [−1.58, −0.58] | log10(kpc) |
+| log10 ρ_s | +9.32 | [+8.36, +9.98] | log10(M☉ kpc⁻³) |
+| β | 0.48 | [−0.08, +0.79] | — |
+| **d_kpc** (nuisance) | 23.0 | [21.0, 25.1] | kpc |
+| **ε** (nuisance) | 0.47 | [0.37, 0.58] | — |
+| **rhalf_arcmin** (nuisance) | 4.27 | [3.22, 5.29] | arcmin |
+| **r_p (derived)** | 0.0203 | [0.0153, 0.0261] | kpc |
+| **r_half_3d (derived)** | 0.0265 | [0.0199, 0.0340] | kpc |
+| **α_c (derived)** | 0.133 | [0.101, 0.167] | deg |
+| log10 M_half (2D) | 5.33 | [5.05, 5.56] | log10(M☉) |
+| log10 M_half (3D) | 5.52 | [5.25, 5.74] | log10(M☉) |
+| log10 J(0.5°) | 19.63 | [19.15, 20.07] | log10(GeV²/cm⁵) |
+| log10 J(α_c≈0.133°) | 19.49 | [19.03, 19.98] | log10(GeV²/cm⁵) |
+| log10 D(α_c/2) | 17.18 | [16.93, 17.40] | log10(GeV/cm²) |
 
-logZ = −209.42 ± 0.11; n_eq = 4784 equal-weight samples. Wall time 288 s.
+logZ = −209.61 ± 0.13; n_eq = 5227 equal-weight samples. Wall time 479 s.
 
-**Nuisance posteriors all sit on top of their priors** (data don't add information about d, ε, rhalf — expected, since they enter only through the dynamical scale `r_p` and the per-star R conversion). The implied marginal `r_p = 21⁺⁶₋₅ pc` matches P&S 2018's 21 ± 5 pc target. Compared to the previous fixed-nuisance run, σ_los at R_½ and log10 M_half broaden on the *lower* tail (extra uncertainty from r_½,3D variation) — the qualitatively expected effect.
+**Nuisance posteriors all sit on top of their priors** (data don't add information about d, ε, rhalf — expected, since they enter only through the dynamical scale `r_p` and the per-star R conversion). The implied marginal `r_p = 20⁺⁶₋₅ pc` matches P&S 2018's 21 ± 5 pc target.
 
-**P&S 2018 Table A1 reference (Segue 1):** σ_los = 3.10 +0.90/−0.80 km/s. Our constant-σ result agrees within ~1σ on the median; errors are ~30% wider. The Bayesian credible interval (proper Jeffreys) and the prior-independent profile-LL interval coincide to two decimals — strong indicator the result is robust.
+**Effect of switching from log-flat to the conditional Jeffreys prior on (ln ρ_s, ln r_s).** Held against the log-flat baseline (`Segue1_test/baseline_logflat/`):
+- ρ_s posterior shifts up by ~1.4 dex and tightens — the low-ρ_s tail is correctly suppressed (the doc's main qualitative prediction: in the unresolved-σ regime, w̃_i ∝ ρ_s², so the prior decays as ρ_s² rather than being log-flat there).
+- σ_los at R_½ shifts from 2.84 → 3.86 km/s, **now matching the prior-independent Walker constant-σ result (3.96 km/s) to within rounding**. The log-flat Jeans posterior was biased low against the data-driven Walker estimate; the Jeffreys prior corrects this.
+- M_half (2D and 3D) shifts up by ~0.3 dex and tightens by ~3×.
+- J/D at the small angles shift up by ~0.5 dex.
+
+**P&S 2018 Table A1 reference (Segue 1):** σ_los = 3.10 +0.90/−0.80 km/s. Our Walker constant-σ result agrees within ~1σ on the median (errors ~30% wider). The Walker Bayesian credible interval (proper Jeffreys on σ) and the prior-independent profile-LL interval coincide to two decimals; the Jeans+Jeffreys σ_los at R_½ now agrees with both — strong indicator the result is robust.
 
 ---
 
