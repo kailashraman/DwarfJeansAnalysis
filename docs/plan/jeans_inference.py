@@ -101,8 +101,41 @@ def make_prior_transform_with_nuisances(
     return prior_transform
 
 
+def _jeffreys_log_term(sigma_los_sq: np.ndarray, T: np.ndarray,
+                        sigma_eps_sq: np.ndarray, p: np.ndarray) -> float:
+    """
+    ½ ln D where D is the (membership-weighted) Fisher determinant in
+    (ln ρ_s, ln r_s) at fixed β:
+
+        w̃_i  = A_i² / (A_i + ε_i²)²,        A_i = σ_los²(R_i)
+        S0   = Σ p_i w̃_i
+        T̄   = Σ p_i w̃_i T_i / S0
+        D    = S0 · Σ p_i w̃_i (T_i − T̄)²
+
+    The variance-form is mathematically equivalent to D = S0·S2 − S1² but
+    avoids catastrophic cancellation when Var(T) → 0.
+
+    Returns the additive contribution `0.5 * ln D` to the log-likelihood,
+    or -inf if D is non-finite or ≤ 0 (degenerate parameter point — the
+    stars do not span a range of R/r_s and r_s is unidentifiable).
+    """
+    A = sigma_los_sq
+    s_tot_sq = A + sigma_eps_sq
+    w_tilde = (A / s_tot_sq) ** 2  # = A² / s_tot⁴, computed without overflow
+    pw = p * w_tilde
+    S0 = pw.sum()
+    if not np.isfinite(S0) or S0 <= 0.0:
+        return -np.inf
+    T_bar = (pw * T).sum() / S0
+    D = S0 * (pw * (T - T_bar) ** 2).sum()
+    if not np.isfinite(D) or D <= 0.0:
+        return -np.inf
+    return 0.5 * np.log(D)
+
+
 def make_loglike_with_nuisances(
     Rad_arcmin: np.ndarray, V: np.ndarray, sigma_eps: np.ndarray, p: np.ndarray,
+    use_jeffreys_prior: bool = True,
 ):
     """
     7D Stage-2 log-likelihood with d, ε, rhalf_arcmin as nuisance parameters.
@@ -113,6 +146,11 @@ def make_loglike_with_nuisances(
 
     The rs > r_p constraint is enforced here (not in the prior) because the sampled
     r_p varies per draw; rejection returns -1e300 to match the existing failure path.
+
+    use_jeffreys_prior=True (default): add ½ ln D to the log-likelihood, where D is
+    the conditional Fisher determinant in (ln ρ_s, ln r_s) at fixed β
+    (jeffreys_jeans_derivation.md). The σ_los solve is replaced with
+    `jeans.sigma_los_with_T` to obtain σ_los and T = 3 − 𝒬/𝒫 in one pass.
     """
     Rad_arcmin = np.asarray(Rad_arcmin, dtype=float)
     V = np.asarray(V, dtype=float)
@@ -136,21 +174,35 @@ def make_loglike_with_nuisances(
         # protect the inner-Jeans u-grid against R=0.
         R = np.clip(R, 1e-5, None)
         try:
-            sigma_los = jeans.sigma_los(R, beta, r_s, rho_s, r_p, method="grid")
+            if use_jeffreys_prior:
+                sigma_los, T = jeans.sigma_los_with_T(R, beta, r_s, rho_s, r_p)
+            else:
+                sigma_los = jeans.sigma_los(R, beta, r_s, rho_s, r_p, method="grid")
         except (ValueError, FloatingPointError):
             return -1e300
         if not np.all(np.isfinite(sigma_los)):
             return -1e300
         sigma2 = sigma_los ** 2 + sigma_eps_sq
         ln_li = -0.5 * (LN_2PI + np.log(sigma2)) - 0.5 * (V - V_sys) ** 2 / sigma2
-        return float(np.sum(p * ln_li))
+        ll = float(np.sum(p * ln_li))
+        if use_jeffreys_prior:
+            log_det = _jeffreys_log_term(sigma_los ** 2, T, sigma_eps_sq, p)
+            if not np.isfinite(log_det):
+                return -1e300
+            ll += log_det
+        return ll
 
     return loglike
 
 
 def make_loglike(R: np.ndarray, V: np.ndarray, sigma_eps: np.ndarray,
-                  p: np.ndarray, r_p: float):
-    """Stage-2 log-likelihood. Captures the per-star data + fixed r_p."""
+                  p: np.ndarray, r_p: float,
+                  use_jeffreys_prior: bool = True):
+    """Stage-2 log-likelihood. Captures the per-star data + fixed r_p.
+
+    use_jeffreys_prior=True (default): add ½ ln D, the conditional Jeffreys
+    determinant in (ln ρ_s, ln r_s) at fixed β.
+    """
     R = np.asarray(R, dtype=float)
     V = np.asarray(V, dtype=float)
     sigma_eps = np.asarray(sigma_eps, dtype=float)
@@ -165,7 +217,10 @@ def make_loglike(R: np.ndarray, V: np.ndarray, sigma_eps: np.ndarray,
         rho_s = 10.0 ** log_rhos
         beta = beta_tilde_to_beta(btilde)
         try:
-            sigma_los = jeans.sigma_los(R, beta, r_s, rho_s, r_p, method="grid")
+            if use_jeffreys_prior:
+                sigma_los, T = jeans.sigma_los_with_T(R, beta, r_s, rho_s, r_p)
+            else:
+                sigma_los = jeans.sigma_los(R, beta, r_s, rho_s, r_p, method="grid")
         except (ValueError, FloatingPointError):
             return -1e300
         if not np.all(np.isfinite(sigma_los)):
@@ -174,7 +229,13 @@ def make_loglike(R: np.ndarray, V: np.ndarray, sigma_eps: np.ndarray,
         # log-Gaussian, membership-weighted; p_i are Bpr probabilities (0.8–1.0 after hard cut)
         # ln L_i = -1/2 ln(2π σ²) - (V_i - V)² / (2 σ²)
         ln_li = -0.5 * (LN_2PI + np.log(sigma2)) - 0.5 * (V - V_sys) ** 2 / sigma2
-        return float(np.sum(p * ln_li))
+        ll = float(np.sum(p * ln_li))
+        if use_jeffreys_prior:
+            log_det = _jeffreys_log_term(sigma_los ** 2, T, sigma_eps_sq, p)
+            if not np.isfinite(log_det):
+                return -1e300
+            ll += log_det
+        return ll
 
     return loglike
 
@@ -248,6 +309,7 @@ def run_inference(
     log10_rs_min: float | None = None,
     marginalize_nuisances: bool = False,
     nuisance_priors: dict | None = None,
+    use_jeffreys_prior: bool = True,
 ) -> dict:
     """
     Run dynesty on the mock galaxy. Returns a dict with:
@@ -273,6 +335,7 @@ def run_inference(
             V=galaxy["V"],
             sigma_eps=galaxy["sigma_eps"],
             p=galaxy["p"],
+            use_jeffreys_prior=use_jeffreys_prior,
         )
         prior_transform = make_prior_transform_with_nuisances(
             V_center,
@@ -301,6 +364,7 @@ def run_inference(
             sigma_eps=galaxy["sigma_eps"],
             p=galaxy["p"],
             r_p=galaxy["truth"]["r_p"],
+            use_jeffreys_prior=use_jeffreys_prior,
         )
         prior_transform = make_prior_transform(V_center, log10_rs_min=log10_rs_min)
         ndim = 4

@@ -88,6 +88,17 @@ def nfw_M(r: np.ndarray | float, r_s: float, rho_s: float) -> np.ndarray | float
     return 4.0 * np.pi * rho_s * r_s ** 3 * nfw_g(np.asarray(r) / r_s)
 
 
+def nfw_h(x: np.ndarray | float) -> np.ndarray | float:
+    """
+    Auxiliary dimensionless mass function h(x) = x^2 / (1+x)^2 that arises
+    from -∂g/∂ln r_s at fixed r' (with x = r'/r_s). Used to construct the
+    Fisher-information shape factor T = 3 - 𝒬/𝒫 for the conditional
+    Jeffreys prior on (ln ρ_s, ln r_s) — see jeffreys_jeans_derivation.md.
+    """
+    x = np.asarray(x, dtype=float)
+    return x * x / (1.0 + x) ** 2
+
+
 # ----------------------------------------------------------------------------
 # Plummer tracer density
 # ----------------------------------------------------------------------------
@@ -315,6 +326,102 @@ def Sigma_sigma_los2_grid(
 
 
 # ----------------------------------------------------------------------------
+# Paired projection integral for Jeffreys-prior Fisher shape factor T.
+# ----------------------------------------------------------------------------
+
+def Sigma_sigma_los2_grid_pair(
+    R: np.ndarray,
+    beta: float,
+    r_s: float,
+    rho_s: float,
+    r_p: float,
+    n_inner: int = 4096,
+    n_outer: int = 1024,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Tabulated evaluation of the projection integrals 𝒫(R) and 𝒬(R) for the
+    Jeffreys-prior shape factor T = 3 − 𝒬/𝒫.
+
+    Returns (P_arr, Q_arr), shape (N_R,), where:
+        P_arr[i] = Σ(R_i) · σ_los²(R_i)                     [as in Sigma_sigma_los2_grid]
+        Q_arr[i] = Σ(R_i) · σ_los_aux²(R_i)                  [same form, g(x) → h(x)]
+    so that
+        T_i = 3 − Q_arr[i] / P_arr[i].
+    The 8πGρ_s r_s³ prefactor and Σ(R) cancel in Q/P, so they are not needed.
+
+    Implementation reuses one shared inner log-`s` grid for both integrands
+    (only the log[g(x)] vs log[h(x)] term differs) and one shared per-R
+    log-`u` grid for the projection. The inner grid is run twice through
+    reverse log-cumsum; the outer u-loop performs two interpolations and
+    two trapezoids per R.
+    """
+    R = np.atleast_1d(np.asarray(R, dtype=float))
+
+    s_inf = 100.0 * max(r_s, r_p)
+    s_min = 1e-4 * min(r_s, r_p)
+    if np.any(R < s_min):
+        raise ValueError(
+            f"R contains values below the tabulation floor s_min={s_min:.3e} kpc "
+            f"(= 1e-4 * min(r_s={r_s:.3e}, r_p={r_p:.3e})). "
+            "Floor R before calling or increase n_inner."
+        )
+
+    # Shared inner log-s grid.
+    log_s = np.linspace(np.log(s_min), np.log(s_inf), n_inner)
+    s = np.exp(log_s)
+    x = s / r_s
+
+    # Common log-integrand:  (2β − 1)·log s + log ν + log(G · 4π ρ_s r_s³).
+    # (Derivation: trapezoid in log s integrates f·s·d log s; combined with the
+    #  s^(2β) prefactor and the 1/s² in F = ν·G·M/s² the s-powers reduce to
+    #  s^(2β−1).)
+    log_pref = np.log(G_KPC_KMS2_MSUN * 4.0 * np.pi * rho_s * r_s ** 3)
+    log_nu = np.log(plummer_nu(s, r_p))
+    common = (2.0 * beta - 1.0) * log_s + log_nu + log_pref
+
+    log_g_x = np.log(nfw_g(x))
+    log_h_x = np.log(nfw_h(x))
+    log_int_g = common + log_g_x
+    log_int_h = common + log_h_x
+
+    dlog = np.diff(log_s)
+    log_dlog = np.log(dlog)
+    half_log2 = np.log(2.0)
+
+    log_seg_g = np.logaddexp(log_int_g[:-1], log_int_g[1:]) - half_log2 + log_dlog
+    log_seg_h = np.logaddexp(log_int_h[:-1], log_int_h[1:]) - half_log2 + log_dlog
+
+    log_I_g = np.concatenate([
+        np.logaddexp.accumulate(log_seg_g[::-1])[::-1], [-np.inf],
+    ])
+    log_I_h = np.concatenate([
+        np.logaddexp.accumulate(log_seg_h[::-1])[::-1], [-np.inf],
+    ])
+
+    # Tabulated ν σ_r² for both integrands at r = s_grid.
+    nsr2_g_tab = np.exp(log_I_g - 2.0 * beta * log_s)
+    nsr2_h_tab = np.exp(log_I_h - 2.0 * beta * log_s)
+
+    # Shared per-R u-grid; two interps + two trapezoids per R.
+    log_r_tab = log_s
+    u_max = 100.0 * max(r_s, r_p)
+    P_arr = np.empty_like(R)
+    Q_arr = np.empty_like(R)
+    for i, Ri in enumerate(R):
+        u_min = 1e-4 * Ri
+        log_u = np.linspace(np.log(u_min), np.log(u_max), n_outer - 1)
+        u = np.concatenate([[0.0], np.exp(log_u)])
+        r_of_u = np.sqrt(Ri ** 2 + u ** 2)
+        log_r_of_u = np.log(np.clip(r_of_u, s_min, s_inf))
+        nsr2_g_at = np.interp(log_r_of_u, log_r_tab, nsr2_g_tab)
+        nsr2_h_at = np.interp(log_r_of_u, log_r_tab, nsr2_h_tab)
+        kernel = 1.0 - beta * Ri ** 2 / r_of_u ** 2
+        P_arr[i] = 2.0 * np.trapezoid(kernel * nsr2_g_at, u)
+        Q_arr[i] = 2.0 * np.trapezoid(kernel * nsr2_h_at, u)
+    return P_arr, Q_arr
+
+
+# ----------------------------------------------------------------------------
 # Top-level: σ_los(R) at requested star radii.
 # ----------------------------------------------------------------------------
 
@@ -341,3 +448,25 @@ def sigma_los(
         raise ValueError(f"unknown method {method!r}")
     Sigma = plummer_Sigma(R, r_p)
     return np.sqrt(Ssl2 / Sigma)
+
+
+def sigma_los_with_T(
+    R: np.ndarray,
+    beta: float,
+    r_s: float,
+    rho_s: float,
+    r_p: float,
+) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Return (σ_los(R), T(R)) where T_i = 3 − 𝒬_i/𝒫_i is the Fisher-information
+    shape factor entering the Jeffreys prior on (ln ρ_s, ln r_s).
+
+    Single-pass evaluation: shares the inner log-s grid and the per-R u-grid
+    between σ_los² and the auxiliary integral. ~2× the cost of `sigma_los`.
+    """
+    R = np.atleast_1d(np.asarray(R, dtype=float))
+    P_arr, Q_arr = Sigma_sigma_los2_grid_pair(R, beta, r_s, rho_s, r_p)
+    Sigma = plummer_Sigma(R, r_p)
+    sigma_los_arr = np.sqrt(P_arr / Sigma)
+    T_arr = 3.0 - Q_arr / P_arr
+    return sigma_los_arr, T_arr
