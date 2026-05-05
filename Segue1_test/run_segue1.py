@@ -1,0 +1,618 @@
+"""
+Quick Segue 1 Jeans run using docs/original-plan scripts.
+
+Reads global Segue 1 properties from LVDB v1.0.5 (cached locally),
+applies the p_i > 0.8 Bayesian-membership cut on the Simon+2011
+per-star catalog, runs Stage-2 dynesty inference via
+jeans_inference.run_inference, then derives σ_los, M_half, J, D
+posterior chains and writes plots + summary.
+"""
+from __future__ import annotations
+
+import os
+import sys
+import time
+import urllib.request
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+HERE = Path(__file__).resolve().parent
+REPO = HERE.parent
+sys.path.insert(0, str(REPO / "docs" / "plan"))
+
+import jeans  # noqa: E402
+import jeans_inference  # noqa: E402
+import j_d_factors as jdf  # noqa: E402
+
+LVDB_URL = ("https://github.com/apace7/local_volume_database/"
+            "releases/download/v1.0.5/comb_all.csv")
+LVDB_CACHE = HERE / "data" / "lvdb_v1.0.5_comb_all.csv"
+SEGUE1_KIN_CSV = REPO.parent / "Segue1" / "segue1_kinematics_simon2011.csv"
+P_CUT = 0.8
+ARCMIN_TO_RAD = np.pi / (180.0 * 60.0)
+PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
+
+# Pace+Strigari 2018 fixed observational parameters for Segue 1
+PS18_D_KPC        = 23.0   # distance [kpc]
+PS18_D_KPC_ERR    = 2.0    # 1-sigma uncertainty [kpc]
+PS18_RHALF_PC     = 21.0   # azimuthally averaged half-light radius [pc]
+PS18_RHALF_PC_ERR = 5.0    # 1-sigma uncertainty [pc]
+
+
+def fetch_lvdb() -> Path:
+    LVDB_CACHE.parent.mkdir(parents=True, exist_ok=True)
+    if not LVDB_CACHE.exists():
+        urllib.request.urlretrieve(LVDB_URL, LVDB_CACHE)
+    return LVDB_CACHE
+
+
+def load_segue1_lvdb() -> dict:
+    df = pd.read_csv(fetch_lvdb())
+    row = df[df["key"] == "segue_1"]
+    if len(row) != 1:
+        raise RuntimeError(f"Segue 1 lookup failed: {len(row)} rows")
+    r = row.iloc[0]
+
+    rhalf_arcmin = float(r["rhalf"])
+    eps = float(r["ellipticity"]) if not pd.isna(r["ellipticity"]) else 0.0
+    mu = float(r["distance_modulus"])
+    d_kpc = 10.0 ** (1.0 + mu / 5.0) / 1000.0  # pc -> kpc
+    R_half_2d = d_kpc * rhalf_arcmin * ARCMIN_TO_RAD * np.sqrt(1.0 - eps)
+    # Segue 1: assumed Plummer (Martin+2008). LVDB v1.0.5 has no explicit
+    # spatial_model column; logged so the assumption is visible.
+    r_p = R_half_2d
+    r_half_3d = PLUMMER_3D_OVER_2D * r_p
+    V_center = float(r["vlos_systemic"]) if not pd.isna(r["vlos_systemic"]) else 208.5
+
+    return {
+        "rhalf_arcmin": rhalf_arcmin,
+        "ellipticity": eps,
+        "distance_modulus": mu,
+        "d_kpc": d_kpc,
+        "R_half_2d_kpc": R_half_2d,
+        "r_p_kpc": r_p,
+        "r_half_3d_kpc": r_half_3d,
+        "V_center_kms": V_center,
+        "vlos_sigma_lvdb_kms": float(r["vlos_sigma"]) if not pd.isna(r["vlos_sigma"]) else np.nan,
+    }
+
+
+def load_stars(d_kpc: float) -> pd.DataFrame:
+    df = pd.read_csv(SEGUE1_KIN_CSV)
+    keep = df[["Vel", "e_Vel", "Rad", "Bpr"]].copy()
+    keep = keep.dropna()
+    keep = keep[keep["Bpr"] > P_CUT].reset_index(drop=True)
+    # Keep angular radii (arcmin) — d-dependent conversion to kpc happens at
+    # consumption time so it can vary per-draw when nuisance-marginalizing.
+    keep["Rad_arcmin"] = keep["Rad"].values
+    R_kpc = d_kpc * keep["Rad"].values * ARCMIN_TO_RAD
+    # The grid integrator in jeans.sigma_los uses u_min = 1e-4 * R, which
+    # blows up at exactly R=0. Floor at a small positive value (1e-5 kpc
+    # ≈ 1.5e-3 arcmin at d=23 kpc — far below per-star astrometric error).
+    keep["R_kpc"] = np.clip(R_kpc, 1e-5, None)
+    return keep
+
+
+def constant_sigma_inference(V_obs, sigma_eps, p, V_center,
+                               V_halfwidth=10.0,
+                               log10_sigma_min=-2.0, log10_sigma_max=2.0,
+                               n_V=400, n_sigma=400):
+    """
+    Walker+2006 membership-weighted Gaussian likelihood for (V_sys, σ_los)
+    under a radius-independent dispersion model.
+
+    Likelihood per star:
+        ln L_i = p_i [ -½ ln(2π(σ² + ε_i²)) - ½ (V_i - V_sys)² / (σ² + ε_i²) ]
+
+    Priors: uniform on V_sys ∈ [V_center ± V_halfwidth] and proper Jeffreys
+    (Fisher-determinant) prior on σ, truncated to log₁₀σ ∈ [log10_sigma_min,
+    log10_sigma_max]. Per-star Fisher info is diagonal in (V̄, σ) with
+    I_V̄V̄ = 1/σ_i² and I_σσ = 2σ²/σ_i⁴ where σ_i² = σ² + ε_i², so
+        p_J(σ) ∝ σ · √( [Σ_i p_i/σ_i²] [Σ_i p_i/σ_i⁴] )    (V̄-independent).
+    """
+    V_obs = np.asarray(V_obs, dtype=float)
+    sigma_eps_sq = np.asarray(sigma_eps, dtype=float) ** 2
+    p = np.asarray(p, dtype=float)
+
+    V_grid = np.linspace(V_center - V_halfwidth, V_center + V_halfwidth, n_V)
+    log10_sigma_grid = np.linspace(log10_sigma_min, log10_sigma_max, n_sigma)
+    sigma_grid = 10.0 ** log10_sigma_grid
+
+    # sigma2[j, k] = sigma_grid[j]^2 + sigma_eps_sq[k]   shape (n_sigma, N)
+    sigma2 = sigma_grid[:, None] ** 2 + sigma_eps_sq[None, :]
+
+    # log_norm[j] = Σ_k p_k ln(2π σ2[j,k])              shape (n_sigma,)
+    log_norm = np.log(2.0 * np.pi * sigma2) @ p
+
+    # dV2[i, k] = (V_obs[k] - V_grid[i])^2              shape (n_V, N)
+    dV2 = (V_obs[None, :] - V_grid[:, None]) ** 2
+
+    # chi2[i, j] = Σ_k p_k dV2[i,k] / sigma2[j,k]      shape (n_V, n_sigma)
+    chi2 = dV2 @ (p[:, None] / sigma2.T)
+
+    # Bare log-likelihood (used by profile-LL; prior-independent).
+    log_lik = -0.5 * (log_norm[None, :] + chi2)
+
+    # Proper Jeffreys prior for the (V̄, σ) Walker+2006 model, σ-only:
+    # ln p_J(σ) = ln σ + ½ ln(Σ_i p_i/σ_i²) + ½ ln(Σ_i p_i/σ_i⁴)
+    inv_sigma2 = 1.0 / sigma2                                     # (n_sigma, N)
+    sum1 = inv_sigma2 @ p                                          # (n_sigma,)
+    sum2 = (inv_sigma2 ** 2) @ p                                   # (n_sigma,)
+    log_prior_J = np.log(sigma_grid) + 0.5 * (np.log(sum1) + np.log(sum2))
+
+    log_post = log_lik + log_prior_J[None, :]
+    log_post -= log_post.max()
+    log_lik  -= log_lik.max()                                      # for numerical stability of profile-LL
+    post = np.exp(log_post)
+
+    # Prior is absorbed into log_post; integrate the σ-marginal directly on
+    # the linear σ-grid (no Jacobian). For the V-marginal, integrate over σ.
+    marg_V = np.trapezoid(post, sigma_grid, axis=1)
+    marg_V /= np.trapezoid(marg_V, V_grid)
+    marg_sigma = np.trapezoid(post, V_grid, axis=0)
+    marg_sigma /= np.trapezoid(marg_sigma, sigma_grid)
+    # Optional log10σ-space marginal (just for plotting): p(log10σ) = p(σ)·σ·ln10
+    marg_log10_sigma = marg_sigma * sigma_grid * np.log(10.0)
+
+    def _pct(x, pdf):
+        dx = np.diff(x)
+        cdf = np.concatenate([[0.0], np.cumsum(0.5 * (pdf[:-1] + pdf[1:]) * dx)])
+        cdf /= cdf[-1]
+        return [float(np.interp(q, cdf, x)) for q in (0.16, 0.50, 0.84)]
+
+    q16_V, q50_V, q84_V = _pct(V_grid, marg_V)
+    q16_s, q50_s, q84_s = _pct(sigma_grid, marg_sigma)
+
+    # Profile log-likelihood vs σ (V_sys profiled out at each σ). Uses the
+    # bare log-likelihood (NOT the Jeffreys-weighted log-posterior) so the
+    # interval remains prior-independent.
+    # Δln L = -½ from the maximum gives the 1σ frequentist (Wilks) interval.
+    prof_lnL = log_lik.max(axis=0)             # shape (n_sigma,) — log_lik is already max-shifted
+    j_hat = int(np.argmax(prof_lnL))
+    sigma_hat = float(sigma_grid[j_hat])
+    target = prof_lnL[j_hat] - 0.5
+    # Lower side: scan from peak down to j=0; profile is monotonic away from peak in well-behaved cases.
+    if j_hat > 0:
+        lo_slice_x = sigma_grid[:j_hat + 1]
+        lo_slice_y = prof_lnL[:j_hat + 1]
+        # Need monotonic-in-y for interp; profile rises toward peak so y ascends.
+        if (lo_slice_y[-1] - lo_slice_y[0]) > 0 and lo_slice_y[0] < target:
+            sigma_lo_prof = float(np.interp(target, lo_slice_y, lo_slice_x))
+        else:
+            sigma_lo_prof = float(sigma_grid[0])  # hit prior bound — data don't constrain below
+    else:
+        sigma_lo_prof = float(sigma_grid[0])
+    # Upper side: scan from peak up; profile descends, so reverse for monotone-ascending interp.
+    if j_hat < n_sigma - 1:
+        hi_slice_x = sigma_grid[j_hat:][::-1]
+        hi_slice_y = prof_lnL[j_hat:][::-1]
+        if (hi_slice_y[-1] - hi_slice_y[0]) > 0 and hi_slice_y[0] < target:
+            sigma_hi_prof = float(np.interp(target, hi_slice_y, hi_slice_x))
+        else:
+            sigma_hi_prof = float(sigma_grid[-1])
+    else:
+        sigma_hi_prof = float(sigma_grid[-1])
+
+    return {
+        "V_sys":     {"median": q50_V, "q16": q16_V, "q84": q84_V,
+                      "sigma_lo": q50_V - q16_V, "sigma_hi": q84_V - q50_V},
+        "sigma_int": {"median": q50_s, "q16": q16_s, "q84": q84_s,
+                      "sigma_lo": q50_s - q16_s, "sigma_hi": q84_s - q50_s},
+        "sigma_int_profile": {"mle": sigma_hat,
+                                "lo": sigma_lo_prof, "hi": sigma_hi_prof,
+                                "sigma_lo": sigma_hat - sigma_lo_prof,
+                                "sigma_hi": sigma_hi_prof - sigma_hat},
+        "V_grid": V_grid, "sigma_grid": sigma_grid,
+        "log10_sigma_grid": log10_sigma_grid,
+        "log_post": log_post, "log_lik": log_lik, "log_prior_J": log_prior_J,
+        "marg_V": marg_V,
+        "marg_sigma": marg_sigma, "marg_log10_sigma": marg_log10_sigma,
+        "prof_lnL": prof_lnL,
+    }
+
+
+def percentiles(arr: np.ndarray) -> dict:
+    arr = np.asarray(arr)
+    arr = arr[np.isfinite(arr)]
+    q16, q50, q84 = np.percentile(arr, [16.0, 50.0, 84.0])
+    return {"median": q50, "q16": q16, "q84": q84,
+            "sigma_lo": q50 - q16, "sigma_hi": q84 - q50}
+
+
+def main():
+    out_dir = HERE
+    plot_dir = out_dir
+    log = []
+
+    def logp(*a):
+        msg = " ".join(str(x) for x in a)
+        print(msg)
+        log.append(msg)
+
+    t0 = time.time()
+    g = load_segue1_lvdb()
+    logp("=== LVDB v1.0.5 Segue 1 ===")
+    for k, v in g.items():
+        logp(f"  {k}: {v}")
+
+    # Override LVDB values with Pace+Strigari 2018 observational parameters
+    g["d_kpc"]         = PS18_D_KPC
+    g["R_half_2d_kpc"] = PS18_RHALF_PC / 1000.0
+    g["r_p_kpc"]       = PS18_RHALF_PC / 1000.0
+    g["r_half_3d_kpc"] = PLUMMER_3D_OVER_2D * PS18_RHALF_PC / 1000.0
+    logp("\n=== P&S 2018 observational overrides ===")
+    logp(f"  d_kpc:         {g['d_kpc']:.1f} ± {PS18_D_KPC_ERR:.1f} kpc")
+    logp(f"  r_p_kpc:       {g['r_p_kpc']*1000:.1f} ± {PS18_RHALF_PC_ERR:.1f} pc")
+    logp(f"  r_half_3d_kpc: {g['r_half_3d_kpc']*1000:.2f} pc")
+
+    stars = load_stars(g["d_kpc"])
+    logp(f"\n=== Per-star data ({SEGUE1_KIN_CSV.name}) ===")
+    logp(f"  Bpr > {P_CUT}: N = {len(stars)}")
+    logp(f"  R range (kpc): [{stars['R_kpc'].min():.4f}, {stars['R_kpc'].max():.4f}]")
+    logp(f"  V mean/std (km/s): {stars['Vel'].mean():.2f} / {stars['Vel'].std():.2f}")
+    logp(f"  e_Vel median (km/s): {stars['e_Vel'].median():.2f}")
+    logp(f"  p (Bpr) min/median: {stars['Bpr'].min():.3f} / {stars['Bpr'].median():.3f}")
+
+    galaxy = {
+        "R": stars["R_kpc"].values,                # used by 4D path; stale-d snapshot
+        "Rad_arcmin": stars["Rad_arcmin"].values,  # used by 7D nuisance-marginalized path
+        "V": stars["Vel"].values,
+        "sigma_eps": stars["e_Vel"].values,
+        "p": stars["Bpr"].values,
+        "truth": {"r_p": g["r_p_kpc"]},
+    }
+
+    # Nuisance priors (P&S 2018 distance + Martin+2008 ellipticity; rhalf set so
+    # that at fiducial (d=23, ε=0.47) the implied r_p is 21 ± 5 pc per P&S 2018).
+    nuisance_priors = {
+        "d_mean":      23.0,    "d_sigma":      2.0,    # kpc
+        "eps_mean":    0.47,    "eps_sigma":    0.11,   # dimensionless, truncated to [0,1)
+        "rhalf_mean":  4.31,    "rhalf_sigma":  1.03,   # arcmin
+    }
+
+    logp("\n=== Constant-σ inference ===")
+    cs = constant_sigma_inference(
+        galaxy["V"], galaxy["sigma_eps"], galaxy["p"],
+        V_center=g["V_center_kms"],
+    )
+    logp(f"  V_sys:     {cs['V_sys']['median']:+.4g}  "
+         f"[{cs['V_sys']['q16']:+.4g}, {cs['V_sys']['q84']:+.4g}]  (km/s)")
+    logp(f"  sigma_int: {cs['sigma_int']['median']:.4g}  "
+         f"[{cs['sigma_int']['q16']:.4g}, {cs['sigma_int']['q84']:.4g}]  (km/s)")
+    pf = cs["sigma_int_profile"]
+    logp(f"  sigma_int (profile-LL Δlnℒ=½): "
+         f"{pf['mle']:.4g} +{pf['sigma_hi']:.4g}/-{pf['sigma_lo']:.4g}  (km/s)")
+
+    logp("\n=== Running dynesty (7D, nuisance-marginalized; nlive=500, dlogz=0.1) ===")
+    logp(f"  nuisance priors: d ~ N({nuisance_priors['d_mean']}, {nuisance_priors['d_sigma']}) kpc, "
+         f"ε ~ N({nuisance_priors['eps_mean']}, {nuisance_priors['eps_sigma']}) trunc [0,1), "
+         f"rhalf ~ N({nuisance_priors['rhalf_mean']}, {nuisance_priors['rhalf_sigma']}) arcmin")
+    t_inf = time.time()
+    result = jeans_inference.run_inference(
+        galaxy,
+        V_center=g["V_center_kms"],
+        nlive=500,
+        dlogz=0.1,
+        rseed=0,
+        print_progress=False,
+        marginalize_nuisances=True,
+        nuisance_priors=nuisance_priors,
+    )
+    logp(f"  done in {time.time()-t_inf:.1f}s")
+    logp(f"  logZ = {result['logz']:.3f} ± {result['logz_err']:.3f}")
+    logp(f"  n_eq = {result['n_eq']}")
+
+    samples_eq = result["samples_eq"]
+    V_chain, lr_chain, lp_chain, btilde_chain, d_chain, eps_chain, rhalf_arcmin_chain = samples_eq.T
+    r_s_chain = 10.0 ** lr_chain
+    rho_s_chain = 10.0 ** lp_chain
+    beta_chain = jeans_inference.beta_tilde_to_beta(btilde_chain)
+
+    # Per-sample derived nuisance chains
+    r_p_chain        = d_chain * rhalf_arcmin_chain * ARCMIN_TO_RAD * np.sqrt(1.0 - eps_chain)
+    R_half_2d_chain  = r_p_chain                                # Plummer assumption
+    r_half_3d_chain  = PLUMMER_3D_OVER_2D * r_p_chain
+    r_t_kpc = 1.0  # placeholder; matches stage3.md mock-test default
+
+    # Enclosed mass chains (vectorized — nfw_M is closed-form, and accepts arrays)
+    log10_M_2d = np.log10(jeans.nfw_M(R_half_2d_chain, r_s_chain, rho_s_chain))
+    log10_M_3d = np.log10(jeans.nfw_M(r_half_3d_chain, r_s_chain, rho_s_chain))
+
+    # Sigma_los at R_half_2d — loop over chain (sigma_los takes scalar r_s, rho_s)
+    N_chain = samples_eq.shape[0]
+    THIN_TO = 2000  # σ_los is cheap; J/D is expensive
+    rng = np.random.default_rng(0)
+    if N_chain > THIN_TO:
+        idx_sigma = rng.choice(N_chain, size=THIN_TO, replace=False)
+    else:
+        idx_sigma = np.arange(N_chain)
+
+    sigma_at_Rhalf = np.empty(idx_sigma.size)
+    for j, i in enumerate(idx_sigma):
+        try:
+            s = jeans.sigma_los(np.array([R_half_2d_chain[i]]), beta_chain[i],
+                                 r_s_chain[i], rho_s_chain[i], r_p_chain[i],
+                                 method="grid")
+            sigma_at_Rhalf[j] = float(s[0])
+        except Exception:
+            sigma_at_Rhalf[j] = np.nan
+
+    # Sigma_los profile chain (median + 68% band over a radial grid). The grid is
+    # set from the empirical R range under the *posterior-median* d (so the radial
+    # axis has a fixed meaning across draws).
+    d_med = float(np.median(d_chain))
+    R_kpc_med = d_med * stars["Rad_arcmin"].values * ARCMIN_TO_RAD
+    R_grid = np.geomspace(max(np.clip(R_kpc_med, 1e-5, None).min(), 1e-3),
+                            R_kpc_med.max(), 30)
+    THIN_PROFILE = 300
+    if N_chain > THIN_PROFILE:
+        idx_prof = rng.choice(N_chain, size=THIN_PROFILE, replace=False)
+    else:
+        idx_prof = np.arange(N_chain)
+    sigma_profile = np.full((idx_prof.size, R_grid.size), np.nan)
+    for j, i in enumerate(idx_prof):
+        try:
+            sigma_profile[j] = jeans.sigma_los(R_grid, beta_chain[i],
+                                                 r_s_chain[i], rho_s_chain[i],
+                                                 r_p_chain[i], method="grid")
+        except Exception:
+            pass
+    sig_lo = np.nanpercentile(sigma_profile, 16, axis=0)
+    sig_med = np.nanpercentile(sigma_profile, 50, axis=0)
+    sig_hi = np.nanpercentile(sigma_profile, 84, axis=0)
+
+    # J/D chains: thin + loop (matches summarize_jd cost)
+    THIN_JD = 500
+    if N_chain > THIN_JD:
+        idx_jd = rng.choice(N_chain, size=THIN_JD, replace=False)
+    else:
+        idx_jd = np.arange(N_chain)
+
+    # alpha_c is per-sample (depends on per-draw d, r_half_3d). Fixed-angle entries are scalar.
+    alpha_c_chain = jdf.alpha_c_radians(r_half_3d_chain, d_chain)
+    fixed_angles_J = {
+        "0p1deg": 0.1 * jdf.DEG,
+        "0p2deg": 0.2 * jdf.DEG,
+        "0p5deg": 0.5 * jdf.DEG,
+    }
+    fixed_angles_D = dict(fixed_angles_J)  # same fixed angles for D
+    log10_J = {tag: np.empty(idx_jd.size) for tag in (*fixed_angles_J, "alphac")}
+    log10_D = {tag: np.empty(idx_jd.size) for tag in (*fixed_angles_D, "alphacover2")}
+    logp(f"\n=== J/D integrals (thin {idx_jd.size}/{N_chain}) ===")
+    logp(f"  alpha_c (median): {float(np.median(alpha_c_chain)):.5f} rad "
+         f"({float(np.median(alpha_c_chain))/jdf.DEG:.4f} deg)")
+    t_jd = time.time()
+    for j, i in enumerate(idx_jd):
+        rs_i, rhos_i = float(r_s_chain[i]), float(rho_s_chain[i])
+        d_i = float(d_chain[i])
+        ac_i = float(alpha_c_chain[i])
+        for tag, th in fixed_angles_J.items():
+            J, _ = jdf.J_D_factors(th, d_i, rs_i, rhos_i, r_t_kpc)
+            log10_J[tag][j] = np.log10(J) + jdf.LOG10_J_FAC if J > 0 else np.nan
+        J_ac, _ = jdf.J_D_factors(ac_i, d_i, rs_i, rhos_i, r_t_kpc)
+        log10_J["alphac"][j] = np.log10(J_ac) + jdf.LOG10_J_FAC if J_ac > 0 else np.nan
+        for tag, th in fixed_angles_D.items():
+            _, D = jdf.J_D_factors(th, d_i, rs_i, rhos_i, r_t_kpc)
+            log10_D[tag][j] = np.log10(D) + jdf.LOG10_D_FAC if D > 0 else np.nan
+        _, D_aco2 = jdf.J_D_factors(0.5 * ac_i, d_i, rs_i, rhos_i, r_t_kpc)
+        log10_D["alphacover2"][j] = np.log10(D_aco2) + jdf.LOG10_D_FAC if D_aco2 > 0 else np.nan
+    logp(f"  done in {time.time()-t_jd:.1f}s")
+
+    # ---- Save samples ----
+    np.savez(
+        out_dir / "posterior_samples.npz",
+        samples_eq=samples_eq,
+        V=V_chain, log10_rs=lr_chain, log10_rhos=lp_chain,
+        beta_tilde=btilde_chain, beta=beta_chain,
+        d_kpc_chain=d_chain, eps_chain=eps_chain, rhalf_arcmin_chain=rhalf_arcmin_chain,
+        r_p_chain=r_p_chain, R_half_2d_chain=R_half_2d_chain,
+        r_half_3d_chain=r_half_3d_chain, alpha_c_chain=alpha_c_chain,
+        log10_M_half_2d=log10_M_2d, log10_M_half_3d=log10_M_3d,
+        sigma_los_at_Rhalf2d=sigma_at_Rhalf,
+        R_grid_sigma_profile=R_grid,
+        sigma_profile_q16=sig_lo, sigma_profile_q50=sig_med, sigma_profile_q84=sig_hi,
+        **{f"log10_J_{tag}": v for tag, v in log10_J.items()},
+        **{f"log10_D_{tag}": v for tag, v in log10_D.items()},
+        r_t_kpc=r_t_kpc,
+        sigma_los_walker_V_grid=cs["V_grid"],
+        sigma_los_walker_sigma_grid=cs["sigma_grid"],
+        sigma_los_walker_log10_sigma_grid=cs["log10_sigma_grid"],
+        sigma_los_walker_marg_V=cs["marg_V"],
+        sigma_los_walker_marg_sigma=cs["marg_sigma"],
+        sigma_los_walker_marg_log10_sigma=cs["marg_log10_sigma"],
+    )
+
+    # ---- Summary CSV ----
+    summary_rows = []
+    def addrow(name, arr, unit=""):
+        s = percentiles(arr)
+        summary_rows.append({"quantity": name, "unit": unit, **s})
+
+    addrow("V_sys", V_chain, "km/s")
+    addrow("log10_rs", lr_chain, "log10(kpc)")
+    addrow("log10_rhos", lp_chain, "log10(Msun/kpc^3)")
+    addrow("beta_tilde", btilde_chain, "")
+    addrow("beta", beta_chain, "")
+    addrow("d_kpc",         d_chain,             "kpc")
+    addrow("eps",           eps_chain,           "")
+    addrow("rhalf_arcmin",  rhalf_arcmin_chain,  "arcmin")
+    addrow("r_p_kpc",       r_p_chain,           "kpc")
+    addrow("R_half_2d_kpc", R_half_2d_chain,     "kpc")
+    addrow("r_half_3d_kpc", r_half_3d_chain,     "kpc")
+    addrow("alpha_c_deg",   alpha_c_chain / jdf.DEG, "deg")
+    addrow("sigma_los_at_R_half_2d", sigma_at_Rhalf, "km/s")
+    addrow("log10_M_half_2d", log10_M_2d, "log10(Msun)")
+    addrow("log10_M_half_3d", log10_M_3d, "log10(Msun)")
+    for tag, v in log10_J.items():
+        addrow(f"log10_J_{tag}", v, "log10(GeV^2/cm^5)")
+    for tag, v in log10_D.items():
+        addrow(f"log10_D_{tag}", v, "log10(GeV/cm^2)")
+    summary_rows.append({"quantity": "V_sys_walker",       "unit": "km/s", **cs["V_sys"]})
+    summary_rows.append({"quantity": "sigma_los_walker",    "unit": "km/s", **cs["sigma_int"]})
+    pf = cs["sigma_int_profile"]
+    # NOTE: this row is NOT a Bayesian percentile interval. The "median"/"q16"/"q84"
+    # slots store the MLE and the Δlnℒ=½ (Wilks 1σ) endpoints — re-using the columns
+    # only so the CSV schema stays homogeneous. The `_profileLL_mle_dlnL_half` suffix
+    # is the disambiguator; readers should not interpret these as quantiles.
+    summary_rows.append({
+        "quantity": "sigma_los_walker_profileLL_mle_dlnL_half", "unit": "km/s",
+        "median": pf["mle"], "q16": pf["lo"], "q84": pf["hi"],
+        "sigma_lo": pf["sigma_lo"], "sigma_hi": pf["sigma_hi"],
+    })
+
+    summary = pd.DataFrame(summary_rows)
+    summary.to_csv(out_dir / "summary.csv", index=False, float_format="%.6g")
+    logp("\n=== Posterior summary (median, q16, q84) ===")
+    for r in summary_rows:
+        logp(f"  {r['quantity']:<28s} {r['median']:+.4g}  "
+              f"[{r['q16']:+.4g}, {r['q84']:+.4g}]  ({r['unit']})")
+
+    # ---- Plots ----
+    # Corner of all 7 sampled params (4 halo + 3 nuisances)
+    corner_labels = ["V [km/s]", r"$\log_{10} r_s$ [kpc]",
+                      r"$\log_{10}\rho_s$", r"$\tilde\beta$",
+                      r"$d$ [kpc]", r"$\varepsilon$", r"$r_{1/2}$ [arcmin]"]
+    try:
+        import corner
+        fig = corner.corner(samples_eq,
+                             labels=corner_labels,
+                             show_titles=True, quantiles=[0.16, 0.5, 0.84])
+        fig.savefig(out_dir / "corner_halo.png", dpi=140)
+        plt.close(fig)
+    except ImportError:
+        n = samples_eq.shape[1]
+        ncols = 4
+        nrows = int(np.ceil(n / ncols))
+        fig, axes = plt.subplots(nrows, ncols, figsize=(3.0*ncols, 2.6*nrows))
+        for k in range(n):
+            ax = axes.flat[k]
+            ax.hist(samples_eq[:, k], bins=50, density=True, color="C0", alpha=0.7)
+            ax.set_xlabel(corner_labels[k])
+        for k in range(n, nrows*ncols):
+            axes.flat[k].axis("off")
+        fig.tight_layout()
+        fig.savefig(out_dir / "corner_halo.png", dpi=140)
+        plt.close(fig)
+
+    # σ_los profile + 1D KDE at R_half. The eyeball data points and R_½ marker
+    # are at posterior-median d (R_kpc_med, R_half_2d_med) — same axis as R_grid.
+    R_half_2d_med = float(np.median(R_half_2d_chain))
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4))
+    ax = axes[0]
+    ax.fill_between(R_grid, sig_lo, sig_hi, alpha=0.3, color="C0",
+                     label="68% band")
+    ax.plot(R_grid, sig_med, "C0-", lw=2, label="median")
+    ax.errorbar(R_kpc_med, np.abs(stars["Vel"] - stars["Vel"].mean()),
+                yerr=stars["e_Vel"], fmt=".", ms=3, alpha=0.4, color="k",
+                label="|V-<V>| (data, eyeball)")
+    ax.set_xscale("log")
+    ax.set_xlabel("R [kpc]")
+    ax.set_ylabel(r"$\sigma_{\rm los}(R)$ [km/s]")
+    ax.axvline(R_half_2d_med, ls="--", color="grey", label=r"$R_{1/2,2D}$ (median)")
+    ax.legend(fontsize=8)
+    ax.set_title("σ_los profile posterior")
+
+    ax = axes[1]
+    s = sigma_at_Rhalf[np.isfinite(sigma_at_Rhalf)]
+    ax.hist(s, bins=60, density=True, color="C0", alpha=0.7)
+    ax.set_xlabel(r"$\sigma_{\rm los}(R_{1/2,2D})$ [km/s]")
+    ax.set_ylabel("posterior density")
+    q16, q50, q84 = np.percentile(s, [16, 50, 84])
+    ax.axvline(q50, color="k")
+    ax.axvline(q16, color="k", ls="--"); ax.axvline(q84, color="k", ls="--")
+    ax.set_title(f"σ at R_½: {q50:.2f} +{q84-q50:.2f}/-{q50-q16:.2f} km/s")
+    fig.tight_layout()
+    fig.savefig(out_dir / "posterior_sigma_los.png", dpi=140)
+    plt.close(fig)
+
+    # M_half KDE
+    fig, ax = plt.subplots(figsize=(7, 4.2))
+    for arr, lbl, c in [(log10_M_2d, r"$M(R_{1/2,2D})$", "C0"),
+                          (log10_M_3d, r"$M(r_{1/2,3D})$", "C3")]:
+        ax.hist(arr, bins=60, density=True, alpha=0.55, color=c, label=lbl)
+        q16, q50, q84 = np.percentile(arr, [16, 50, 84])
+        ax.axvline(q50, color=c, ls="-")
+    ax.set_xlabel(r"$\log_{10}(M / M_\odot)$")
+    ax.set_ylabel("posterior density")
+    ax.legend()
+    ax.set_title("Enclosed-mass posteriors")
+    fig.tight_layout()
+    fig.savefig(out_dir / "posterior_M_half.png", dpi=140)
+    plt.close(fig)
+
+    # Beta KDE
+    fig, axes = plt.subplots(1, 2, figsize=(10, 3.8))
+    axes[0].hist(btilde_chain, bins=60, density=True, color="C2", alpha=0.7)
+    axes[0].set_xlabel(r"$\tilde\beta$")
+    axes[0].set_ylabel("posterior density")
+    axes[1].hist(beta_chain, bins=60, density=True, color="C2", alpha=0.7,
+                  range=(-3, 1))
+    axes[1].set_xlabel(r"$\beta$")
+    axes[1].set_ylabel("posterior density")
+    fig.suptitle("Anisotropy posterior")
+    fig.tight_layout()
+    fig.savefig(out_dir / "posterior_beta.png", dpi=140)
+    plt.close(fig)
+
+    # J / D
+    def _jd_plot(chains, title, fname, unit_lbl):
+        fig, ax = plt.subplots(figsize=(7.5, 4.5))
+        for tag, arr in chains.items():
+            arr = arr[np.isfinite(arr)]
+            ax.hist(arr, bins=50, density=True, alpha=0.45, label=tag)
+            q50 = np.median(arr)
+            ax.axvline(q50, color=plt.gca().lines[-1].get_color() if False
+                        else None, ls=":")
+        ax.set_xlabel(unit_lbl)
+        ax.set_ylabel("posterior density")
+        ax.legend(title="θ")
+        ax.set_title(title)
+        fig.tight_layout()
+        fig.savefig(out_dir / fname, dpi=140)
+        plt.close(fig)
+
+    alpha_c_med_deg = float(np.median(alpha_c_chain)) / jdf.DEG
+    _jd_plot(log10_J, f"J-factor posteriors (median α_c={alpha_c_med_deg:.3f}°)",
+              "posterior_J.png", r"$\log_{10} J\ [{\rm GeV}^2 / {\rm cm}^5]$")
+    _jd_plot(log10_D, f"D-factor posteriors (median α_c/2={0.5*alpha_c_med_deg:.3f}°)",
+              "posterior_D.png", r"$\log_{10} D\ [{\rm GeV} / {\rm cm}^2]$")
+
+    # σ_los Walker+2006 marginal posterior (Jeffreys prior on σ).
+    # Overlay the profile-likelihood Δlnℒ=½ interval as a prior-independent
+    # comparison: shows what the data alone constrain.
+    fig, ax = plt.subplots(figsize=(7.5, 4.5))
+    sg = cs["sigma_grid"]
+    pdf = cs["marg_sigma"]
+    ax.fill_between(sg, pdf, color="C0", alpha=0.45)
+    ax.plot(sg, pdf, "C0-", lw=1.5, label="Bayesian marginal (proper Jeffreys / Fisher det)")
+    q16, q50, q84 = cs["sigma_int"]["q16"], cs["sigma_int"]["median"], cs["sigma_int"]["q84"]
+    for q, ls in [(q50, "-"), (q16, "--"), (q84, "--")]:
+        ax.axvline(q, color="C0", ls=ls, lw=1)
+    pf = cs["sigma_int_profile"]
+    for x, ls in [(pf["mle"], "-"), (pf["lo"], "--"), (pf["hi"], "--")]:
+        ax.axvline(x, color="C3", ls=ls, lw=1)
+    ax.plot([], [], "C3-", lw=1, label=r"profile-LL  $\Delta\ln\mathcal{L}=\frac{1}{2}$")
+    ax.set_xlim(0, min(15.0, sg[-1]))
+    ax.set_xlabel(r"$\sigma_{\rm los}$ [km/s]")
+    ax.set_ylabel("posterior density")
+    ax.legend(loc="upper right", fontsize=9)
+    ax.set_title(
+        rf"Segue 1: Bayes $\sigma = {q50:.2f}^{{+{q84-q50:.2f}}}_{{-{q50-q16:.2f}}}$ "
+        rf"  |  profile $\sigma = {pf['mle']:.2f}^{{+{pf['sigma_hi']:.2f}}}_{{-{pf['sigma_lo']:.2f}}}$"
+        f"  (N={len(stars)})"
+    )
+    fig.tight_layout()
+    fig.savefig(out_dir / "sigma_los_walker.png", dpi=140)
+    plt.close(fig)
+
+    logp(f"\nTotal wall time: {time.time()-t0:.1f}s")
+    (out_dir / "run.log").write_text("\n".join(log) + "\n")
+
+
+if __name__ == "__main__":
+    main()

@@ -50,3 +50,13 @@ chains/
 .DS_Store
 *.swp
 *~
+
+# Claude Code local state
+.claude/
+
+# LVDB cache (downloaded at runtime by run_segue1.py)
+Segue1_test/data/
+
+# Segue 1 test runtime outputs (regenerated per run)
+Segue1_test/run.log
+Segue1_test/summary.csv
