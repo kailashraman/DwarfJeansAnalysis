@@ -29,7 +29,22 @@ These derived quantities are now **per-draw posterior chains** in the 7D nuisanc
 ## Membership
 
 Simon & Geha 2011 per-star kinematic catalog (`Segue1_test/data/segue1_kinematics_simon2011.csv`).
-Bayesian membership probability cut Bpr > 0.8 → **62 member stars**.
+The bundled VizieR table has 522 rows / 393 unique stars; 97 of those stars have 2–3
+epochs across 15 distinct MJDs, with `Bpr` filled on exactly one row per star and `NaN`
+on the rest. `load_stars_simon` groups by SDSS id, propagates the single non-NaN `Bpr`,
+and inverse-variance-combines V/eV across epochs:
+
+    V_comb  = Σ_t V_t / e_V_t² / Σ_t 1/e_V_t²
+    eV_comb = 1 / sqrt(Σ_t 1/e_V_t²)
+
+The Bayesian membership cut Bpr > 0.8 then selects **62 unique stars (27 of which are
+multi-epoch)**.
+
+This combiner is intentionally bare: it does NOT inflate eV by sqrt(chi²/dof) when intra-star
+scatter exceeds the formal errors. V matches Pace's `Bayes_0d8_binary.dat` to 0.000 km/s on
+all 62 stars, but eV is underestimated relative to Pace on roughly half of the multi-epoch
+stars (Pace runs a binary-aware estimator). This biases σ_los/β slightly relative to a Pace
+run; the discrepancy is documented but not corrected here.
 
 Pace's 0.8-membership combined-velocity file (`Segue1_test/data/Pace_Segue1_Bayes_0d8_binary.dat`)
 is also bundled and selects the same 62 stars (verified by `compare_pace_vs_bpr08.py`). The

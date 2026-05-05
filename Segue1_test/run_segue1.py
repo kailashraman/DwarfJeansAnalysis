@@ -95,11 +95,54 @@ def load_segue1_lvdb() -> dict:
 
 
 def load_stars_simon() -> pd.DataFrame:
+    """
+    Read the Simon+2011 catalog and inverse-variance-combine multi-epoch
+    measurements per unique star (97 of 393 stars have 2-3 epochs across
+    15 distinct MJDs; only one epoch per star carries the Bpr membership
+    tag, the others are NaN). Combining gives one row per star with
+        V_comb = sum(V_t/eV_t^2) / sum(1/eV_t^2)
+        eV_comb = 1 / sqrt(sum(1/eV_t^2))
+    matching the operational convention in Pace's Bayes_0d8_binary.dat.
+    """
     df = pd.read_csv(SEGUE1_KIN_CSV)
-    keep = df[["Vel", "e_Vel", "Rad", "Bpr"]].copy()
-    keep = keep.dropna()
+    df = df.dropna(subset=["Vel", "e_Vel", "_RA", "_DE", "SDSS"])
+
+    rows = []
+    for sid, g in df.groupby("SDSS"):
+        # Catalog should be self-consistent on position per SDSS id; defend.
+        if (g["_RA"].max() - g["_RA"].min()) * 3600.0 > 1.0 \
+           or (g["_DE"].max() - g["_DE"].min()) * 3600.0 > 1.0:
+            raise ValueError(
+                f"SDSS id {sid} has rows whose (_RA, _DE) disagree by > 1\". "
+                "Refusing to combine."
+            )
+        bpr_vals = g["Bpr"].dropna().unique()
+        if len(bpr_vals) > 1:
+            raise ValueError(
+                f"SDSS id {sid} has multiple distinct non-NaN Bpr values: "
+                f"{bpr_vals.tolist()}."
+            )
+        bpr = float(bpr_vals[0]) if len(bpr_vals) == 1 else np.nan
+
+        Vs = g["Vel"].values
+        eVs = g["e_Vel"].values
+        w = 1.0 / eVs ** 2
+        V_comb = float(np.sum(Vs * w) / np.sum(w))
+        eV_comb = float(np.sqrt(1.0 / np.sum(w)))
+        rad = float(g["Rad"].iloc[0])
+        ra0 = float(g["_RA"].iloc[0])
+        dec0 = float(g["_DE"].iloc[0])
+
+        rows.append({
+            "SDSS": sid,
+            "Vel": V_comb, "e_Vel": eV_comb, "Bpr": bpr,
+            "Rad": rad, "Rad_arcmin": rad,
+            "_RA": ra0, "_DE": dec0,
+            "n_epochs": int(len(g)),
+        })
+
+    keep = pd.DataFrame(rows).dropna(subset=["Bpr"])
     keep = keep[keep["Bpr"] > P_CUT].reset_index(drop=True)
-    keep["Rad_arcmin"] = keep["Rad"].values
     return keep
 
 
@@ -122,6 +165,7 @@ def load_stars_pace(ra_center_deg: float, dec_center_deg: float) -> pd.DataFrame
         "Vel": V, "e_Vel": eV, "Bpr": p, "Rad_arcmin": rad_arcmin,
         "Rad": rad_arcmin,  # kept for schema parity with the Simon path
         "_RA": ra, "_DE": dec,
+        "n_epochs": np.ones(len(V), dtype=int),  # Pace file is pre-combined
     })
     keep = keep[keep["Bpr"] > P_CUT].reset_index(drop=True)
     return keep
@@ -312,6 +356,10 @@ def main():
     logp(f"  V mean/std (km/s): {stars['Vel'].mean():.2f} / {stars['Vel'].std():.2f}")
     logp(f"  e_Vel median (km/s): {stars['e_Vel'].median():.2f}")
     logp(f"  p (Bpr) min/median: {stars['Bpr'].min():.3f} / {stars['Bpr'].median():.3f}")
+    if "n_epochs" in stars.columns:
+        ne = stars["n_epochs"].values
+        logp(f"  multi-epoch stars: {(ne > 1).sum()}/{len(stars)}; "
+             f"mean n_epochs = {ne.mean():.2f} (max {ne.max()})")
 
     galaxy = {
         "R": stars["R_kpc"].values,                # used by 4D path; stale-d snapshot
