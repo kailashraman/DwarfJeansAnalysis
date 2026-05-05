@@ -136,6 +136,7 @@ def _jeffreys_log_term(sigma_los_sq: np.ndarray, T: np.ndarray,
 def make_loglike_with_nuisances(
     Rad_arcmin: np.ndarray, V: np.ndarray, sigma_eps: np.ndarray, p: np.ndarray,
     use_jeffreys_prior: bool = True,
+    fix_r_p_arcmin: bool = False,
 ):
     """
     7D Stage-2 log-likelihood with d, ε, rhalf_arcmin as nuisance parameters.
@@ -143,6 +144,12 @@ def make_loglike_with_nuisances(
     Per-draw derived quantities:
         r_p   = d · rhalf_arcmin · ARCMIN_TO_RAD · √(1 − ε)        [kpc]
         R_kpc = d · Rad_arcmin   · ARCMIN_TO_RAD                    [kpc, per star]
+
+    fix_r_p_arcmin=True reinterprets the 7th parameter (`rhalf_arcmin`) as the
+    angular Plummer scale `r_p_arcmin` directly: r_p = d · r_p_arcmin · ARCMIN_TO_RAD,
+    skipping the √(1 − ε) factor. ε is still sampled and reported but not used
+    for the geometry. The caller is responsible for passing a Normal prior on
+    that 7th slot centered on the desired r_p_arcmin.
 
     The rs > r_p constraint is enforced here (not in the prior) because the sampled
     r_p varies per draw; rejection returns -1e300 to match the existing failure path.
@@ -166,7 +173,10 @@ def make_loglike_with_nuisances(
         rho_s = 10.0 ** log_rhos
         beta = beta_tilde_to_beta(btilde)
         # Derived per-draw observables.
-        r_p = d * rhalf_arcmin * ARCMIN_TO_RAD * np.sqrt(1.0 - eps)
+        if fix_r_p_arcmin:
+            r_p = d * rhalf_arcmin * ARCMIN_TO_RAD
+        else:
+            r_p = d * rhalf_arcmin * ARCMIN_TO_RAD * np.sqrt(1.0 - eps)
         if not (r_p > 0.0 and r_s > r_p):
             return -1e300
         R = d * Rad_arcmin * ARCMIN_TO_RAD
@@ -310,6 +320,7 @@ def run_inference(
     marginalize_nuisances: bool = False,
     nuisance_priors: dict | None = None,
     use_jeffreys_prior: bool = True,
+    fix_r_p_arcmin: bool = False,
 ) -> dict:
     """
     Run dynesty on the mock galaxy. Returns a dict with:
@@ -336,6 +347,7 @@ def run_inference(
             sigma_eps=galaxy["sigma_eps"],
             p=galaxy["p"],
             use_jeffreys_prior=use_jeffreys_prior,
+            fix_r_p_arcmin=fix_r_p_arcmin,
         )
         prior_transform = make_prior_transform_with_nuisances(
             V_center,

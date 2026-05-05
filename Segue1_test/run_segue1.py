@@ -46,6 +46,13 @@ PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
 # Pace's values look like inverse-variance-weighted multi-epoch combinations,
 # while the VizieR pull carries single-epoch values.
 SOURCE = "pace"  # 'simon' | 'pace'
+USE_P_WEIGHTS = True  # if False, replace post-cut p_i with 1.0 in the likelihood
+DYNESTY_NLIVE = 500   # nominal 500; raise for posterior stability
+DYNESTY_DLOGZ = 0.1   # nominal 0.1; tighten alongside nlive
+# When set to (mean, sigma), bypass the rhalf×√(1−ε) chain in the Jeans
+# likelihood and use a direct Normal prior on the angular Plummer scale
+# r_p_arcmin instead. ε is still sampled but unused for r_p geometry.
+FIX_R_P_ARCMIN: tuple[float, float] | None = (4.49, 0.85)
 
 # Pace+Strigari 2018 fixed observational parameters for Segue 1
 PS18_D_KPC        = 23.0   # distance [kpc]
@@ -319,7 +326,14 @@ def percentiles(arr: np.ndarray) -> dict:
 def main():
     out_dir = HERE
     plot_dir = out_dir
-    suffix = "" if SOURCE == "simon" else f"_{SOURCE}"
+    _suffix_parts = []
+    if SOURCE != "simon":
+        _suffix_parts.append(SOURCE)
+    if not USE_P_WEIGHTS:
+        _suffix_parts.append("nop")
+    if FIX_R_P_ARCMIN is not None:
+        _suffix_parts.append("fixrp")
+    suffix = "_" + "_".join(_suffix_parts) if _suffix_parts else ""
 
     def out(stem: str, ext: str) -> Path:
         return out_dir / f"{stem}{suffix}.{ext}"
@@ -361,12 +375,19 @@ def main():
         logp(f"  multi-epoch stars: {(ne > 1).sum()}/{len(stars)}; "
              f"mean n_epochs = {ne.mean():.2f} (max {ne.max()})")
 
+    p_raw = stars["Bpr"].values
+    p_eff = p_raw if USE_P_WEIGHTS else np.ones_like(p_raw)
+    if USE_P_WEIGHTS:
+        logp(f"  USE_P_WEIGHTS=True: continuous p_i propagated into the likelihood")
+    else:
+        logp(f"  USE_P_WEIGHTS=False: post-cut p_i replaced by 1.0 in the likelihood")
+
     galaxy = {
         "R": stars["R_kpc"].values,                # used by 4D path; stale-d snapshot
         "Rad_arcmin": stars["Rad_arcmin"].values,  # used by 7D nuisance-marginalized path
         "V": stars["Vel"].values,
         "sigma_eps": stars["e_Vel"].values,
-        "p": stars["Bpr"].values,
+        "p": p_eff,
         "truth": {"r_p": g["r_p_kpc"]},
     }
 
@@ -377,6 +398,12 @@ def main():
         "eps_mean":    0.47,    "eps_sigma":    0.11,   # dimensionless, truncated to [0,1)
         "rhalf_mean":  4.31,    "rhalf_sigma":  1.03,   # arcmin
     }
+    if FIX_R_P_ARCMIN is not None:
+        # The 7th nuisance is reinterpreted as r_p_arcmin directly; bypasses
+        # √(1−ε) inside the likelihood. ε is still sampled (its own prior is
+        # unchanged) but does not enter r_p geometry.
+        nuisance_priors["rhalf_mean"]  = float(FIX_R_P_ARCMIN[0])
+        nuisance_priors["rhalf_sigma"] = float(FIX_R_P_ARCMIN[1])
 
     logp("\n=== Constant-σ inference ===")
     cs = constant_sigma_inference(
@@ -391,23 +418,25 @@ def main():
     logp(f"  sigma_int (profile-LL Δlnℒ=½): "
          f"{pf['mle']:.4g} +{pf['sigma_hi']:.4g}/-{pf['sigma_lo']:.4g}  (km/s)")
 
-    logp("\n=== Running dynesty (7D, nuisance-marginalized; nlive=500, dlogz=0.1) ===")
+    logp(f"\n=== Running dynesty (7D, nuisance-marginalized; nlive={DYNESTY_NLIVE}, dlogz={DYNESTY_DLOGZ}) ===")
+    _rp_label = "r_p_arcmin (fix_r_p_arcmin)" if FIX_R_P_ARCMIN is not None else "rhalf"
     logp(f"  nuisance priors: d ~ N({nuisance_priors['d_mean']}, {nuisance_priors['d_sigma']}) kpc, "
          f"ε ~ N({nuisance_priors['eps_mean']}, {nuisance_priors['eps_sigma']}) trunc [0,1), "
-         f"rhalf ~ N({nuisance_priors['rhalf_mean']}, {nuisance_priors['rhalf_sigma']}) arcmin")
+         f"{_rp_label} ~ N({nuisance_priors['rhalf_mean']}, {nuisance_priors['rhalf_sigma']}) arcmin")
     logp("  halo prior: conditional Jeffreys on (ln ρ_s, ln r_s) at fixed β "
          "(jeffreys_jeans_derivation.md), truncated to LOG10_RS/RHOS_BOUNDS")
     t_inf = time.time()
     result = jeans_inference.run_inference(
         galaxy,
         V_center=g["V_center_kms"],
-        nlive=500,
-        dlogz=0.1,
+        nlive=DYNESTY_NLIVE,
+        dlogz=DYNESTY_DLOGZ,
         rseed=0,
         print_progress=False,
         marginalize_nuisances=True,
         nuisance_priors=nuisance_priors,
         use_jeffreys_prior=True,
+        fix_r_p_arcmin=(FIX_R_P_ARCMIN is not None),
     )
     logp(f"  done in {time.time()-t_inf:.1f}s")
     logp(f"  logZ = {result['logz']:.3f} ± {result['logz_err']:.3f}")
@@ -420,7 +449,11 @@ def main():
     beta_chain = jeans_inference.beta_tilde_to_beta(btilde_chain)
 
     # Per-sample derived nuisance chains
-    r_p_chain        = d_chain * rhalf_arcmin_chain * ARCMIN_TO_RAD * np.sqrt(1.0 - eps_chain)
+    if FIX_R_P_ARCMIN is not None:
+        # 7th param is r_p_arcmin directly; matches the likelihood's geometry.
+        r_p_chain = d_chain * rhalf_arcmin_chain * ARCMIN_TO_RAD
+    else:
+        r_p_chain = d_chain * rhalf_arcmin_chain * ARCMIN_TO_RAD * np.sqrt(1.0 - eps_chain)
     R_half_2d_chain  = r_p_chain                                # Plummer assumption
     r_half_3d_chain  = PLUMMER_3D_OVER_2D * r_p_chain
     r_t_kpc = 1.0  # placeholder; matches stage3.md mock-test default

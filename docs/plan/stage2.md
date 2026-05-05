@@ -40,6 +40,8 @@ The remaining priors are unchanged:
 
 **Toggle.** A `use_jeffreys_prior` flag (default `True`) on `make_loglike`, `make_loglike_with_nuisances`, and `run_inference` falls back to log-flat priors on `(log_10 r_s, log_10 ρ_s)` when set to `False`. The Asimov dev-loop path (`make_loglike_asimov`) does not apply the Jeffreys term and is unaffected by the flag.
 
+**Geometry toggle.** `make_loglike_with_nuisances` and `run_inference` also accept `fix_r_p_arcmin: bool = False`. When `True`, the 7th nuisance parameter (normally `rhalf_arcmin`) is reinterpreted as `r_p_arcmin` directly: `r_p = d · r_p_arcmin · ARCMIN_TO_RAD`, skipping the √(1−ε) factor. ε is still sampled and reported but unused for r_p geometry. The caller is responsible for centering the corresponding nuisance prior on the desired r_p value. Used by the Segue 1 test pipeline's `FIX_R_P_ARCMIN` toggle.
+
 **Calibration status.** The 15-realization MC recovery test below was performed with the previous **log-flat** priors. `run_ufd_population.py` therefore explicitly pins `use_jeffreys_prior=False` for the MC-realization path so the documented calibration result remains reproducible. **TODO:** rerun the MC calibration with `use_jeffreys_prior=True` and update the recovery summary.
 
 ### Median-r_1/2 implementation of the `r_s > r_1/2` constraint

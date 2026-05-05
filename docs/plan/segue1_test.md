@@ -74,7 +74,16 @@ to avoid a division by zero in the Jeans projection u-grid.
   - r_s > r_p enforced inside the likelihood per draw (no deterministic floor).
 - Halo: NFW; tracer: Plummer with r_p = 0.021 kpc fixed
 - Membership weights p_i = Bpr (0.8–1.0 after hard cut)
-- Runtime: ~290 s on a single CPU
+- Runtime: ~290 s on a single CPU at default sampler settings
+
+**Toggles in `run_segue1.py`** (top-level constants):
+
+- `SOURCE` ∈ {`'simon'`, `'pace'`} — which catalog feeds the inference. Suffix `_pace` when Pace.
+- `USE_P_WEIGHTS` (default `True`) — when `False`, post-cut p_i are collapsed to 1.0 in the likelihood (both Walker constant-σ and Jeans). Suffix `_nop`.
+- `FIX_R_P_ARCMIN` ∈ `(mean, sigma) | None` (default `None`) — when set, the 7th nuisance parameter is reinterpreted as `r_p_arcmin` directly with a Normal(mean, sigma) prior, bypassing rhalf·√(1−ε) inside the likelihood. ε is still sampled and reported but unused for r_p geometry. Threaded into the library via the `fix_r_p_arcmin: bool` kwarg on `make_loglike_with_nuisances` / `run_inference`. Suffix `_fixrp`.
+- `DYNESTY_NLIVE`, `DYNESTY_DLOGZ` (defaults 500, 0.1) — exposed at the top of the file so longer/tighter runs can be configured without touching the inference call.
+
+Output filenames combine the active suffixes in order: e.g. `summary_pace_nop_fixrp.csv`.
 
 **Constant-σ block (Walker+2006 likelihood):**
 - 2D grid posterior (400×400) on (V_sys, σ_los); σ-grid log-spaced over log10 σ ∈ [−2, 2].
