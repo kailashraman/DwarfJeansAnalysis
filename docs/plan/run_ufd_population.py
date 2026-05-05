@@ -132,6 +132,7 @@ def run_or_load(seed: int) -> dict:
             g, V_center=TRUTH["V_sys"],
             nlive=NLIVE, dlogz=DLOGZ, rseed=seed,
             sample=SAMPLE, print_progress=False,
+            use_jeffreys_prior=False,
         )
         elapsed = time.perf_counter() - t0
         samples_eq = res["samples_eq"]
