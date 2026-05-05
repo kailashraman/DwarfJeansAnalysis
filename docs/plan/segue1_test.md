@@ -140,6 +140,11 @@ logZ = −209.61 ± 0.13; n_eq = 5227 equal-weight samples. Wall time 479 s.
 
 **P&S 2018 Table A1 reference (Segue 1):** σ_los = 3.10 +0.90/−0.80 km/s. Our Walker constant-σ result agrees within ~1σ on the median (errors ~30% wider). The Walker Bayesian credible interval (proper Jeffreys on σ) and the prior-independent profile-LL interval coincide to two decimals; the Jeans+Jeffreys σ_los at R_½ now agrees with both — strong indicator the result is robust.
 
+**Comparison-run snapshots.** The following `summary_*.csv` files in `Segue1_test/` are bundled as research artifacts:
+- `summary.csv`, `summary_pace.csv` — Simon and Pace ingest at the toggled-on baseline (`USE_P_WEIGHTS=True`, no fix-rp). Production-quality nlive=2000.
+- `summary_nop.csv`, `summary_pace_nop.csv` — same data, `USE_P_WEIGHTS=False` (post-cut p_i collapsed to 1). nlive=2000. Effective no-op for both ingests on this 62-star sample.
+- `summary_pace_fixrp.csv` — Pace with `FIX_R_P_ARCMIN=(4.49, 0.85)`, nlive=500. Demonstrates the geometry's lever on (r_s, ρ_s, J): a 43% larger angular Plummer scale moves ρ_s by −0.37 dex and J(α_c) by −0.30 dex while leaving M_half nearly invariant.
+
 ---
 
 ## Deviations from general pipeline plan
