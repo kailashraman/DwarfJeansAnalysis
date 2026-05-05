@@ -28,8 +28,13 @@ These derived quantities are now **per-draw posterior chains** in the 7D nuisanc
 
 ## Membership
 
-Simon & Geha 2011 per-star kinematic catalog (`segue1_kinematics_simon2011.csv`).
+Simon & Geha 2011 per-star kinematic catalog (`Segue1_test/data/segue1_kinematics_simon2011.csv`).
 Bayesian membership probability cut Bpr > 0.8 → **62 member stars**.
+
+Pace's 0.8-membership combined-velocity file (`Segue1_test/data/Pace_Segue1_Bayes_0d8_binary.dat`)
+is also bundled and selects the same 62 stars (verified by `compare_pace_vs_bpr08.py`). The
+`SOURCE` constant in `run_segue1.py` toggles between the two inputs (`'simon'` vs `'pace'`);
+Pace-source outputs are written with a `_pace` suffix.
 
 Stars at exactly R = 0 are floored to R = 1e-5 kpc (comment in `load_stars`)
 to avoid a division by zero in the Jeans projection u-grid.

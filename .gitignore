@@ -55,7 +55,10 @@ chains/
 .claude/
 
 # LVDB cache (downloaded at runtime by run_segue1.py)
-Segue1_test/data/
+Segue1_test/data/*
+# ...except for the bundled per-star kinematic inputs:
+!Segue1_test/data/segue1_kinematics_simon2011.csv
+!Segue1_test/data/Pace_Segue1_Bayes_0d8_binary.dat
 
 # Segue 1 test runtime outputs (regenerated per run)
 Segue1_test/run.log

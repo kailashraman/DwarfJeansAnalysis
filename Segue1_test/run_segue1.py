@@ -32,10 +32,20 @@ import j_d_factors as jdf  # noqa: E402
 LVDB_URL = ("https://github.com/apace7/local_volume_database/"
             "releases/download/v1.0.5/comb_all.csv")
 LVDB_CACHE = HERE / "data" / "lvdb_v1.0.5_comb_all.csv"
-SEGUE1_KIN_CSV = REPO.parent / "Segue1" / "segue1_kinematics_simon2011.csv"
+SEGUE1_KIN_CSV = HERE / "data" / "segue1_kinematics_simon2011.csv"
+PACE_DAT       = HERE / "data" / "Pace_Segue1_Bayes_0d8_binary.dat"
 P_CUT = 0.8
 ARCMIN_TO_RAD = np.pi / (180.0 * 60.0)
 PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
+
+# Per-star data source toggle.
+#   'simon': segue1_kinematics_simon2011.csv (VizieR Simon+2011 Table 1) with Bpr > 0.8.
+#   'pace':  Pace_Segue1_Bayes_0d8_binary.dat (Pace 0.8-membership combined-velocity file).
+# The two sources select the same 62 stars (verified: compare_pace_vs_bpr08.py)
+# but disagree on V/e_V for 27 of them (RMS 4.3 km/s in V, 3.6 km/s in e_V) —
+# Pace's values look like inverse-variance-weighted multi-epoch combinations,
+# while the VizieR pull carries single-epoch values.
+SOURCE = "pace"  # 'simon' | 'pace'
 
 # Pace+Strigari 2018 fixed observational parameters for Segue 1
 PS18_D_KPC        = 23.0   # distance [kpc]
@@ -78,19 +88,57 @@ def load_segue1_lvdb() -> dict:
         "r_p_kpc": r_p,
         "r_half_3d_kpc": r_half_3d,
         "V_center_kms": V_center,
+        "ra_deg":  float(r["ra"]),
+        "dec_deg": float(r["dec"]),
         "vlos_sigma_lvdb_kms": float(r["vlos_sigma"]) if not pd.isna(r["vlos_sigma"]) else np.nan,
     }
 
 
-def load_stars(d_kpc: float) -> pd.DataFrame:
+def load_stars_simon() -> pd.DataFrame:
     df = pd.read_csv(SEGUE1_KIN_CSV)
     keep = df[["Vel", "e_Vel", "Rad", "Bpr"]].copy()
     keep = keep.dropna()
     keep = keep[keep["Bpr"] > P_CUT].reset_index(drop=True)
-    # Keep angular radii (arcmin) — d-dependent conversion to kpc happens at
-    # consumption time so it can vary per-draw when nuisance-marginalizing.
     keep["Rad_arcmin"] = keep["Rad"].values
-    R_kpc = d_kpc * keep["Rad"].values * ARCMIN_TO_RAD
+    return keep
+
+
+def load_stars_pace(ra_center_deg: float, dec_center_deg: float) -> pd.DataFrame:
+    """
+    Load Pace's `Bayes_0d8_binary.dat` (62 stars, all p ≥ 0.8).
+    Columns: RA[deg], Dec[deg], V[km/s], e_V[km/s], Bayes-membership p.
+    Computes Rad_arcmin from sky position relative to the LVDB galaxy center
+    (small-angle; Segue 1 spans ≲ 6 arcmin so the flat-sky approximation is
+    well within per-star astrometric error).
+    """
+    P = np.loadtxt(PACE_DAT, skiprows=1)
+    ra, dec, V, eV, p = P.T
+    cos_d = np.cos(np.radians(dec_center_deg))
+    dRA = (ra - ra_center_deg) * cos_d
+    dDec = dec - dec_center_deg
+    rad_deg = np.sqrt(dRA ** 2 + dDec ** 2)
+    rad_arcmin = rad_deg * 60.0
+    keep = pd.DataFrame({
+        "Vel": V, "e_Vel": eV, "Bpr": p, "Rad_arcmin": rad_arcmin,
+        "Rad": rad_arcmin,  # kept for schema parity with the Simon path
+        "_RA": ra, "_DE": dec,
+    })
+    keep = keep[keep["Bpr"] > P_CUT].reset_index(drop=True)
+    return keep
+
+
+def load_stars(d_kpc: float, source: str,
+                ra_center_deg: float | None = None,
+                dec_center_deg: float | None = None) -> pd.DataFrame:
+    if source == "simon":
+        keep = load_stars_simon()
+    elif source == "pace":
+        if ra_center_deg is None or dec_center_deg is None:
+            raise ValueError("source='pace' requires ra/dec center")
+        keep = load_stars_pace(ra_center_deg, dec_center_deg)
+    else:
+        raise ValueError(f"unknown source {source!r}")
+    R_kpc = d_kpc * keep["Rad_arcmin"].values * ARCMIN_TO_RAD
     # The grid integrator in jeans.sigma_los uses u_min = 1e-4 * R, which
     # blows up at exactly R=0. Floor at a small positive value (1e-5 kpc
     # ≈ 1.5e-3 arcmin at d=23 kpc — far below per-star astrometric error).
@@ -227,6 +275,10 @@ def percentiles(arr: np.ndarray) -> dict:
 def main():
     out_dir = HERE
     plot_dir = out_dir
+    suffix = "" if SOURCE == "simon" else f"_{SOURCE}"
+
+    def out(stem: str, ext: str) -> Path:
+        return out_dir / f"{stem}{suffix}.{ext}"
     log = []
 
     def logp(*a):
@@ -250,8 +302,11 @@ def main():
     logp(f"  r_p_kpc:       {g['r_p_kpc']*1000:.1f} ± {PS18_RHALF_PC_ERR:.1f} pc")
     logp(f"  r_half_3d_kpc: {g['r_half_3d_kpc']*1000:.2f} pc")
 
-    stars = load_stars(g["d_kpc"])
-    logp(f"\n=== Per-star data ({SEGUE1_KIN_CSV.name}) ===")
+    stars = load_stars(g["d_kpc"], SOURCE,
+                        ra_center_deg=g["ra_deg"], dec_center_deg=g["dec_deg"])
+    src_name = (SEGUE1_KIN_CSV.name if SOURCE == "simon" else PACE_DAT.name)
+    logp(f"\n=== Per-star data ({src_name}) ===")
+    logp(f"  source: {SOURCE!r}")
     logp(f"  Bpr > {P_CUT}: N = {len(stars)}")
     logp(f"  R range (kpc): [{stars['R_kpc'].min():.4f}, {stars['R_kpc'].max():.4f}]")
     logp(f"  V mean/std (km/s): {stars['Vel'].mean():.2f} / {stars['Vel'].std():.2f}")
@@ -408,7 +463,7 @@ def main():
 
     # ---- Save samples ----
     np.savez(
-        out_dir / "posterior_samples.npz",
+        out("posterior_samples", "npz"),
         samples_eq=samples_eq,
         V=V_chain, log10_rs=lr_chain, log10_rhos=lp_chain,
         beta_tilde=btilde_chain, beta=beta_chain,
@@ -469,7 +524,7 @@ def main():
     })
 
     summary = pd.DataFrame(summary_rows)
-    summary.to_csv(out_dir / "summary.csv", index=False, float_format="%.6g")
+    summary.to_csv(out("summary", "csv"), index=False, float_format="%.6g")
     logp("\n=== Posterior summary (median, q16, q84) ===")
     for r in summary_rows:
         logp(f"  {r['quantity']:<28s} {r['median']:+.4g}  "
@@ -485,7 +540,7 @@ def main():
         fig = corner.corner(samples_eq,
                              labels=corner_labels,
                              show_titles=True, quantiles=[0.16, 0.5, 0.84])
-        fig.savefig(out_dir / "corner_halo.png", dpi=140)
+        fig.savefig(out("corner_halo", "png"), dpi=140)
         plt.close(fig)
     except ImportError:
         n = samples_eq.shape[1]
@@ -499,7 +554,7 @@ def main():
         for k in range(n, nrows*ncols):
             axes.flat[k].axis("off")
         fig.tight_layout()
-        fig.savefig(out_dir / "corner_halo.png", dpi=140)
+        fig.savefig(out("corner_halo", "png"), dpi=140)
         plt.close(fig)
 
     # σ_los profile + 1D KDE at R_half. The eyeball data points and R_½ marker
@@ -530,7 +585,7 @@ def main():
     ax.axvline(q16, color="k", ls="--"); ax.axvline(q84, color="k", ls="--")
     ax.set_title(f"σ at R_½: {q50:.2f} +{q84-q50:.2f}/-{q50-q16:.2f} km/s")
     fig.tight_layout()
-    fig.savefig(out_dir / "posterior_sigma_los.png", dpi=140)
+    fig.savefig(out("posterior_sigma_los", "png"), dpi=140)
     plt.close(fig)
 
     # M_half KDE
@@ -545,7 +600,7 @@ def main():
     ax.legend()
     ax.set_title("Enclosed-mass posteriors")
     fig.tight_layout()
-    fig.savefig(out_dir / "posterior_M_half.png", dpi=140)
+    fig.savefig(out("posterior_M_half", "png"), dpi=140)
     plt.close(fig)
 
     # Beta KDE
@@ -559,7 +614,7 @@ def main():
     axes[1].set_ylabel("posterior density")
     fig.suptitle("Anisotropy posterior")
     fig.tight_layout()
-    fig.savefig(out_dir / "posterior_beta.png", dpi=140)
+    fig.savefig(out("posterior_beta", "png"), dpi=140)
     plt.close(fig)
 
     # J / D
@@ -576,7 +631,9 @@ def main():
         ax.legend(title="θ")
         ax.set_title(title)
         fig.tight_layout()
-        fig.savefig(out_dir / fname, dpi=140)
+        # fname is a stem like "posterior_J" — apply the suffix here.
+        stem, _, ext = fname.rpartition(".")
+        fig.savefig(out(stem, ext), dpi=140)
         plt.close(fig)
 
     alpha_c_med_deg = float(np.median(alpha_c_chain)) / jdf.DEG
@@ -610,11 +667,11 @@ def main():
         f"  (N={len(stars)})"
     )
     fig.tight_layout()
-    fig.savefig(out_dir / "sigma_los_walker.png", dpi=140)
+    fig.savefig(out("sigma_los_walker", "png"), dpi=140)
     plt.close(fig)
 
     logp(f"\nTotal wall time: {time.time()-t0:.1f}s")
-    (out_dir / "run.log").write_text("\n".join(log) + "\n")
+    out("run", "log").write_text("\n".join(log) + "\n")
 
 
 if __name__ == "__main__":
