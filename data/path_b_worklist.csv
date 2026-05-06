@@ -1,0 +1,18 @@
+study_name,lvdb_key,ra_deg,dec_deg,ref_vlos,ads_bibcode,first_author,year,suggested_bibkey_folder
+Antlia II,antlia_2,143.8079,-36.6991,Ji2021ApJ...921...32J,2021ApJ...921...32J,Ji,2021,data/ji2021/
+Aquarius II,aquarius_2,338.4813,-9.3274,Bruce2023ApJ...950..167B,2023ApJ...950..167B,Bruce,2023,data/bruce2023/
+Carina,carina_1,100.4065,-50.9593,Walker2009AJ....137.3100W,2009AJ....137.3100W,Walker,2009,data/walker2009/
+Centaurus I,centaurus_1,189.5908,-40.9043,Heiger2024ApJ...961..234H,2024ApJ...961..234H,Heiger,2024,data/heiger2024/
+Crater II,crater_2,177.31,-18.413,Ji2021ApJ...921...32J,2021ApJ...921...32J,Ji,2021,data/ji2021/
+Eridanus II,eridanus_2,56.0925,-43.5329,Li2017ApJ...838....8L,2017ApJ...838....8L,Li,2017,data/li2017/
+Grus I,grus_1,344.166,-50.168,Chiti2022ApJ...939...41C,2022ApJ...939...41C,Chiti,2022,data/chiti2022/
+Leo VI,leo_6,171.077,24.874,Tan2025ApJ...979..176T,2025ApJ...979..176T,Tan,2025,data/tan2025/
+Pisces II,pisces_2,344.6364583,5.9555444,Kirby2015ApJ...810...56K,2015ApJ...810...56K,Kirby,2015,data/kirby2015/
+Tucana II,tucana_2,342.9796,-58.5689,Chiti2023AJ....165...55C,2023AJ....165...55C,Chiti,2023,data/chiti2023/
+Tucana IV,tucana_4,0.717,-60.83,Simon2020ApJ...892..137S,2020ApJ...892..137S,Simon,2020,data/simon2020/
+Tucana V,tucana_5,354.347,-63.266,Hansen2024ApJ...968...21H,2024ApJ...968...21H,Hansen,2024,data/hansen2024/
+Carina II,carina_2,114.1066,-57.9991,Li2018ApJ...857..145L,2018ApJ...857..145L,Li,2018,data/li2018/
+Carina III,carina_3,114.6298,-57.8997,Li2018ApJ...857..145L,2018ApJ...857..145L,Li,2018,data/li2018/
+Horologium I,horologium_1,43.8755,-54.1174,Koposov2015ApJ...811...62K,2015ApJ...811...62K,Koposov,2015,data/koposov2015/
+Hydrus I,hydrus_1,37.389,-79.3089,Koposov2018MNRAS.479.5343K,2018MNRAS.479.5343K,Koposov,2018,data/koposov2018/
+Reticulum II,reticulum_2,53.9203,-54.0513,Walker2015ApJ...808..108W,2015ApJ...808..108W,Walker,2015,data/walker2015/
