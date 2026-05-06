@@ -17,6 +17,6 @@ Per-star granularity (one row per unique star). Velocity frame: heliocentric / "
 
 - **Date staged:** 2026-05-05
 - **Method:** `astroquery.vizier.Vizier(columns=["**"], row_limit=-1).get_catalogs("J/ApJ/808/108")` — `columns=["**"]` is critical because the default fetch drops `e_Vlos` and other error columns.
-- **Staged by:** Kailash Raman (via Claude Code)
+- **Staged by:** Kailash Raman
 
 ## Read-only after staging

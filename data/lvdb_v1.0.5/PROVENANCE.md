@@ -18,7 +18,7 @@
 ## Acquisition
 
 - **Date staged:** 2026-05-05
-- **Staged by:** Kailash Raman (via Claude Code)
+- **Staged by:** Kailash Raman
 - **Original repo location:** `Segue1_test/data/lvdb_v1.0.5_comb_all.csv`
   - That copy was originally fetched at runtime by `Segue1_test/run_segue1.py:fetch_lvdb()` from
     `https://github.com/teaghan/LVDB/releases/download/v1.0.5/comb_all.csv` (a mirror of the upstream LVDB v1.0.5 release).

@@ -19,7 +19,7 @@ Velocity frame: heliocentric (`<HV>`).
 ## Acquisition
 
 - **Date staged:** 2026-05-05
-- **Staged by:** Kailash Raman (via Claude Code)
+- **Staged by:** Kailash Raman
 - **Method:** `astroquery.vizier.Vizier.get_catalogs("J/AJ/137/3100")`, written to ECSV with `astropy.table.Table.write(format="ascii.ecsv")`. The CSV format is ECSV (units + metadata in the leading commented header) for round-trippable astropy reads.
 
 ## Read-only after staging

@@ -25,7 +25,7 @@ Note: earlier drafts of `docs/plan/data_sources.md` referenced a `Pmem_novar` co
 ## Acquisition
 
 - **Date staged:** 2026-05-05
-- **Staged by:** Kailash Raman (via Claude Code)
+- **Staged by:** Kailash Raman
 - **Original repo location:** `Segue1_test/data/table3A_20260110.csv`
 
 ## Read-only after staging
