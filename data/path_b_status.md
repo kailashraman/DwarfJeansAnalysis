@@ -6,7 +6,7 @@ ingest. Updated and committed every time a paper's state changes.
 To continue from a fresh session: read this file, find the first paper marked
 `pending` or `blocked`, and pick up from there. Process order is fixed below.
 
-Last updated: 2026-05-05 (Walker 2015 ingested)
+Last updated: 2026-05-05 (Kirby 2015 marked blocked)
 
 ## Per-paper status
 
@@ -17,7 +17,7 @@ discoveries next, likely-blocked last). One paper per commit.
 |---|---|---|---|---|
 | 1 | Walker 2009 (`2009AJ....137.3100W`) | Carina | done | VizieR `J/AJ/137/3100/stars`; `<V>` and σ_los match paper |
 | 2 | Walker 2015 (`2015ApJ...808..108W`) | Reticulum II | done | VizieR `J/ApJ/808/108/table1`; `<V>` and σ_los match paper |
-| 3 | Kirby 2015 (`2015ApJ...810...56K`) | Pisces II | pending | — |
+| 3 | Kirby 2015 (`2015ApJ...810...56K`) | Pisces II | blocked | Not on VizieR (none of `2015ApJ...810...56K`, `J/ApJ/810/56`, "Kirby Pisces II" return a catalog as of 2026-05-05). IOPscience MRT page is bot-walled (perfdrive challenge). Resolution: user to download `apjXXXXXXt2_mrt.txt` (or equivalent) manually from https://iopscience.iop.org/article/10.1088/0004-637X/810/1/56 in a browser, place in `data/kirby2015/`, and re-run. |
 | 4 | Koposov 2015 (`2015ApJ...811...62K`) | Horologium I | pending | — |
 | 5 | Li 2017 (`2017ApJ...838....8L`) | Eridanus II | pending | — |
 | 6 | Li 2018 (`2018ApJ...857..145L`) | Carina II + Carina III | pending | first multi-galaxy paper |
@@ -55,4 +55,6 @@ is the canonical correctness check.
 
 ## Path B unresolved
 
-No galaxies marked unresolved yet.
+| LVDB key | Paper bibkey | Reason | Resolution |
+|---|---|---|---|
+| pisces_2 | kirby2015 | Not on VizieR; IOPscience MRT page bot-walled (perfdrive). | Manual MRT download by user (browser) from https://iopscience.iop.org/article/10.1088/0004-637X/810/1/56, place under `data/kirby2015/`, re-run `python -m data_ingest.stage0b_pathb --lvdb-key pisces_2` after the kirby2015 adapter is written. |
