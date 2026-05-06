@@ -19,9 +19,7 @@ from __future__ import annotations
 
 import json
 import math
-import subprocess
 import sys
-from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -40,15 +38,6 @@ STUDY_SAMPLE_YAML = REPO_ROOT / "data_ingest" / "config" / "study_sample.yaml"
 SPATIAL_OVERRIDES_YAML = REPO_ROOT / "data_ingest" / "config" / "spatial_model_overrides.yaml"
 
 ARCMIN_TO_RAD = math.pi / (180.0 * 60.0)
-
-
-def _git_commit() -> str:
-    try:
-        return subprocess.check_output(
-            ["git", "rev-parse", "HEAD"], cwd=REPO_ROOT, text=True
-        ).strip()
-    except Exception:
-        return "unknown"
 
 
 def _walk_host(host: str, host_map: dict[str, str], visited: set[str]) -> list[str]:
@@ -272,8 +261,6 @@ def build_registry() -> Table:
     tab.meta["lvdb_zenodo_doi"] = "10.5281/zenodo.15476348"
     tab.meta["spatial_model_default"] = spatial_default
     tab.meta["spatial_model_overrides"] = json.dumps(spatial_overrides)
-    tab.meta["git_commit"] = _git_commit()
-    tab.meta["build_utc"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
 
     REGISTRY_DIR.mkdir(parents=True, exist_ok=True)
     out = REGISTRY_DIR / "galaxies.ecsv"

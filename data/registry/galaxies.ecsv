@@ -38,8 +38,6 @@
 # - {lvdb_zenodo_doi: 10.5281/zenodo.15476348}
 # - {spatial_model_default: plummer}
 # - {spatial_model_overrides: '{}'}
-# - {git_commit: 57460029b90201c516f893573f4a724bb453c4af}
-# - {build_utc: '2026-05-06T05:21:45+00:00'}
 # schema: astropy-2.0
 lvdb_key study_name path geha_galaxy host host_chain ra_deg dec_deg rhalf_arcmin rhalf_arcmin_em rhalf_arcmin_ep ellipticity ellipticity_em ellipticity_ep ellipticity_ul ellipticity_missing distance_modulus distance_modulus_em distance_modulus_ep distance_kpc rhalf_major_pc r_half_2d_pc plummer_radius_pc spatial_model vlos_systemic_kms vlos_systemic_em vlos_systemic_ep vlos_sigma_kms vlos_sigma_unresolved M_V ref_vlos ref_structure
 bootes_1 "Bootes I" A Boo1 mw mw 210.02 14.5135 9.97 0.27 0.27 0.3 0.03 0.03 nan False 19.11 0.08 0.08 66.37430704019086 192.49580766520663 161.05354754887009 161.05354754887009 plummer 101.8 0.7 0.7 4.6 False -6.02 Koposov2011ApJ...736..146K Munoz2018ApJ...860...66M
