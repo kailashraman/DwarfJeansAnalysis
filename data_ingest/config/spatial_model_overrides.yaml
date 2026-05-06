@@ -1,0 +1,25 @@
+# Per-galaxy photometric profile flag, used by Stage 0a to derive `plummer_radius_pc`.
+# LVDB v1.0.5 does not expose a `spatial_model` column in comb_all.csv, so we curate
+# the flag here. See docs/plan/data_sources.md (Half-Light Radius Handling §) for the
+# per-profile r_p conversions:
+#   plummer       : r_p = r_1/2
+#   exponential   : r_p = 1.68 * r_exponential   (P&S 2018 §3 footnote 4)
+#                   NOTE: when overridden to "exponential", the registry-build code must
+#                   read the LVDB structural radius from the relevant column rather
+#                   than reusing rhalf; this YAML is the trigger, not the value.
+#   sersic / king : non-P&S extension; r_p = r_1/2 (logged as extension in registry build).
+
+# Default for any LVDB key not listed below: "plummer". Matches P&S 2018 §3, which
+# assumes Plummer throughout, and is the LVDB-stated convention for ultra-faints.
+default: plummer
+
+# Explicit per-galaxy overrides.
+#
+# **Currently empty.** The bright classicals (Sextans, Carina, Leo I, Leo II,
+# Sculptor, Draco, Ursa Minor) are candidates for non-Plummer overrides — Munoz+2018
+# fit Plummer / exponential / King / Sersic to all of them — but the canonical
+# choice for our pipeline is a science decision the user has not yet made. Until
+# overrides are explicitly populated here, all galaxies (including the classicals)
+# use the Plummer convention. Stage 0a logs the resolved profile per galaxy so the
+# default-Plummer decision is visible at every build.
+overrides: {}

@@ -1,0 +1,56 @@
+# 39-galaxy study sample for the Stage 0a registry build.
+# Per docs/plan/data_sources.md "Per-galaxy assignment for the current study sample".
+#
+# Each entry maps:
+#   - study_name        : the long human-readable name used in plots / tables
+#   - lvdb_key          : the LVDB v1.0.5 `key` column value (verified against
+#                         data/lvdb_v1.0.5/comb_all.csv on 2026-05-05)
+#   - path              : "A" (Geha 2026 Paper I DEIMOS) or "B" (LVDB ref_vlos paper)
+#   - geha_galaxy       : Path A only — Paper II Table A1 abbrev. matching the
+#                         `Galaxy` column of data/geha2026/table3A_20260110.csv
+#                         (verified against actual unique values on 2026-05-05).
+#                         Required for Path A; absent / null for Path B.
+
+galaxies:
+  # ---------------- Path A — Geha DEIMOS (22 galaxies) ----------------
+  - {study_name: "Bootes I",          lvdb_key: bootes_1,          path: A, geha_galaxy: Boo1}
+  - {study_name: "Bootes II",         lvdb_key: bootes_2,          path: A, geha_galaxy: Boo2}
+  - {study_name: "Bootes III",        lvdb_key: bootes_3,          path: A, geha_galaxy: Boo3}
+  - {study_name: "Canes Venatici I",  lvdb_key: canes_venatici_1,  path: A, geha_galaxy: CVn1}
+  - {study_name: "Canes Venatici II", lvdb_key: canes_venatici_2,  path: A, geha_galaxy: CVn2}
+  - {study_name: "Coma Berenices",    lvdb_key: coma_berenices_1,  path: A, geha_galaxy: CB}
+  - {study_name: "Draco",             lvdb_key: draco_1,           path: A, geha_galaxy: Dra}
+  - {study_name: "Eridanus IV",       lvdb_key: eridanus_4,        path: A, geha_galaxy: Eri4}
+  - {study_name: "Hercules",          lvdb_key: hercules_1,        path: A, geha_galaxy: Herc}
+  - {study_name: "Leo I",             lvdb_key: leo_1,             path: A, geha_galaxy: Leo1}
+  - {study_name: "Leo II",            lvdb_key: leo_2,             path: A, geha_galaxy: Leo2}
+  - {study_name: "Leo IV",            lvdb_key: leo_4,             path: A, geha_galaxy: Leo4}
+  - {study_name: "Leo V",             lvdb_key: leo_5,             path: A, geha_galaxy: Leo5}
+  - {study_name: "Pegasus III",       lvdb_key: pegasus_3,         path: A, geha_galaxy: Peg3}
+  - {study_name: "Pegasus IV",        lvdb_key: pegasus_4,         path: A, geha_galaxy: Peg4}
+  - {study_name: "Sculptor",          lvdb_key: sculptor_1,        path: A, geha_galaxy: Scl}
+  - {study_name: "Segue 1",           lvdb_key: segue_1,           path: A, geha_galaxy: Seg1}
+  - {study_name: "Sextans",           lvdb_key: sextans_1,         path: A, geha_galaxy: Sext}
+  - {study_name: "Ursa Major I",      lvdb_key: ursa_major_1,      path: A, geha_galaxy: UMa1}
+  - {study_name: "Ursa Major II",     lvdb_key: ursa_major_2,      path: A, geha_galaxy: UMa2}
+  - {study_name: "Ursa Minor",        lvdb_key: ursa_minor_1,      path: A, geha_galaxy: UMi}
+  - {study_name: "Willman 1",         lvdb_key: willman_1,         path: A, geha_galaxy: W1}
+
+  # ---------------- Path B — LVDB ref_vlos paper (17 galaxies) ----------------
+  - {study_name: "Antlia II",         lvdb_key: antlia_2,          path: B}
+  - {study_name: "Aquarius II",       lvdb_key: aquarius_2,        path: B}
+  - {study_name: "Carina",            lvdb_key: carina_1,          path: B}
+  - {study_name: "Centaurus I",       lvdb_key: centaurus_1,       path: B}
+  - {study_name: "Crater II",         lvdb_key: crater_2,          path: B}
+  - {study_name: "Eridanus II",       lvdb_key: eridanus_2,        path: B}
+  - {study_name: "Grus I",            lvdb_key: grus_1,            path: B}
+  - {study_name: "Leo VI",            lvdb_key: leo_6,             path: B}
+  - {study_name: "Pisces II",         lvdb_key: pisces_2,          path: B}
+  - {study_name: "Tucana II",         lvdb_key: tucana_2,          path: B}
+  - {study_name: "Tucana IV",         lvdb_key: tucana_4,          path: B}
+  - {study_name: "Tucana V",          lvdb_key: tucana_5,          path: B}
+  - {study_name: "Carina II",         lvdb_key: carina_2,          path: B}
+  - {study_name: "Carina III",        lvdb_key: carina_3,          path: B}
+  - {study_name: "Horologium I",      lvdb_key: horologium_1,      path: B}
+  - {study_name: "Hydrus I",          lvdb_key: hydrus_1,          path: B}
+  - {study_name: "Reticulum II",      lvdb_key: reticulum_2,       path: B}
