@@ -6,7 +6,7 @@ ingest. Updated and committed every time a paper's state changes.
 To continue from a fresh session: read this file, find the first paper marked
 `pending` or `blocked`, and pick up from there. Process order is fixed below.
 
-Last updated: 2026-05-05 (Chiti 2023 → Tucana II ingested; all VizieR-fetchable papers complete)
+Last updated: 2026-05-06 (Kirby 2015 → Pisces II ingested from user-supplied IOPscience ASCII; first IOP-blocked paper resolved)
 
 ## Per-paper status
 
@@ -17,7 +17,7 @@ discoveries next, likely-blocked last). One paper per commit.
 |---|---|---|---|---|
 | 1 | Walker 2009 (`2009AJ....137.3100W`) | Carina | done | VizieR `J/AJ/137/3100/stars`; `<V>` and σ_los match paper |
 | 2 | Walker 2015 (`2015ApJ...808..108W`) | Reticulum II | done | VizieR `J/ApJ/808/108/table1`; `<V>` and σ_los match paper |
-| 3 | Kirby 2015 (`2015ApJ...810...56K`) | Pisces II | blocked | Not on VizieR (none of `2015ApJ...810...56K`, `J/ApJ/810/56`, "Kirby Pisces II" return a catalog as of 2026-05-05). IOPscience MRT page is bot-walled (perfdrive challenge). Resolution: user to download `apjXXXXXXt2_mrt.txt` (or equivalent) manually from https://iopscience.iop.org/article/10.1088/0004-637X/810/1/56 in a browser, place in `data/kirby2015/`, and re-run. |
+| 3 | Kirby 2015 (`2015ApJ...810...56K`) | Pisces II | done | User-supplied ASCII Table 2 (`apj518514t2_ascii.txt`) at `data/kirby2015/`. Adapter slices Pisces II sub-block; sexagesimal -> deg via SkyCoord; `v +or- err` regex split; Y/N -> p=1/0. `<V>` and σ_los match paper. |
 | 4 | Koposov 2015 (`2015ApJ...811...62K`) | Horologium I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
 | 5 | Li 2017 (`2017ApJ...838....8L`) | Eridanus II | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
 | 6 | Li 2018 (`2018ApJ...857..145L`) | Carina II + Carina III | done | VizieR `J/ApJ/857/145/table4` (per-epoch); split by `Mm ∈ {0,2,3}` |
@@ -57,6 +57,7 @@ is the canonical correctness check.
 | antlia_2 | ji2021 | 508 | ~290 / 290 (Mm>0.5) | 288 / 287.95 | 5.7 / 7.30 (naive) ≈ 7.00 (decov) | 288.80 | 5.98 | (this commit) |
 | crater_2 | ji2021 | 207 | ~140 / 141 (Mm>0.5) | 89 / 89.43 | 2.7 / 4.13 (naive) ≈ 2.83 (decov) | 89.30 | 2.34 | 73bb830 |
 | tucana_2 | chiti2023 | 60 (per-epoch) | 19 unique mem stars (member list, p=1) | -124.7 / -125.03 (per-star IVW) | 3.8 / 4.13 (naive per-star) ≈ 4.07 (decov) | -124.70 | 3.80 | (this commit) |
+| pisces_2 | kirby2015 | 13 | 7 / 7 (Member?='Y') | -226 / -225.51 | 5.4 / 5.41 (naive) ≈ 4.36 (decov) | -226.50 | 5.40 | (this commit) |
 
 ¹ Li 2018 reports σ_los = 3.4 km/s for Carina II from a binary-aware ML deconvolution. Our naive per-star std (5.33 km/s) does not deconvolve binaries; the data are stored faithfully (the per-epoch npz preserves all 30 Mm=2 epochs), and binary-aware aggregation is downstream of Stage 0b. Member counts and `<V>` match the paper exactly. For Carina III the smaller binary fraction makes the naive per-star std (5.66 km/s) match the paper's 5.6 km/s without deconvolution.
 
@@ -79,10 +80,9 @@ adapter is in place.
 
 | LVDB key | Paper bibkey | Article URL | Notes |
 |---|---|---|---|
-| pisces_2 | kirby2015 | https://iopscience.iop.org/article/10.1088/0004-637X/810/1/56 | "Spectroscopic Confirmation of Hydra II and Pisces II" — paper reports σ_los = 5.4 km/s for Pisces II from 8 members. |
 | horologium_1 | koposov2015 | https://iopscience.iop.org/article/10.1088/0004-637X/811/1/62 | "Kinematics & Chemistry of Reticulum 2 and Horologium 1" — VLT/GIRAFFE; 5 Hor I members, σ_los = 4.9 km/s. |
 | eridanus_2 | li2017 | https://iopscience.iop.org/article/10.3847/1538-4357/aa6113 | Distant UFD Eridanus II. |
-| grus_1 | chiti2022 | https://iopscience.iop.org/article/10.3847/1538-4357/ac81b9 | UFD Grus I. |
+| grus_1 | chiti2022 | https://iopscience.iop.org/article/10.3847/1538-4357/ac96ed | UFD Grus I. |
 | aquarius_2 | bruce2023 | https://iopscience.iop.org/article/10.3847/1538-4357/acc7c4 | UFD Aquarius II. |
 | centaurus_1 | heiger2024 | https://iopscience.iop.org/article/10.3847/1538-4357/ad0d9f | Recent UFD Centaurus I. |
 | tucana_5 | hansen2024 | https://iopscience.iop.org/article/10.3847/1538-4357/ad429c | Recent UFD Tucana V. |
