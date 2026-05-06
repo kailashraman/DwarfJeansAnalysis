@@ -2,10 +2,15 @@
 Quick Segue 1 Jeans run using docs/original-plan scripts.
 
 Reads global Segue 1 properties from LVDB v1.0.5 (cached locally),
-applies the p_i > 0.8 Bayesian-membership cut on the Simon+2011
-per-star catalog, runs Stage-2 dynesty inference via
-jeans_inference.run_inference, then derives σ_los, M_half, J, D
-posterior chains and writes plots + summary.
+applies a membership cut on the per-star catalog, runs Stage-2 dynesty
+inference via jeans_inference.run_inference, then derives σ_los, M_half,
+J, D posterior chains and writes plots + summary.
+
+Per-star source options (SOURCE toggle):
+  'simon': Simon+2011 VizieR Table 1, Bpr > 0.8
+  'pace':  Pace pre-combined Bayes 0.8 file
+  'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB rhalf, Var != 1
+           Uses LVDB nuisance priors instead of PS18 overrides.
 """
 from __future__ import annotations
 
@@ -34,25 +39,31 @@ LVDB_URL = ("https://github.com/apace7/local_volume_database/"
 LVDB_CACHE = HERE / "data" / "lvdb_v1.0.5_comb_all.csv"
 SEGUE1_KIN_CSV = HERE / "data" / "segue1_kinematics_simon2011.csv"
 PACE_DAT       = HERE / "data" / "Pace_Segue1_Bayes_0d8_binary.dat"
+GEHA_CSV       = HERE / "data" / "table3A_20260110.csv"
 P_CUT = 0.8
+P_CUT_GEHA = 0.5  # Geha+2026 §Sample Selection
+# Martin+2008 projected half-light radius (r_h ~ 29 pc at d=22.9 kpc ≈ 4.31').
+# Used as the 2×r_h radial aperture for the Geha star selection (gives 53 stars).
+GEHA_RHALF_CUT_ARCMIN = 4.31
 ARCMIN_TO_RAD = np.pi / (180.0 * 60.0)
 PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
 
 # Per-star data source toggle.
 #   'simon': segue1_kinematics_simon2011.csv (VizieR Simon+2011 Table 1) with Bpr > 0.8.
 #   'pace':  Pace_Segue1_Bayes_0d8_binary.dat (Pace 0.8-membership combined-velocity file).
-# The two sources select the same 62 stars (verified: compare_pace_vs_bpr08.py)
-# but disagree on V/e_V for 27 of them (RMS 4.3 km/s in V, 3.6 km/s in e_V) —
-# Pace's values look like inverse-variance-weighted multi-epoch combinations,
-# while the VizieR pull carries single-epoch values.
-SOURCE = "pace"  # 'simon' | 'pace'
-USE_P_WEIGHTS = True  # if False, replace post-cut p_i with 1.0 in the likelihood
+#            simon/pace select the same 62 stars (compare_pace_vs_bpr08.py); both use PS18 priors.
+#   'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB rhalf, Var != 1 → 52 stars.
+#            Uses LVDB v1.0.5 nuisance priors (d, rhalf, ε) instead of PS18 overrides.
+SOURCE = "geha"  # 'simon' | 'pace' | 'geha'
+USE_P_WEIGHTS = False     # if False, replace post-cut p_i with 1.0 in the likelihood
+USE_JEFFREYS_PRIOR = True   # if False, flat log-uniform prior on (r_s, rho_s); if True, add Jeffreys correction
 DYNESTY_NLIVE = 500   # nominal 500; raise for posterior stability
 DYNESTY_DLOGZ = 0.1   # nominal 0.1; tighten alongside nlive
 # When set to (mean, sigma), bypass the rhalf×√(1−ε) chain in the Jeans
 # likelihood and use a direct Normal prior on the angular Plummer scale
 # r_p_arcmin instead. ε is still sampled but unused for r_p geometry.
-FIX_R_P_ARCMIN: tuple[float, float] | None = (4.49, 0.85)
+# FIX_R_P_ARCMIN: tuple[float, float] | None = (4.49, 0.85)
+FIX_R_P_ARCMIN: tuple[float, float] | None = None
 
 # Pace+Strigari 2018 fixed observational parameters for Segue 1
 PS18_D_KPC        = 23.0   # distance [kpc]
@@ -178,15 +189,90 @@ def load_stars_pace(ra_center_deg: float, dec_center_deg: float) -> pd.DataFrame
     return keep
 
 
+def load_stars_geha(ra_center_deg: float, dec_center_deg: float,
+                    rhalf_circ_arcmin: float) -> pd.DataFrame:
+    """
+    Load Geha+2026 table3A for Segue 1 (Galaxy == 'Seg1').
+    Selection per Geha+2026 §Sample Selection:
+      - Pmem > 0.5
+      - within 2 × azimuthally-averaged half-light radius (circular aperture)
+        rhalf_circ = LVDB rhalf × sqrt(1 - eps)
+      - remove velocity-variable stars (Var == 1.0)
+    Radii computed via the same flat-sky formula as load_stars_pace.
+    """
+    df = pd.read_csv(GEHA_CSV)
+    df = df[df["Galaxy"] == "Seg1"].copy()
+    df = df.dropna(subset=["RA", "DEC", "v", "verr", "Pmem", "Var"])
+
+    cos_d = np.cos(np.radians(dec_center_deg))
+    dRA  = (df["RA"].values  - ra_center_deg)  * cos_d
+    dDec =  df["DEC"].values - dec_center_deg
+    rad_arcmin = np.sqrt(dRA ** 2 + dDec ** 2) * 60.0
+
+    df = df.assign(Rad_arcmin=rad_arcmin)
+    df = df[df["Pmem"] > P_CUT_GEHA]
+    df = df[df["Rad_arcmin"] <= 2.0 * rhalf_circ_arcmin]
+    df = df[df["Var"] != 1.0]
+    df = df.reset_index(drop=True)
+
+    return pd.DataFrame({
+        "Vel":        df["v"].values,
+        "e_Vel":      df["verr"].values,
+        "Bpr":        df["Pmem"].values,
+        "Rad_arcmin": df["Rad_arcmin"].values,
+        "Rad":        df["Rad_arcmin"].values,
+        "_RA":        df["RA"].values,
+        "_DE":        df["DEC"].values,
+        "n_epochs":   np.ones(len(df), dtype=int),
+    })
+
+
+def lvdb_nuisance_priors(row: pd.Series) -> dict:
+    """
+    Extract symmetrised Gaussian nuisance priors from an LVDB v1.0.5 galaxy row.
+    Propagates distance-modulus uncertainty to d_kpc: σ_d = (ln10/5) × d × σ_μ.
+    Falls back to 5% of the central value if _em/_ep are NaN.
+    """
+    def sym(val, em_col, ep_col):
+        em = row.get(em_col)
+        ep = row.get(ep_col)
+        if pd.isna(em) or pd.isna(ep):
+            print(f"WARNING: {em_col}/{ep_col} NaN; using 5% of central value.")
+            return 0.05 * abs(val)
+        return (float(em) + float(ep)) / 2.0
+
+    mu    = float(row["distance_modulus"])
+    d_kpc = 10.0 ** (1.0 + mu / 5.0) / 1000.0
+    mu_sig = sym(mu, "distance_modulus_em", "distance_modulus_ep")
+    d_sig  = (np.log(10.0) / 5.0) * d_kpc * mu_sig
+
+    rh     = float(row["rhalf"])
+    rh_sig = sym(rh, "rhalf_em", "rhalf_ep")
+
+    eps     = float(row["ellipticity"]) if not pd.isna(row["ellipticity"]) else 0.0
+    eps_sig = sym(eps if eps != 0.0 else 0.1, "ellipticity_em", "ellipticity_ep")
+
+    return {"d_mean": d_kpc,   "d_sigma":     d_sig,
+            "eps_mean": eps,   "eps_sigma":   eps_sig,
+            "rhalf_mean": rh,  "rhalf_sigma": rh_sig}
+
+
 def load_stars(d_kpc: float, source: str,
                 ra_center_deg: float | None = None,
-                dec_center_deg: float | None = None) -> pd.DataFrame:
+                dec_center_deg: float | None = None,
+                lvdb_rhalf_arcmin: float | None = None) -> pd.DataFrame:
     if source == "simon":
         keep = load_stars_simon()
     elif source == "pace":
         if ra_center_deg is None or dec_center_deg is None:
             raise ValueError("source='pace' requires ra/dec center")
         keep = load_stars_pace(ra_center_deg, dec_center_deg)
+    elif source == "geha":
+        if ra_center_deg is None or dec_center_deg is None or lvdb_rhalf_arcmin is None:
+            raise ValueError("source='geha' requires ra/dec center and lvdb_rhalf_arcmin")
+        # Circularized half-light radius = rhalf_major × sqrt(1 − ε); passed as cut radius.
+        # lvdb_rhalf_arcmin is already the circularized value (computed in main before call).
+        keep = load_stars_geha(ra_center_deg, dec_center_deg, lvdb_rhalf_arcmin)
     else:
         raise ValueError(f"unknown source {source!r}")
     R_kpc = d_kpc * keep["Rad_arcmin"].values * ARCMIN_TO_RAD
@@ -331,8 +417,10 @@ def main():
         _suffix_parts.append(SOURCE)
     if not USE_P_WEIGHTS:
         _suffix_parts.append("nop")
-    if FIX_R_P_ARCMIN is not None:
+    if SOURCE in ("simon", "pace") and FIX_R_P_ARCMIN is not None:
         _suffix_parts.append("fixrp")
+    if not USE_JEFFREYS_PRIOR:
+        _suffix_parts.append("logunif")
     suffix = "_" + "_".join(_suffix_parts) if _suffix_parts else ""
 
     def out(stem: str, ext: str) -> Path:
@@ -350,22 +438,46 @@ def main():
     for k, v in g.items():
         logp(f"  {k}: {v}")
 
-    # Override LVDB values with Pace+Strigari 2018 observational parameters
-    g["d_kpc"]         = PS18_D_KPC
-    g["R_half_2d_kpc"] = PS18_RHALF_PC / 1000.0
-    g["r_p_kpc"]       = PS18_RHALF_PC / 1000.0
-    g["r_half_3d_kpc"] = PLUMMER_3D_OVER_2D * PS18_RHALF_PC / 1000.0
-    logp("\n=== P&S 2018 observational overrides ===")
-    logp(f"  d_kpc:         {g['d_kpc']:.1f} ± {PS18_D_KPC_ERR:.1f} kpc")
-    logp(f"  r_p_kpc:       {g['r_p_kpc']*1000:.1f} ± {PS18_RHALF_PC_ERR:.1f} pc")
-    logp(f"  r_half_3d_kpc: {g['r_half_3d_kpc']*1000:.2f} pc")
+    if SOURCE in ("simon", "pace"):
+        # Override LVDB values with Pace+Strigari 2018 observational parameters
+        g["d_kpc"]         = PS18_D_KPC
+        g["R_half_2d_kpc"] = PS18_RHALF_PC / 1000.0
+        g["r_p_kpc"]       = PS18_RHALF_PC / 1000.0
+        g["r_half_3d_kpc"] = PLUMMER_3D_OVER_2D * PS18_RHALF_PC / 1000.0
+        logp("\n=== P&S 2018 observational overrides ===")
+        logp(f"  d_kpc:         {g['d_kpc']:.1f} ± {PS18_D_KPC_ERR:.1f} kpc")
+        logp(f"  r_p_kpc:       {g['r_p_kpc']*1000:.1f} ± {PS18_RHALF_PC_ERR:.1f} pc")
+        logp(f"  r_half_3d_kpc: {g['r_half_3d_kpc']*1000:.2f} pc")
+    else:
+        logp("\n=== Using LVDB v1.0.5 observational values (no PS18 override) ===")
+        logp(f"  d_kpc:        {g['d_kpc']:.2f} kpc")
+        logp(f"  r_p_kpc:      {g['r_p_kpc']*1000:.2f} pc")
+        logp(f"  r_half_3d:    {g['r_half_3d_kpc']*1000:.2f} pc")
+        logp(f"  rhalf_arcmin: {g['rhalf_arcmin']:.3f}, ellipticity: {g['ellipticity']:.3f}")
+        # Sanity check: d × rhalf_major × ARCMIN_TO_RAD should be ~0.024 kpc for Segue 1
+        rhalf_major_kpc = g["d_kpc"] * g["rhalf_arcmin"] * ARCMIN_TO_RAD
+        logp(f"  d × rhalf_major × ARCMIN_TO_RAD = {rhalf_major_kpc:.4f} kpc  (expect ~0.024)")
+        if not (0.018 < rhalf_major_kpc < 0.035):
+            raise RuntimeError(
+                f"LVDB rhalf sanity check failed: d×rhalf_major = {rhalf_major_kpc:.4f} kpc, "
+                "expected 0.018–0.035 kpc for Segue 1."
+            )
 
+    # Geha radial aperture: Martin+2008 r_h (GEHA_RHALF_CUT_ARCMIN = 4.31') → 53 stars.
+    # Not the LVDB circularized value (2.96' → 41 stars) or LVDB major-axis (3.62' → 47).
+    _geha_cut_arcmin = GEHA_RHALF_CUT_ARCMIN
     stars = load_stars(g["d_kpc"], SOURCE,
-                        ra_center_deg=g["ra_deg"], dec_center_deg=g["dec_deg"])
-    src_name = (SEGUE1_KIN_CSV.name if SOURCE == "simon" else PACE_DAT.name)
+                        ra_center_deg=g["ra_deg"], dec_center_deg=g["dec_deg"],
+                        lvdb_rhalf_arcmin=_geha_cut_arcmin)
+    src_name = (SEGUE1_KIN_CSV.name if SOURCE == "simon"
+                else GEHA_CSV.name if SOURCE == "geha"
+                else PACE_DAT.name)
     logp(f"\n=== Per-star data ({src_name}) ===")
     logp(f"  source: {SOURCE!r}")
-    logp(f"  Bpr > {P_CUT}: N = {len(stars)}")
+    _pmem_cut = P_CUT_GEHA if SOURCE == "geha" else P_CUT
+    _cut_desc = (f"Pmem>{_pmem_cut}, within 2×{_geha_cut_arcmin:.2f}′ (Martin+2008 r_h), Var≠1"
+                 if SOURCE == "geha" else f"Bpr > {_pmem_cut}")
+    logp(f"  {_cut_desc}: N = {len(stars)}")
     logp(f"  R range (kpc): [{stars['R_kpc'].min():.4f}, {stars['R_kpc'].max():.4f}]")
     logp(f"  V mean/std (km/s): {stars['Vel'].mean():.2f} / {stars['Vel'].std():.2f}")
     logp(f"  e_Vel median (km/s): {stars['e_Vel'].median():.2f}")
@@ -391,19 +503,27 @@ def main():
         "truth": {"r_p": g["r_p_kpc"]},
     }
 
-    # Nuisance priors (P&S 2018 distance + Martin+2008 ellipticity; rhalf set so
-    # that at fiducial (d=23, ε=0.47) the implied r_p is 21 ± 5 pc per P&S 2018).
-    nuisance_priors = {
-        "d_mean":      23.0,    "d_sigma":      2.0,    # kpc
-        "eps_mean":    0.47,    "eps_sigma":    0.11,   # dimensionless, truncated to [0,1)
-        "rhalf_mean":  4.31,    "rhalf_sigma":  1.03,   # arcmin
-    }
-    if FIX_R_P_ARCMIN is not None:
-        # The 7th nuisance is reinterpreted as r_p_arcmin directly; bypasses
-        # √(1−ε) inside the likelihood. ε is still sampled (its own prior is
-        # unchanged) but does not enter r_p geometry.
-        nuisance_priors["rhalf_mean"]  = float(FIX_R_P_ARCMIN[0])
-        nuisance_priors["rhalf_sigma"] = float(FIX_R_P_ARCMIN[1])
+    if SOURCE in ("simon", "pace"):
+        # Nuisance priors: P&S 2018 distance + Martin+2008 ellipticity; rhalf set
+        # so that at fiducial (d=23, ε=0.47) the implied r_p is 21 ± 5 pc per P&S 2018.
+        nuisance_priors = {
+            "d_mean":      23.0,    "d_sigma":      2.0,    # kpc
+            "eps_mean":    0.47,    "eps_sigma":    0.11,   # dimensionless, truncated to [0,1)
+            "rhalf_mean":  4.31,    "rhalf_sigma":  1.03,   # arcmin
+        }
+        if FIX_R_P_ARCMIN is not None:
+            # The 7th nuisance is reinterpreted as r_p_arcmin directly; bypasses
+            # √(1−ε) inside the likelihood. ε is still sampled (its own prior is
+            # unchanged) but does not enter r_p geometry.
+            nuisance_priors["rhalf_mean"]  = float(FIX_R_P_ARCMIN[0])
+            nuisance_priors["rhalf_sigma"] = float(FIX_R_P_ARCMIN[1])
+        fix_r_p = FIX_R_P_ARCMIN
+    else:
+        # Geha run: derive nuisance priors from LVDB v1.0.5 directly.
+        lvdb_df = pd.read_csv(fetch_lvdb())
+        lvdb_row = lvdb_df[lvdb_df["key"] == "segue_1"].iloc[0]
+        nuisance_priors = lvdb_nuisance_priors(lvdb_row)
+        fix_r_p = None  # sample rhalf_arcmin + eps separately; r_p derived in chain
 
     logp("\n=== Constant-σ inference ===")
     cs = constant_sigma_inference(
@@ -419,7 +539,7 @@ def main():
          f"{pf['mle']:.4g} +{pf['sigma_hi']:.4g}/-{pf['sigma_lo']:.4g}  (km/s)")
 
     logp(f"\n=== Running dynesty (7D, nuisance-marginalized; nlive={DYNESTY_NLIVE}, dlogz={DYNESTY_DLOGZ}) ===")
-    _rp_label = "r_p_arcmin (fix_r_p_arcmin)" if FIX_R_P_ARCMIN is not None else "rhalf"
+    _rp_label = "r_p_arcmin (fix_r_p_arcmin)" if fix_r_p is not None else "rhalf"
     logp(f"  nuisance priors: d ~ N({nuisance_priors['d_mean']}, {nuisance_priors['d_sigma']}) kpc, "
          f"ε ~ N({nuisance_priors['eps_mean']}, {nuisance_priors['eps_sigma']}) trunc [0,1), "
          f"{_rp_label} ~ N({nuisance_priors['rhalf_mean']}, {nuisance_priors['rhalf_sigma']}) arcmin")
@@ -435,8 +555,8 @@ def main():
         print_progress=False,
         marginalize_nuisances=True,
         nuisance_priors=nuisance_priors,
-        use_jeffreys_prior=True,
-        fix_r_p_arcmin=(FIX_R_P_ARCMIN is not None),
+        use_jeffreys_prior=USE_JEFFREYS_PRIOR,
+        fix_r_p_arcmin=(fix_r_p is not None),
     )
     logp(f"  done in {time.time()-t_inf:.1f}s")
     logp(f"  logZ = {result['logz']:.3f} ± {result['logz_err']:.3f}")
@@ -449,7 +569,7 @@ def main():
     beta_chain = jeans_inference.beta_tilde_to_beta(btilde_chain)
 
     # Per-sample derived nuisance chains
-    if FIX_R_P_ARCMIN is not None:
+    if fix_r_p is not None:
         # 7th param is r_p_arcmin directly; matches the likelihood's geometry.
         r_p_chain = d_chain * rhalf_arcmin_chain * ARCMIN_TO_RAD
     else:
