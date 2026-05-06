@@ -12,6 +12,7 @@ The Plummer scale radius `r_p` for Stage 2's tracer model is **not** fit by us f
 | Date | Change |
 |---|---|
 | 2026-05-05 | Reconciled with on-disk data: (a) Geha Path A `p_i ← Pmem` (the `Pmem_novar` column does not exist in `table3A_20260110.csv`; `Var` is carried as auxiliary). (b) LVDB v1.0.5 has no `spatial_model` column; profile flag now sourced from a hand-curated `data_ingest/config/spatial_model_overrides.yaml`. |
+| 2026-05-05 | Clarified the **missing-probability default**: `p_i = 1` applies only to papers that *publish a member list* and let null mean "implicit member." For papers that publish every observed star with a *continuous* classification (e.g., Koposov 2018's `logodds` column for Hydrus I), a null/masked probability means "fit failed" rather than "implicit member"; per-paper adapters in this case set `p_i = 0` for the masked rows and override the global default. The override decision is recorded in the per-paper adapter's `notes` and in the per-galaxy `_meta` `membership_rule` field. |
 
 ---
 

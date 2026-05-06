@@ -6,7 +6,7 @@ ingest. Updated and committed every time a paper's state changes.
 To continue from a fresh session: read this file, find the first paper marked
 `pending` or `blocked`, and pick up from there. Process order is fixed below.
 
-Last updated: 2026-05-05 (Li 2018 → Carina II + Carina III ingested)
+Last updated: 2026-05-05 (Koposov 2018 → Hydrus I ingested)
 
 ## Per-paper status
 
@@ -21,7 +21,7 @@ discoveries next, likely-blocked last). One paper per commit.
 | 4 | Koposov 2015 (`2015ApJ...811...62K`) | Horologium I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
 | 5 | Li 2017 (`2017ApJ...838....8L`) | Eridanus II | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
 | 6 | Li 2018 (`2018ApJ...857..145L`) | Carina II + Carina III | done | VizieR `J/ApJ/857/145/table4` (per-epoch); split by `Mm ∈ {0,2,3}` |
-| 7 | Koposov 2018 (`2018MNRAS.479.5343K`) | Hydrus I | pending | VizieR `J/MNRAS/479/5343` |
+| 7 | Koposov 2018 (`2018MNRAS.479.5343K`) | Hydrus I | done | VizieR `J/MNRAS/479/5343/table2`; `logodds` → sigmoid; `<V>` and σ match paper |
 | 8 | Simon 2020 (`2020ApJ...892..137S`) | Tucana IV | pending | VizieR `J/ApJ/892/137` |
 | 9 | Ji 2021 (`2021ApJ...921...32J`) | Antlia II + Crater II | pending | VizieR `J/ApJ/921/32` |
 | 10 | Chiti 2022 (`2022ApJ...939...41C`) | Grus I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
@@ -51,7 +51,8 @@ is the canonical correctness check.
 | carina_1 | walker2009 | 1982 | 774¹ / 441 (Mmb=1, of which 172 have finite V) | 222.9 / 223.16 | 6.6 / 6.15² | 222.90 | 6.60 | 3546e78 |
 | reticulum_2 | walker2015 | 38 | 17 / 18 (Mm?=Y) | 64.3 / 65.53 | 3.6 / 3.69 (naive) ≈ 3.32 (quad-deconv) | 64.30 | 3.60 | 44c93c8 |
 | carina_2 | li2018 | 407 (per-epoch) | 18 / 18 (Mm=2 unique stars from 30 epochs) | 477.2 / 478.41 (per-star IVW) | 3.4 / 5.33 (naive per-star)¹ | 477.20 | 3.40 | (this commit) |
-| carina_3 | li2018 | 407 (per-epoch) | 4 / 4 (Mm=3 unique stars from 8 epochs) | 284.6 / 285.23 (per-star IVW) | 5.6 / 5.66 (naive per-star) | 284.60 | 5.60 | (this commit) |
+| carina_3 | li2018 | 407 (per-epoch) | 4 / 4 (Mm=3 unique stars from 8 epochs) | 284.6 / 285.23 (per-star IVW) | 5.6 / 5.66 (naive per-star) | 284.60 | 5.60 | 6fe48e1 |
+| hydrus_1 | koposov2018 | 139 | ~28 / 33 (sigmoid(logodds) > 0.5) | 80.4 / 80.30 | 2.69 / 3.32 (naive) ≈ 2.96 (decov) | 80.40 | 2.70 | (this commit) |
 
 ¹ Li 2018 reports σ_los = 3.4 km/s for Carina II from a binary-aware ML deconvolution. Our naive per-star std (5.33 km/s) does not deconvolve binaries; the data are stored faithfully (the per-epoch npz preserves all 30 Mm=2 epochs), and binary-aware aggregation is downstream of Stage 0b. Member counts and `<V>` match the paper exactly. For Carina III the smaller binary fraction makes the naive per-star std (5.66 km/s) match the paper's 5.6 km/s without deconvolution.
 
