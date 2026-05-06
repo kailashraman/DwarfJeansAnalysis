@@ -6,7 +6,7 @@ ingest. Updated and committed every time a paper's state changes.
 To continue from a fresh session: read this file, find the first paper marked
 `pending` or `blocked`, and pick up from there. Process order is fixed below.
 
-Last updated: 2026-05-06 (QA-sweep fix #1: harmonized `star_id` contract for per-epoch adapters li2018 / simon2020 / chiti2023 — `star_id` is now the cross-epoch grouping key per `docs/plan/data_sources.md:295`, matching the newer adapters. Affected catalogs regenerated; per-star σ values in the table below are slightly updated since they were previously computed with a row-index `star_id`.)
+Last updated: 2026-05-06 (QA-sweep fix #2: walker2009 adapter now fills σ_eps for single-epoch Carina stars from the per-spectrum `tables.csv` instead of leaving NaN. Pre-fix: 172/441 strict members had finite σ_eps; post-fix: 441/441. Velocities and memberships unchanged.)
 
 ## Per-paper status
 
@@ -48,7 +48,7 @@ is the canonical correctness check.
 
 | LVDB key | Paper bibkey | n_rows (raw npz) | n_mem (paper / ours) | <V>_mem km/s (paper / ours) | σ_los km/s (paper / ours) | LVDB v_sys (km/s) | LVDB σ (km/s) | Commit |
 |---|---|---|---|---|---|---|---|---|
-| carina_1 | walker2009 | 1982 | 774¹ / 441 (Mmb=1, of which 172 have finite V) | 222.9 / 223.16 | 6.6 / 6.15² | 222.90 | 6.60 | 3546e78 |
+| carina_1 | walker2009 | 1982 | 774¹ / 441 (Mmb=1) | 222.9 / 222.89 | 6.6 / 6.19² | 222.90 | 6.60 | (this commit) |
 | reticulum_2 | walker2015 | 38 | 17 / 18 (Mm?=Y) | 64.3 / 65.53 | 3.6 / 3.69 (naive) ≈ 3.32 (quad-deconv) | 64.30 | 3.60 | 44c93c8 |
 | carina_2 | li2018 | 407 (per-epoch) | 18 / 18 (Mm=2 unique stars from 30 epochs) | 477.2 / 478.41 (per-star IVW) | 3.4 / 5.18 (naive per-star)¹ | 477.20 | 3.40 | (this commit) |
 | carina_3 | li2018 | 407 (per-epoch) | 4 / 4 (Mm=3 unique stars from 8 epochs) | 284.6 / 285.23 (per-star IVW) | 5.6 / 4.90 (naive per-star) | 284.60 | 5.60 | 6fe48e1 |
@@ -68,9 +68,9 @@ is the canonical correctness check.
 
 ¹ Li 2018 reports σ_los = 3.4 km/s for Carina II from a binary-aware ML deconvolution. Our naive per-star std (5.33 km/s) does not deconvolve binaries; the data are stored faithfully (the per-epoch npz preserves all 30 Mm=2 epochs), and binary-aware aggregation is downstream of Stage 0b. Member counts and `<V>` match the paper exactly. For Carina III the smaller binary fraction makes the naive per-star std (5.66 km/s) match the paper's 5.6 km/s without deconvolution.
 
-¹ Walker 2009 abstract reports ~774 "likely" Carina members from the EM mixture model's continuous probabilities; VizieR's `Mmb` column is a hard 0/1 flag on the strict subset (441), and only 172 of those have a velocity value not masked in the per-star averaged table. The raw npz preserves all 1982 rows; downstream sample-selection chooses the cut.
+¹ Walker 2009 abstract reports ~774 "likely" Carina members from the EM mixture model's continuous probabilities; VizieR's `Mmb` column is the same continuous probability, with 441 stars having `Mmb == 1.0` (strict members) and 780 having `Mmb > 0.5` (soft members). The raw npz preserves all 1982 rows; downstream sample-selection chooses the cut.
 
-² Our 6.15 is `sqrt(Var - med_eV^2)` over the 172 members with finite V — a quick deconvolution. Walker 2009's 6.6 km/s comes from their full ML deconvolution including per-star errors and binary handling. Within ~7%, consistent with the simpler estimator.
+² Our 6.19 is the naive std over all 441 strict members. After QA-sweep #2 every strict member has a finite σ_eps (172 from the IVW-combined `e_<HV>` in stars.csv, 269 from the per-spectrum `e_HV` in tables.csv), so error-deconvolved estimators downstream now have full coverage. Walker 2009's 6.6 km/s comes from their full ML deconvolution including per-star errors and binary handling.
 
 ¹ Leo VI: the 9 confirmed members have rather large ε_vhel (1.1–8.3 km/s, median ≈ 4.0). The naive per-star std (4.18) is dominated by these errors; a quick `sqrt(Var - med_eV²)` deconvolution gives 1.22 km/s, while the paper's ML estimator (which uses each star's own ε_vhel) recovers σ ≈ 2.85 km/s — within the ε-dominated regime our quick estimator is unreliable. The data are stored faithfully; binary-aware/error-deconvolved aggregation is downstream.
 
