@@ -220,7 +220,7 @@ Add to the methodology references list:
 
 ## Per-Star Spectroscopic Catalogs
 
-**Status:** sourcing routing decided; per-galaxy ingest configuration to be executed on the cluster once raw data are staged. This section documents the routing rule, the per-galaxy assignment for the current study sample, and the per-source ingest procedure in enough detail to be implementable end-to-end.
+**Status:** sourcing routing decided; per-galaxy ingest configuration to be executed on the cluster (Claude Code) once raw data are staged. This section documents the routing rule, the per-galaxy assignment for the current study sample, and the per-source ingest procedure in enough detail to be implementable end-to-end.
 
 The unbinned Jeans likelihood (P&S eq. 8) needs star-by-star measurements per galaxy:
 
@@ -237,7 +237,7 @@ For each galaxy in the study sample, choose **exactly one** spectroscopic source
 
 1. **Path A — Keck/DEIMOS Stellar Archive (Geha 2026, Paper I).** If the galaxy appears as a satellite-galaxy entry (`Type == "G"`) in Geha (2026) Paper II Table A1 (`arXiv:2602.10202`), use the per-star catalog from Geha et al. (2026) Paper I, Table 3A (the primary 22,339-row star table from `arXiv:2602.10200`). This is the homogeneous DEIMOS reduction and is preferred whenever available because it gives us a single uniform pipeline (PypeIt + `dmost` forward modeling, R∼6000, 1.1 km/s velocity floor, CaT-based [Fe/H] with 0.1 dex floor) across the largest possible fraction of the sample.
 
-2. **Path B — LVDB `ref_vlos` paper.** Otherwise, use the original spectroscopic paper that the LVDB cites in the `ref_vlos` column for that galaxy. The LVDB's `ref_vlos` is the joint reference for `vlos_systemic` and `vlos_sigma` (both live under the `velocity` YAML collection and share a single reference). Reference values follow the LVDB's standard format: `LastName + 19-char ADS bibcode`, so the ingest pipeline can extract the ADS bibcode by taking the last 19 characters of the `ref_vlos` string for the galaxy's row in `comb_all.csv`.
+2. **Path B — LVDB `ref_vlos` paper.** Otherwise, use the original spectroscopic paper that the LVDB cites in the `ref_vlos` column for that galaxy. The LVDB's `ref_vlos` is the joint reference for `vlos_systemic` and `vlos_sigma` (both live under the `velocity` YAML collection and share a single reference). Reference values follow the LVDB's standard format: `LastName + 19-char ADS bibcode`, so Claude Code can extract the ADS bibcode by taking the last 19 characters of the `ref_vlos` string for the galaxy's row in `comb_all.csv`.
 
 The rule is deterministic — no Path A / Path B fallback if Path A fails for a specific galaxy without a code change. If a galaxy passes the Path A test but no rows for it appear in the Geha Table 3A (e.g., a name-mapping miss, or the system genuinely isn't in Table 3A despite being in Paper II Table A1), that is logged as a per-galaxy failure for human review, **not** silently demoted to Path B (different pipelines have different systematics, and we want to avoid hidden mixing). Whether a galaxy ends up with too few stars to be useful for downstream analysis is a sample-selection concern, not an ingest concern.
 
@@ -322,7 +322,7 @@ The ingest stance, consistent with the raw-data-only rule:
 
 4. **Provenance metadata** in the `_meta` JSON dict for the resulting `.npz`:
    - `source_path: "Path A: Geha 2026"`
-   - `source_paper_bibcode_paper1: "Geha2026..."` (the 19-char ADS bibcode for Geha et al. 2026 Paper I — the ingest pipeline should resolve from arXiv:2602.10200 once the paper is on ADS)
+   - `source_paper_bibcode_paper1: "Geha2026..."` (the 19-char ADS bibcode for Geha et al. 2026 Paper I — Claude Code should resolve from arXiv:2602.10200 once the paper is on ADS)
    - `source_paper_bibcode_paper2: "Geha2026..."` (Paper II, arXiv:2602.10202, for the integrated-properties cross-check)
    - `source_table: "table3A_20260110"`
    - `system_name_in_table3A: "<value>"`
@@ -334,7 +334,7 @@ The ingest stance, consistent with the raw-data-only rule:
 
 ### Path B — LVDB `ref_vlos` paper ingest
 
-**Source:** for each Path B galaxy, the spectroscopic paper cited in the LVDB v1.0.5 `ref_vlos` column. The ingest pipeline should resolve these per galaxy by reading the LVDB `comb_all.csv` already staged for Stage 0a.
+**Source:** for each Path B galaxy, the spectroscopic paper cited in the LVDB v1.0.5 `ref_vlos` column. Claude Code should resolve these per galaxy by reading the LVDB `comb_all.csv` already staged for Stage 0a.
 
 **Resolution workflow** (run once per Path B galaxy):
 
@@ -379,7 +379,7 @@ The ingest stance, consistent with the raw-data-only rule:
 
 ### Per-galaxy assignment for the current study sample
 
-The 39-galaxy study sample, routed by the rule above. Path A entries cite the system name as it appears in Paper II Table A1 (the abbreviation that should let the ingest pipeline locate the rows in Table 3A; the exact column name remains a verification step). Path B entries route to LVDB lookup; the LVDB `key` column is given for unambiguous lookup against `comb_all.csv`.
+The 39-galaxy study sample, routed by the rule above. Path A entries cite the system name as it appears in Paper II Table A1 (the abbreviation that should let Claude Code locate the rows in Table 3A; the exact column name remains a verification step). Path B entries route to LVDB lookup; the LVDB `key` column is given for unambiguous lookup against `comb_all.csv`.
 
 | Study-sample name | Path | Path A: Paper II Table A1 abbrev | Path B: LVDB `key` (lowercased; check on cluster) | Notes |
 |---|---|---|---|---|
@@ -425,7 +425,7 @@ The 39-galaxy study sample, routed by the rule above. Path A entries cite the sy
 
 Counts: **22 Path A galaxies, 17 Path B galaxies, 39 total** — matches the requested study sample.
 
-The LVDB `key` column values listed for Path B are the standard LVDB conventions (lowercased, underscore-separated, with discovery-order suffix where applicable), but **the ingest pipeline must verify each one against `comb_all.csv` at ingest time** rather than trusting this table. If a key doesn't match, the most likely cause is a v1.0.5-vs-current naming difference; resolve by searching on `host` + RA/Dec proximity to the known coordinates and log the resolution.
+The LVDB `key` column values listed for Path B are the standard LVDB conventions (lowercased, underscore-separated, with discovery-order suffix where applicable), but **Claude Code must verify each one against `comb_all.csv` at ingest time** rather than trusting this table. If a key doesn't match, the most likely cause is a v1.0.5-vs-current naming difference; resolve by searching on `host` + RA/Dec proximity to the known coordinates and log the resolution.
 
 ### Settled conventions
 
@@ -441,7 +441,7 @@ These apply to both paths:
 
 ### Items requiring on-cluster verification
 
-These are explicitly deferred to the ingest implementation with file access, since they depend on inspecting raw data we don't have in chat:
+These are explicitly deferred to Claude Code with file access, since they depend on inspecting raw data we don't have in chat:
 
 1. **LVDB and Geha source-file locations in the existing repo.** Identify where (a) the LVDB v1.0.5 `comb_all.csv` and (b) the Geha 2026 Paper I Table 3A currently live in this repository (both from prior work). The first ingest action is to copy them into `data/lvdb_v1.0.5/` and `data/geha2026/` respectively, write `PROVENANCE.md` recording the original locations, and generate `checksums.sha256` for each. Until both copies are done, no galaxy can be ingested: LVDB is the source of truth for global properties (Stage 0a) and Geha is needed for Path A (Stage 0b).
 2. ~~**Geha Table 3A column names.**~~ Resolved 2026-05-05 by inspecting `data/geha2026/table3A_20260110.csv`: header is `Galaxy, RA, DEC, r, gr, nmask, t_exp, SN, v, verr, CaT, CaTerr, FeH, FeH_err, Var, Pmem`. Mapped per the Path A "Column mapping" section above.
