@@ -42,9 +42,11 @@ PACE_DAT       = HERE / "data" / "Pace_Segue1_Bayes_0d8_binary.dat"
 GEHA_CSV       = HERE / "data" / "table3A_20260110.csv"
 P_CUT = 0.8
 P_CUT_GEHA = 0.5  # Geha+2026 §Sample Selection
-# Martin+2008 projected half-light radius (r_h ~ 29 pc at d=22.9 kpc ≈ 4.31').
-# Used as the 2×r_h radial aperture for the Geha star selection (gives 53 stars).
-GEHA_RHALF_CUT_ARCMIN = 4.31
+# Radial aperture used for the Geha star selection (2× this value).
+#   3.62' → LVDB v1.0.5 semi-major rhalf (~24 pc at d=22.9 kpc) → 47 stars
+#   4.31' → Martin+2008 r_h → 53 stars
+# GEHA_RHALF_CUT_ARCMIN = 4.31  # Martin+2008
+GEHA_RHALF_CUT_ARCMIN = 3.62  # LVDB v1.0.5 semi-major
 ARCMIN_TO_RAD = np.pi / (180.0 * 60.0)
 PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
 
@@ -52,11 +54,11 @@ PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
 #   'simon': segue1_kinematics_simon2011.csv (VizieR Simon+2011 Table 1) with Bpr > 0.8.
 #   'pace':  Pace_Segue1_Bayes_0d8_binary.dat (Pace 0.8-membership combined-velocity file).
 #            simon/pace select the same 62 stars (compare_pace_vs_bpr08.py); both use PS18 priors.
-#   'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB rhalf, Var != 1 → 52 stars.
+#   'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB rhalf, Var != 1 → 47 stars.
 #            Uses LVDB v1.0.5 nuisance priors (d, rhalf, ε) instead of PS18 overrides.
 SOURCE = "geha"  # 'simon' | 'pace' | 'geha'
 USE_P_WEIGHTS = False     # if False, replace post-cut p_i with 1.0 in the likelihood
-USE_JEFFREYS_PRIOR = True   # if False, flat log-uniform prior on (r_s, rho_s); if True, add Jeffreys correction
+USE_JEFFREYS_PRIOR = False   # if False, flat log-uniform prior on (r_s, rho_s); if True, add Jeffreys correction
 DYNESTY_NLIVE = 500   # nominal 500; raise for posterior stability
 DYNESTY_DLOGZ = 0.1   # nominal 0.1; tighten alongside nlive
 # When set to (mean, sigma), bypass the rhalf×√(1−ε) chain in the Jeans
@@ -475,7 +477,7 @@ def main():
     logp(f"\n=== Per-star data ({src_name}) ===")
     logp(f"  source: {SOURCE!r}")
     _pmem_cut = P_CUT_GEHA if SOURCE == "geha" else P_CUT
-    _cut_desc = (f"Pmem>{_pmem_cut}, within 2×{_geha_cut_arcmin:.2f}′ (Martin+2008 r_h), Var≠1"
+    _cut_desc = (f"Pmem>{_pmem_cut}, within 2×{_geha_cut_arcmin:.2f}′ (LVDB semi-major rhalf), Var≠1"
                  if SOURCE == "geha" else f"Bpr > {_pmem_cut}")
     logp(f"  {_cut_desc}: N = {len(stars)}")
     logp(f"  R range (kpc): [{stars['R_kpc'].min():.4f}, {stars['R_kpc'].max():.4f}]")
