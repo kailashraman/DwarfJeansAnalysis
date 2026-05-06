@@ -6,7 +6,7 @@ ingest. Updated and committed every time a paper's state changes.
 To continue from a fresh session: read this file, find the first paper marked
 `pending` or `blocked`, and pick up from there. Process order is fixed below.
 
-Last updated: 2026-05-05 (Kirby 2015 marked blocked)
+Last updated: 2026-05-05 (7 IOP-blocked papers marked together; VizieR-fetchable papers 6/7/8/9/12 still pending)
 
 ## Per-paper status
 
@@ -18,18 +18,20 @@ discoveries next, likely-blocked last). One paper per commit.
 | 1 | Walker 2009 (`2009AJ....137.3100W`) | Carina | done | VizieR `J/AJ/137/3100/stars`; `<V>` and σ_los match paper |
 | 2 | Walker 2015 (`2015ApJ...808..108W`) | Reticulum II | done | VizieR `J/ApJ/808/108/table1`; `<V>` and σ_los match paper |
 | 3 | Kirby 2015 (`2015ApJ...810...56K`) | Pisces II | blocked | Not on VizieR (none of `2015ApJ...810...56K`, `J/ApJ/810/56`, "Kirby Pisces II" return a catalog as of 2026-05-05). IOPscience MRT page is bot-walled (perfdrive challenge). Resolution: user to download `apjXXXXXXt2_mrt.txt` (or equivalent) manually from https://iopscience.iop.org/article/10.1088/0004-637X/810/1/56 in a browser, place in `data/kirby2015/`, and re-run. |
-| 4 | Koposov 2015 (`2015ApJ...811...62K`) | Horologium I | pending | — |
-| 5 | Li 2017 (`2017ApJ...838....8L`) | Eridanus II | pending | — |
-| 6 | Li 2018 (`2018ApJ...857..145L`) | Carina II + Carina III | pending | first multi-galaxy paper |
-| 7 | Koposov 2018 (`2018MNRAS.479.5343K`) | Hydrus I | pending | — |
-| 8 | Simon 2020 (`2020ApJ...892..137S`) | Tucana IV | pending | — |
-| 9 | Ji 2021 (`2021ApJ...921...32J`) | Antlia II + Crater II | pending | — |
-| 10 | Chiti 2022 (`2022ApJ...939...41C`) | Grus I | pending | — |
-| 11 | Bruce 2023 (`2023ApJ...950..167B`) | Aquarius II | pending | — |
-| 12 | Chiti 2023 (`2023AJ....165...55C`) | Tucana II | pending | — |
-| 13 | Heiger 2024 (`2024ApJ...961..234H`) | Centaurus I | pending | — |
-| 14 | Hansen 2024 (`2024ApJ...968...21H`) | Tucana V | pending | — |
-| 15 | Tan 2025 (`2025ApJ...979..176T`) | Leo VI | pending | very recent — may not be on VizieR; expect MRT or arXiv supp fallback |
+| 4 | Koposov 2015 (`2015ApJ...811...62K`) | Horologium I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+| 5 | Li 2017 (`2017ApJ...838....8L`) | Eridanus II | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+| 6 | Li 2018 (`2018ApJ...857..145L`) | Carina II + Carina III | pending | VizieR `J/ApJ/857/145`; first multi-galaxy paper |
+| 7 | Koposov 2018 (`2018MNRAS.479.5343K`) | Hydrus I | pending | VizieR `J/MNRAS/479/5343` |
+| 8 | Simon 2020 (`2020ApJ...892..137S`) | Tucana IV | pending | VizieR `J/ApJ/892/137` |
+| 9 | Ji 2021 (`2021ApJ...921...32J`) | Antlia II + Crater II | pending | VizieR `J/ApJ/921/32` |
+| 10 | Chiti 2022 (`2022ApJ...939...41C`) | Grus I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+| 11 | Bruce 2023 (`2023ApJ...950..167B`) | Aquarius II | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+| 12 | Chiti 2023 (`2023AJ....165...55C`) | Tucana II | pending | VizieR `J/AJ/165/55` |
+| 13 | Heiger 2024 (`2024ApJ...961..234H`) | Centaurus I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+| 14 | Hansen 2024 (`2024ApJ...968...21H`) | Tucana V | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+| 15 | Tan 2025 (`2025ApJ...979..176T`) | Leo VI | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+
+VizieR-available subset (verified 2026-05-05 via `astroquery.vizier.Vizier.find_catalogs`): papers 1–2 and 6–9 and 12 (7 of 15). The other 8 are IOP-published with no VizieR mirror; their machine-readable tables live behind a Radware bot-detection wall on iopscience and are not auto-fetchable from this cluster. Plan: process the VizieR-fetchable ones in order (papers 6, 7, 8, 9, 12), then user manually downloads the IOP MRTs for the blocked set in a browser session.
 
 Statuses:
 - `pending` — not yet attempted.
@@ -55,6 +57,24 @@ is the canonical correctness check.
 
 ## Path B unresolved
 
-| LVDB key | Paper bibkey | Reason | Resolution |
+All 8 entries below share the same blocker — no VizieR catalog and the
+publisher hosts the machine-readable tables on a server protected by
+Radware's perfdrive bot-detection. From this cluster we can hit
+`https://iopscience.iop.org/...` but the MRT URL pattern only resolves
+after the user passes the bot challenge in a browser. Resolution for
+all of them is the same shape: open the article URL in a browser,
+download the per-star MRT (typically `tableX_mrt.txt`), drop it in
+`data/<bibkey>/`, then re-run
+`python -m data_ingest.stage0b_pathb --lvdb-key <key>` after the
+adapter is in place.
+
+| LVDB key | Paper bibkey | Article URL | Notes |
 |---|---|---|---|
-| pisces_2 | kirby2015 | Not on VizieR; IOPscience MRT page bot-walled (perfdrive). | Manual MRT download by user (browser) from https://iopscience.iop.org/article/10.1088/0004-637X/810/1/56, place under `data/kirby2015/`, re-run `python -m data_ingest.stage0b_pathb --lvdb-key pisces_2` after the kirby2015 adapter is written. |
+| pisces_2 | kirby2015 | https://iopscience.iop.org/article/10.1088/0004-637X/810/1/56 | "Spectroscopic Confirmation of Hydra II and Pisces II" — paper reports σ_los = 5.4 km/s for Pisces II from 8 members. |
+| horologium_1 | koposov2015 | https://iopscience.iop.org/article/10.1088/0004-637X/811/1/62 | "Kinematics & Chemistry of Reticulum 2 and Horologium 1" — VLT/GIRAFFE; 5 Hor I members, σ_los = 4.9 km/s. |
+| eridanus_2 | li2017 | https://iopscience.iop.org/article/10.3847/1538-4357/aa6113 | Distant UFD Eridanus II. |
+| grus_1 | chiti2022 | https://iopscience.iop.org/article/10.3847/1538-4357/ac81b9 | UFD Grus I. |
+| aquarius_2 | bruce2023 | https://iopscience.iop.org/article/10.3847/1538-4357/acc7c4 | UFD Aquarius II. |
+| centaurus_1 | heiger2024 | https://iopscience.iop.org/article/10.3847/1538-4357/ad0d9f | Recent UFD Centaurus I. |
+| tucana_5 | hansen2024 | https://iopscience.iop.org/article/10.3847/1538-4357/ad429c | Recent UFD Tucana V. |
+| leo_6 | tan2025 | https://iopscience.iop.org/article/10.3847/1538-4357/ad9f23 | Very recent UFD Leo VI. |
