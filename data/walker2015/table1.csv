@@ -1,0 +1,251 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - name: recno
+#   datatype: int32
+#   description: Record number assigned by the VizieR team. Should Not be used for identification.
+#   meta: !!omap
+#   - {ucd: RECORD}
+#   - {width: 8}
+# - name: Ret2
+#   datatype: string
+#   description: '[4/178] Target Identifier'
+#   meta: !!omap
+#   - {ucd: ID_MAIN}
+#   - {_votable_string_dtype: char}
+# - name: RAJ2000
+#   datatype: string
+#   description: '[3] Hour of Right Ascension (J2000)'
+#   meta: !!omap
+#   - {ucd: POS_EQ_RA_MAIN}
+#   - {xtype: hms}
+#   - {_votable_string_dtype: char}
+# - name: DEJ2000
+#   datatype: string
+#   description: '[53/54] Degree of Declination (J2000)'
+#   meta: !!omap
+#   - {ucd: POS_EQ_DEC_MAIN}
+#   - {xtype: dms}
+#   - {_votable_string_dtype: char}
+# - name: R
+#   unit: arcmin
+#   datatype: float32
+#   format: '{:4.1f}'
+#   description: '[1.2/18] Angular Separation from Center'
+#   meta: !!omap
+#   - {ucd: POS_ANG_DIST_GENERAL}
+#   - {width: 4}
+#   - {precision: '1'}
+# - name: gmag
+#   unit: mag
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[17.3/20.7] Magnitude in g band (1)'
+#   meta: !!omap
+#   - {ucd: PHOT_SDSS_G}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: rmag
+#   unit: mag
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[16.8/20.3] Magnitude in r band (1)'
+#   meta: !!omap
+#   - {ucd: PHOT_SDSS_R}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: S/N
+#   datatype: float32
+#   format: '{:5.1f}'
+#   description: '[1/16] Median Signal/Noise Ratio per pixel'
+#   meta: !!omap
+#   - {ucd: INST_S/N}
+#   - {width: 5}
+#   - {precision: '1'}
+# - name: Vlos
+#   unit: km / s
+#   datatype: float32
+#   format: '{:6.1f}'
+#   description: '[16/309] Solar rest frame line-of-sight velocity ({nu}_los_)'
+#   meta: !!omap
+#   - {ucd: VELOC_MISC}
+#   - {width: 6}
+#   - {precision: '1'}
+# - name: e_Vlos
+#   unit: km / s
+#   datatype: float32
+#   format: '{:5.1f}'
+#   description: '[0.4/3.3] Uncertainty in Vlos'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 5}
+#   - {precision: '1'}
+# - name: sVlos
+#   datatype: float32
+#   format: '{:6.1f}'
+#   description: '[-0.5/0.9] Skewness in Vlos'
+#   meta: !!omap
+#   - {ucd: STAT_PARAM}
+#   - {width: 6}
+#   - {precision: '1'}
+# - name: kVlos
+#   datatype: float32
+#   format: '{:7.1f}'
+#   description: '[2/4] Kurtosis in Vlos'
+#   meta: !!omap
+#   - {ucd: STAT_PARAM}
+#   - {width: 7}
+#   - {precision: '1'}
+# - name: Teff
+#   unit: K
+#   datatype: int16
+#   description: '[4494/6506] Effective Temperature'
+#   meta: !!omap
+#   - {ucd: PHYS_TEMP_EFFEC}
+#   - {width: 4}
+# - name: e_Teff
+#   unit: K
+#   datatype: int16
+#   description: '[50/1034] Uncertainty in Teff'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 4}
+# - name: sTeff
+#   datatype: float32
+#   format: '{:5.1f}'
+#   description: '[-0.4/2.1] Skewness in Teff'
+#   meta: !!omap
+#   - {ucd: STAT_PARAM}
+#   - {width: 5}
+#   - {precision: '1'}
+# - name: kTeff
+#   datatype: float32
+#   format: '{:5.1f}'
+#   description: '[2/9.2] Kurtosis in Teff'
+#   meta: !!omap
+#   - {ucd: STAT_PARAM}
+#   - {width: 5}
+#   - {precision: '1'}
+# - name: logg
+#   unit: log(cm.s**-2)
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[0.5/4.8] Log surface gravity'
+#   meta: !!omap
+#   - {ucd: PHYS_GRAVITY_SURFACE}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: e_logg
+#   unit: log(cm.s**-2)
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[0.1/1.3] Uncertainty in logg'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: slogg
+#   datatype: float32
+#   format: '{:5.1f}'
+#   description: '[-1.7/0.8] Skewness in logg'
+#   meta: !!omap
+#   - {ucd: STAT_PARAM}
+#   - {width: 5}
+#   - {precision: '1'}
+# - name: klogg
+#   datatype: float32
+#   format: '{:5.1f}'
+#   description: '[2.2/6.8] Kurtosis in logg'
+#   meta: !!omap
+#   - {ucd: STAT_PARAM}
+#   - {width: 5}
+#   - {precision: '1'}
+# - name: '[Fe/H]'
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[-3.6/-0.01] Metallicity'
+#   meta: !!omap
+#   - {ucd: PHYS_ABUND_FE/H}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: e_[Fe/H]
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[0.04/1.1] Uncertainty in [Fe/H]'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: s[Fe/H]
+#   datatype: float32
+#   format: '{:5.1f}'
+#   description: '[-0.6/1.5] Skewness in [Fe/H]'
+#   meta: !!omap
+#   - {ucd: STAT_PARAM}
+#   - {width: 5}
+#   - {precision: '1'}
+# - name: k[Fe/H]
+#   datatype: float32
+#   format: '{:5.1f}'
+#   description: '[2/5.7] Kurtosis in [Fe/H]'
+#   meta: !!omap
+#   - {ucd: STAT_PARAM}
+#   - {width: 5}
+#   - {precision: '1'}
+# - name: Mm?
+#   datatype: string
+#   description: Member of Ret 2? (Y/N)
+#   meta: !!omap
+#   - {ucd: CODE_MEMB}
+#   - {_votable_string_dtype: char}
+# - name: Simbad
+#   datatype: string
+#   description: Simbad column added by the CDS
+#   meta: !!omap
+#   - {ucd: DATA_LINK}
+#   - {_votable_string_dtype: char}
+#   - {_votable_arraysize: 6*}
+# meta: !!omap
+# - {ID: J_ApJ_808_108_table1}
+# - {name: J/ApJ/808/108/table1}
+# - {description: M2FS stellar spectroscopy of Reticulum 2}
+# schema: astropy-2.0
+recno Ret2 RAJ2000 DEJ2000 R gmag rmag S/N Vlos e_Vlos sVlos kVlos Teff e_Teff sTeff kTeff logg e_logg slogg klogg [Fe/H] e_[Fe/H] s[Fe/H] k[Fe/H] Mm? Simbad
+1 004 "03 35 56.27" "-54 03 16.2" 2.1 18.83 18.37 5.7 63.9 2.3 0.2 2.0 6506 811 -0.3 2.3 3.12 1.14 -0.7 2.7 -2.26 0.64 -0.6 2.6 Y Simbad
+2 006 "03 36 01.76" "-54 04 05.4" 3.1 19.52 19.05 3.2 62.5 1.9 0.7 3.7 5313 524 0.4 3.3 4.02 0.62 -1.1 4.9 -2.88 0.5 0.2 3.0 Y Simbad
+3 016 "03 36 35.74" "-54 01 56.9" 7.9 17.99 17.58 9.5 133.9 0.5 0.0 3.0 5460 78 0.0 2.9 4.56 0.14 0.1 2.7 -0.82 0.06 0.0 3.1 N Simbad
+4 021 "03 36 22.83" "-53 59 55.5" 6.7 18.53 18.07 7.7 128.3 0.5 0.0 2.7 5285 115 0.3 3.2 3.19 0.15 0.2 3.1 -0.99 0.12 0.2 3.1 N Simbad
+5 023 "03 36 21.86" "-54 00 40.6" 6.3 20.23 19.81 1.6 66.7 2.0 0.3 4.0 5658 1034 0.2 2.0 3.37 0.89 -0.5 3.1 -1.96 1.05 -0.1 2.0 Y Simbad
+6 032 "03 35 40.69" "-54 10 05.1" 7.1 18.19 17.9 4.9 49.0 1.0 -0.2 3.4 5786 503 0.3 2.7 3.81 0.48 0.0 2.7 -1.75 0.45 0.0 2.6 N Simbad
+7 035 "03 35 37.06" "-54 04 01.2" 1.3 18.54 18.03 4.6 62.9 1.2 0.4 3.8 5034 441 0.9 4.9 1.5 0.89 0.2 2.3 -2.9 0.45 0.5 3.3 Y Simbad
+8 040 "03 35 58.14" "-54 02 04.7" 2.5 19.25 18.8 4.1 69.1 1.5 -0.3 3.1 6283 865 -0.1 2.2 2.97 1.05 -0.4 2.7 -2.28 0.71 -0.3 2.5 Y Simbad
+9 049 "03 35 20.36" "-54 18 16.9" 15.7 20.55 20.26 1.2 308.6 2.3 0.9 3.7 6009 645 0.1 2.8 4.06 0.59 -0.9 3.8 -0.58 0.67 -0.4 3.1 N Simbad
+10 062 "03 35 09.50" "-54 02 29.6" 4.8 18.2 17.73 7.3 95.9 0.6 -0.1 3.0 5426 98 0.1 2.8 4.49 0.17 0.2 2.8 -0.87 0.09 0.0 3.0 N Simbad
+11 063 "03 35 11.65" "-54 03 21.8" 4.5 19.28 18.8 3.0 70.4 1.9 -0.2 3.5 4494 548 2.1 9.2 1.19 0.85 0.8 3.5 -3.52 0.52 1.5 5.7 Y Simbad
+12 069 "03 35 02.49" "-54 03 54.2" 5.9 19.2 18.72 3.7 67.9 1.3 0.0 2.6 5048 523 0.8 4.1 1.9 0.83 -0.1 2.7 -2.77 0.55 0.3 2.9 Y Simbad
+13 072 "03 34 37.97" "-54 13 59.6" 14.5 20.47 20.06 1.4 137.3 3.0 0.5 2.9 5574 762 0.6 3.1 3.39 1.2 -0.9 3.0 -2.13 0.68 0.2 2.7 N Simbad
+14 076 "03 34 36.69" "-54 06 44.9" 10.3 18.84 18.3 4.3 71.6 0.7 0.0 2.9 4988 229 0.7 3.9 2.26 0.29 0.1 3.3 -1.52 0.26 0.3 3.3 Y Simbad
+15 077 "03 34 53.23" "-54 14 03.9" 13.2 20.63 20.26 1.2 290.8 2.7 -0.4 3.4 5372 464 0.3 3.1 4.28 0.5 -1.4 6.8 -1.57 0.55 0.0 2.8 N Simbad
+16 079 "03 34 54.24" "-54 05 58.0" 7.6 18.91 18.42 3.9 70.0 1.7 -0.2 3.0 4915 543 0.7 3.3 3.44 0.74 -0.3 3.1 -3.19 0.52 0.5 2.9 Y Simbad
+17 080 "03 34 47.93" "-54 05 25.0" 8.3 17.5 16.91 11.2 63.2 0.5 0.1 3.3 4501 141 0.6 3.5 0.58 0.48 0.7 2.6 -3.16 0.16 0.7 3.6 Y Simbad
+18 087 "03 34 13.05" "-53 59 56.1" 13.4 19.5 19.0 2.9 200.5 1.7 -0.4 2.9 5211 150 0.0 3.0 4.55 0.26 -0.8 3.4 -1.32 0.18 0.1 3.0 N Simbad
+19 089 "03 34 05.48" "-54 03 49.9" 14.2 17.61 17.01 10.1 53.2 0.5 0.0 2.7 5107 50 -0.4 3.1 4.77 0.1 -0.5 2.7 -0.49 0.04 0.0 3.0 N Simbad
+20 090 "03 33 41.70" "-54 00 07.2" 17.9 18.3 18.21 4.5 32.4 1.6 0.3 3.5 6465 773 -0.2 2.3 3.43 1.3 -1.2 3.4 -1.74 0.62 -0.5 2.7 N Simbad
+21 092 "03 34 49.20" "-53 50 19.7" 14.8 17.55 16.98 11.3 16.2 0.4 0.0 2.9 5218 58 0.0 2.9 4.6 0.12 0.2 2.8 -0.01 0.05 0.0 3.1 N Simbad
+22 100 "03 34 39.81" "-54 00 58.5" 9.4 18.18 17.95 8.1 199.4 0.9 -0.2 2.9 6368 333 0.1 2.6 4.05 0.36 0.0 2.7 -1.07 0.24 -0.1 2.8 N Simbad
+23 102 "03 34 18.31" "-54 10 06.2" 14.2 18.06 17.47 7.5 28.1 0.5 -0.1 3.0 5118 58 -0.4 3.0 4.7 0.13 -0.4 2.6 -0.54 0.06 0.0 3.0 N Simbad
+24 103 "03 34 13.93" "-54 09 34.4" 14.5 18.33 17.71 6.3 20.4 0.5 0.1 3.0 5069 52 -0.3 3.3 4.79 0.1 -1.0 3.8 -0.47 0.06 0.0 3.0 N Simbad
+25 110 "03 34 29.93" "-54 11 11.7" 13.4 19.8 19.35 2.4 290.5 1.9 -0.1 2.8 5797 888 0.5 2.5 2.12 1.11 0.3 2.4 -1.69 0.82 0.1 2.4 N Simbad
+26 111 "03 34 30.06" "-54 09 22.2" 12.4 18.2 17.88 8.0 270.1 0.7 -0.1 2.9 5523 182 0.5 3.4 3.63 0.23 0.3 3.2 -1.22 0.17 0.2 3.1 N Simbad
+27 115 "03 35 31.13" "-54 01 48.2" 2.0 17.57 17.01 9.0 60.4 0.7 -0.2 3.2 5164 242 0.3 3.3 2.44 0.63 -1.7 6.0 -2.62 0.26 0.1 2.9 Y Simbad
+28 126 "03 35 20.96" "-54 03 48.1" 3.2 18.91 18.43 5.0 65.6 1.1 0.0 3.2 5185 572 0.8 4.1 2.91 0.62 0.0 3.6 -2.67 0.57 0.3 2.9 Y Simbad
+29 128 "03 35 06.56" "-54 06 04.3" 6.1 19.74 19.26 2.3 160.5 1.6 0.3 2.4 5466 319 0.2 2.7 3.99 0.54 -0.5 2.7 -1.02 0.33 0.0 2.9 N Simbad
+30 129 "03 34 57.57" "-54 05 31.4" 7.0 18.9 18.4 3.0 61.8 1.4 0.3 3.2 5296 539 0.5 3.5 2.99 0.65 -0.1 3.6 -2.04 0.57 -0.1 2.9 Y Simbad
+31 134 "03 35 15.17" "-54 08 43.0" 7.0 19.71 19.26 3.0 70.2 3.3 0.6 2.5 5875 1019 0.1 2.0 1.94 1.15 0.3 2.3 -2.41 0.87 -0.1 2.1 Y Simbad
+32 136 "03 35 14.01" "-54 05 58.1" 5.1 19.98 19.55 1.8 66.4 2.9 0.3 2.6 5582 849 0.4 2.6 2.78 1.25 -0.3 2.2 -2.14 0.84 0.0 2.4 Y Simbad
+33 138 "03 35 13.73" "-54 04 56.7" 4.6 19.67 19.22 1.9 60.1 2.1 0.0 3.8 5032 694 0.7 3.1 2.97 1.02 -0.4 2.7 -2.62 0.72 0.3 2.5 Y Simbad
+34 142 "03 35 44.18" "-54 01 50.0" 1.2 20.34 19.89 1.7 65.0 2.9 -0.2 2.8 6067 529 -0.1 2.8 4.39 0.41 -1.2 4.5 -1.24 0.6 -0.3 3.0 Y Simbad
+35 147 "03 35 36.93" "-53 54 45.1" 8.2 20.52 20.15 1.5 302.3 2.1 -0.5 3.1 5335 524 0.5 3.2 3.71 0.68 -0.4 2.9 -1.23 0.58 0.1 3.1 N Simbad
+36 153 "03 35 46.16" "-54 07 33.8" 4.6 19.21 18.74 4.3 217.9 1.2 0.2 3.1 5089 333 0.6 4.0 2.82 0.51 -0.2 4.2 -2.16 0.37 0.1 3.1 N Simbad
+37 159 "03 35 49.95" "-54 03 21.4" 1.2 19.65 19.22 3.1 293.2 1.1 0.2 3.0 5329 235 0.2 2.9 4.26 0.37 -0.4 2.6 -1.37 0.25 0.1 2.9 N Simbad
+38 178 "03 36 07.75" "-54 02 35.5" 3.8 17.39 16.81 15.6 61.8 0.4 -0.1 3.0 4688 105 0.1 2.9 1.34 0.27 -0.8 4.2 -2.74 0.13 0.0 2.8 Y Simbad

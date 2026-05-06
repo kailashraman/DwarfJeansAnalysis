@@ -6,7 +6,7 @@ ingest. Updated and committed every time a paper's state changes.
 To continue from a fresh session: read this file, find the first paper marked
 `pending` or `blocked`, and pick up from there. Process order is fixed below.
 
-Last updated: 2026-05-05 (Walker 2009 ingested)
+Last updated: 2026-05-05 (Walker 2015 ingested)
 
 ## Per-paper status
 
@@ -16,7 +16,7 @@ discoveries next, likely-blocked last). One paper per commit.
 | # | Paper (bibcode) | Galaxies | Status | Notes |
 |---|---|---|---|---|
 | 1 | Walker 2009 (`2009AJ....137.3100W`) | Carina | done | VizieR `J/AJ/137/3100/stars`; `<V>` and σ_los match paper |
-| 2 | Walker 2015 (`2015ApJ...808..108W`) | Reticulum II | pending | — |
+| 2 | Walker 2015 (`2015ApJ...808..108W`) | Reticulum II | done | VizieR `J/ApJ/808/108/table1`; `<V>` and σ_los match paper |
 | 3 | Kirby 2015 (`2015ApJ...810...56K`) | Pisces II | pending | — |
 | 4 | Koposov 2015 (`2015ApJ...811...62K`) | Horologium I | pending | — |
 | 5 | Li 2017 (`2017ApJ...838....8L`) | Eridanus II | pending | — |
@@ -46,7 +46,8 @@ is the canonical correctness check.
 
 | LVDB key | Paper bibkey | n_rows (raw npz) | n_mem (paper / ours) | <V>_mem km/s (paper / ours) | σ_los km/s (paper / ours) | LVDB v_sys (km/s) | LVDB σ (km/s) | Commit |
 |---|---|---|---|---|---|---|---|---|
-| carina_1 | walker2009 | 1982 | 774¹ / 441 (Mmb=1, of which 172 have finite V) | 222.9 / 223.16 | 6.6 / 6.15² | 222.90 | 6.60 | (this commit) |
+| carina_1 | walker2009 | 1982 | 774¹ / 441 (Mmb=1, of which 172 have finite V) | 222.9 / 223.16 | 6.6 / 6.15² | 222.90 | 6.60 | 3546e78 |
+| reticulum_2 | walker2015 | 38 | 17 / 18 (Mm?=Y) | 64.3 / 65.53 | 3.6 / 3.69 (naive) ≈ 3.32 (quad-deconv) | 64.30 | 3.60 | (this commit) |
 
 ¹ Walker 2009 abstract reports ~774 "likely" Carina members from the EM mixture model's continuous probabilities; VizieR's `Mmb` column is a hard 0/1 flag on the strict subset (441), and only 172 of those have a velocity value not masked in the per-star averaged table. The raw npz preserves all 1982 rows; downstream sample-selection chooses the cut.
 
