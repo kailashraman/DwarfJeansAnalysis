@@ -1,0 +1,20 @@
+Table 2 
+Properties of Spectroscopically Confirmed Member Stars and Candidate Member Stars of Leo VI Ordered by Decreasing Keck/DEIMOS Spectrum Signal-to-noise Ratio
+
+
+Star Name	R.A.	Decl.	g_0	r_0	S/N	v_hel	Sigma EW CaT	[Fe/H]	Type	
+	(deg)	(deg)	(mag)	(mag)		(km s^-1)	(Aring)	(dex)		
+Gaia DR3 3993822846542975360	171.096	24.878	18.4	17.6	66.6	168.9 +or- 1.1	3.53 +or- 0.21	-2.60 +or- 0.10	RGB	
+Gaia DR3 3993822949622182272	171.048	24.868	20.1	19.4	22.0	164.6 +or- 1.6	2.85 +or- 0.28	-2.50 +or- 0.13	RGB	
+Gaia DR3 3993823052701408128	171.090	24.882	20.3	19.7	18.9	174.0 +or- 1.7	2.34 +or- 0.37	-2.69 +or- 0.16	RGB	
+Gaia DR3 3993822502945568128	171.044	24.846	21.3	20.8	7.7	170.3 +or- 4.0	3.03 +or- 0.37	-2.14 +or- 0.17	RGB	
+Leo VI J112432.23+245250.95	171.134	24.881	21.4	20.9	7.7	172.3 +or- 3.4	3.51 +or- 0.44	-1.89 +or- 0.19	RGB	
+Leo VI J112431.27+245242.21	171.130	24.878	21.7	21.2	5.8	175.5 +or- 4.5	2.46 +or- 0.53	-2.33 +or- 0.23	RGB	
+Leo VI J112423.32+245340.09	171.097	24.894	21.9	21.4	4.8	178.6 +or- 6.6	3.26 +or- 0.77	-1.90 +or- 0.34	RGB	
+Leo VI J112401.61+245021.90	171.007	24.839	21.9	21.3	3.9	168.4 +or- 8.3	3.16 +or- 0.59	-1.95 +or- 0.26	RGB	
+Leo VI J112408.96+245134.74	171.037	24.860	22.0	21.5	3.7	167.0 +or- 7.0	2.05 +or- 0.65	-2.48 +or- 0.30	RGB	
+Leo VI J112418.58+245204.63	171.077	24.868	20.9	21.1	4.3	179.2 +or- 15.1	cdots	cdots	BHB	
+Leo VI J112439.81+245428.12	171.166	24.908	22.1	21.7	3.5	183.6 +or- 10.3	cdots	cdots	RGB	
+Leo VI J112416.48+245400.62	171.069	24.900	22.2	21.8	3.4	172.0 +or- 19.0	cdots	cdots	RGB	
+Leo VI J112401.62+245130.33	171.007	24.858	22.4	21.9	2.5	155.0 +or- 12.7	cdots	cdots	RGB	
+Note. The top section lists confirmed member stars with line-of-sight velocity errors of ${\epsilon }_{{v}_{{\rm{hel}}}}\lt 10\,{{\rm{km}}\,{\rm{s}}}^{-1}$, while the bottom section contains candidate member stars with less precise velocity data (${\epsilon }_{{v}_{\mathrm{hel}}}\gt 10\,{\mathrm{km}\,{\rm{s}}}^{-1}$). Details of each parameter can be found in Section 5.

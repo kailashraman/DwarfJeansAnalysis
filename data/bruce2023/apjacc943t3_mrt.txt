@@ -1,0 +1,38 @@
+Title: Spectroscopic analysis of Milky Way outer halo satellites: 
+    Aquarius II and Bootes II
+Authors: Bruce J., Li T.S., Pace A.B., Heiger M., Song Y.-Y., Simon J.D. 
+Table: Aquarius II Observed Spectra
+================================================================================
+Byte-by-byte Description of file: apjacc943t3_mrt.txt
+--------------------------------------------------------------------------------
+   Bytes Format Units   Label   Explanations
+--------------------------------------------------------------------------------
+   1- 19 I19    ---     Gaia    Gaia DR3 [source_id]
+  21- 29 F9.5   deg     RAdeg   Right Ascension, decimal degrees (ICRS at Epoch=2016.0)
+  31- 38 F8.5   deg     DEdeg   Declination, decimal degrees (ICRS at Epoch=2016.0)
+  40- 44 F5.2   mag     g0mag   Dereddened LS DR9 (DECaLS) g-band magnitude
+  46- 50 F5.2   mag     r0mag   Dereddened LS DR9 (DECaLS) r-band magnitude
+  52- 55 F4.1   ---     SNR1    Signal-to-noise ratio, IMACS spectrum, Epoch 1
+  57- 60 F4.1   ---     SNR2    Signal-to-noise ratio, IMACS spectrum, Epoch 2
+  62- 65 F4.2   0.1nm   EWCaT1  ?="" Equivalent width, CaT lines, Epoch 1
+  67- 70 F4.2   0.1nm   EWCaT2  ?="" Equivalent width, CaT lines, Epoch 2
+  72- 75 F4.2   0.1nm e_EWCaT1  ?="" Uncertainty in EWCaT1
+  77- 80 F4.2   0.1nm e_EWCaT2  ?="" Uncertainty in EWCaT2
+  82- 87 F6.1   km/s    Vhelio  Combined fitting, heliocentric radial velocity
+  89- 91 F3.1   km/s  e_Vhelio  Uncertainty in Vhelio
+  93- 97 F5.2   [Sun]   [Fe/H]  ?="" Metallicity
+  99-102 F4.2   [Sun] e_[Fe/H]  ?="" Uncertainty in [Fe/H]
+ 104-105 A2     ---     Mem     M=confirmed member; NM=confirmed non-member
+--------------------------------------------------------------------------------
+2609060660860398208 338.57394 -9.357   20.58 19.94  3.8  3.5                       56.6 2.3            NM 
+2609061068882022784 338.52885 -9.35453 20.22 19.61  5.4  6.1                      -85.0 1.6            NM 
+2609061141896425088 338.49945 -9.36063 20.77 20.18  3.3  3.3                     -126.0 3.5            NM 
+2609061687357323776 338.53523 -9.3278  19.32 18.54 15.5 13.4 4.74      0.39       -66.7 1.2 -1.87 0.18 M  
+2609061760371960704 338.52684 -9.32317 19.58 18.91 11.0 10.2 2.17 2.13 0.41 1.27  -64.2 1.3 -2.92 0.22 M  
+2609107798126218880 338.39674 -9.31998 20.53 19.95  3.7  3.7 1.47      1.0        -71.8 2.8 -3.13 0.73 M  
+2609107935565172224 338.36675 -9.32105 20.08 19.45  5.8  6.6 3.55 3.75 1.34 1.08  -60.2 1.8 -2.12 0.37 M  
+2609108588400203264 338.46083 -9.31525 20.11 19.51  5.8  5.8 1.85 1.92 0.57 0.4   -69.6 2.0 -2.95 0.21 M  
+2609109756631321472 338.46956 -9.28585 19.25 18.54 15.9 13.8 3.29 2.94 0.42 0.36  -57.1 1.2 -2.56 0.14 M  
+2609113055166221056 338.42154 -9.25084 16.79 16.67 40.3 31.3                      -57.4 1.1            NM 
+2609155489443129088 338.5937  -9.30185 18.81 18.02 23.2 18.8 3.08 2.92 0.25 0.33  -68.5 1.1 -2.7  0.11 M  
+2609202665363907328 338.55648 -9.28793 19.46 18.78 12.6  9.9 2.59 2.52 0.4  0.14  -66.2 1.3 -2.76 0.11 M  

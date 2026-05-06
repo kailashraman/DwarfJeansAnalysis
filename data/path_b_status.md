@@ -6,7 +6,7 @@ ingest. Updated and committed every time a paper's state changes.
 To continue from a fresh session: read this file, find the first paper marked
 `pending` or `blocked`, and pick up from there. Process order is fixed below.
 
-Last updated: 2026-05-06 (Kirby 2015 → Pisces II ingested from user-supplied IOPscience ASCII; first IOP-blocked paper resolved)
+Last updated: 2026-05-06 (Koposov 2015 / Li 2017 / Chiti 2022 / Bruce 2023 / Heiger 2024 / Tan 2025 ingested from user-supplied IOPscience downloads; Hansen 2024 / Tuc V remains blocked — Table 2 has stellar params only, no velocities)
 
 ## Per-paper status
 
@@ -18,20 +18,20 @@ discoveries next, likely-blocked last). One paper per commit.
 | 1 | Walker 2009 (`2009AJ....137.3100W`) | Carina | done | VizieR `J/AJ/137/3100/stars`; `<V>` and σ_los match paper |
 | 2 | Walker 2015 (`2015ApJ...808..108W`) | Reticulum II | done | VizieR `J/ApJ/808/108/table1`; `<V>` and σ_los match paper |
 | 3 | Kirby 2015 (`2015ApJ...810...56K`) | Pisces II | done | User-supplied ASCII Table 2 (`apj518514t2_ascii.txt`) at `data/kirby2015/`. Adapter slices Pisces II sub-block; sexagesimal -> deg via SkyCoord; `v +or- err` regex split; Y/N -> p=1/0. `<V>` and σ_los match paper. |
-| 4 | Koposov 2015 (`2015ApJ...811...62K`) | Horologium I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
-| 5 | Li 2017 (`2017ApJ...838....8L`) | Eridanus II | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+| 4 | Koposov 2015 (`2015ApJ...811...62K`) | Horologium I | done | User-supplied ASCII Table 2 stacking Reti 2 + Hor 1; adapter slices Hor 1 block, strips `$…$` LaTeX from Dec, accepts both `+or-` and `\pm` velocity forms. 5 members, `<V>` and σ match paper. |
+| 5 | Li 2017 (`2017ApJ...838....8L`) | Eridanus II | done | User-supplied ASCII Table 2 (per-epoch with continuation rows). Adapter inherits ID/coords/MEM across continuation rows, splits `v +or- err`. 54 stars / 28 members, `<V>` and σ match paper. |
 | 6 | Li 2018 (`2018ApJ...857..145L`) | Carina II + Carina III | done | VizieR `J/ApJ/857/145/table4` (per-epoch); split by `Mm ∈ {0,2,3}` |
 | 7 | Koposov 2018 (`2018MNRAS.479.5343K`) | Hydrus I | done | VizieR `J/MNRAS/479/5343/table2`; `logodds` → sigmoid; `<V>` and σ match paper |
 | 8 | Simon 2020 (`2020ApJ...892..137S`) | Tucana IV | done | VizieR `J/ApJ/892/137/table3`; per-epoch; filter `Gal=='TucIV'` |
 | 9 | Ji 2021 (`2021ApJ...921...32J`) | Antlia II + Crater II | done | VizieR `J/ApJ/921/32`; table4=Antlia II, table5=Crater II; continuous `Mm` |
-| 10 | Chiti 2022 (`2022ApJ...939...41C`) | Grus I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
-| 11 | Bruce 2023 (`2023ApJ...950..167B`) | Aquarius II | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+| 10 | Chiti 2022 (`2022ApJ...939...41C`) | Grus I | done | User-supplied ASCII Table 2 (per-epoch). MEM tri-state (M / NM / CM); M -> p=1, NM/CM -> p=0 with `member_flag` preserved. 70 stars / 8 M / 4 CM, `<V>` and σ match paper. |
+| 11 | Bruce 2023 (`2023ApJ...950..167B`) | Aquarius II | done | User-supplied MRT Table 3; astropy CDS reader. 12 stars / 8 M, `<V>` and σ match paper. |
 | 12 | Chiti 2023 (`2023AJ....165...55C`) | Tucana II | done | VizieR `J/AJ/165/55/table6`; per-epoch member-list, p=1 |
-| 13 | Heiger 2024 (`2024ApJ...961..234H`) | Centaurus I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
-| 14 | Hansen 2024 (`2024ApJ...968...21H`) | Tucana V | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
-| 15 | Tan 2025 (`2025ApJ...979..176T`) | Leo VI | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
+| 13 | Heiger 2024 (`2024ApJ...961..234H`) | Centaurus I | done | User-supplied MRT Table 4; astropy CDS reader. Combined-fit `vhel`/`e_vhel`; `Member ∈ {0,1}` flag. 62 stars / 34 M, `<V>` and σ match paper. |
+| 14 | Hansen 2024 (`2024ApJ...968...21H`) | Tucana V | blocked | User-supplied Table 2 is **stellar parameters only** (T_eff, log g, ξ, [Fe/H]) for 3 stars — no `v_hel` column. Tuc V σ_los = 1.2 km/s in LVDB must come from Hansen+24's Table 1 or paper text; need that uploaded before this can be ingested. |
+| 15 | Tan 2025 (`2025ApJ...979..176T`) | Leo VI | done | User-supplied ASCII Table 2 (decimal coords, `v +or- err`). Paper's own ε_vhel < 10 km/s split: 9 confirmed (p=1), 4 candidates (p=0, `member_flag='C'`). `<V>` matches paper. |
 
-VizieR-available subset (verified 2026-05-05 via `astroquery.vizier.Vizier.find_catalogs`): papers 1–2 and 6–9 and 12 (7 of 15). The other 8 are IOP-published with no VizieR mirror; their machine-readable tables live behind a Radware bot-detection wall on iopscience and are not auto-fetchable from this cluster. Plan: process the VizieR-fetchable ones in order (papers 6, 7, 8, 9, 12), then user manually downloads the IOP MRTs for the blocked set in a browser session.
+VizieR-available subset (verified 2026-05-05 via `astroquery.vizier.Vizier.find_catalogs`): papers 1–2 and 6–9 and 12 (7 of 15). The other 8 are IOP-published with no VizieR mirror; their machine-readable tables live behind a Radware bot-detection wall on iopscience. As of 2026-05-06, **7 of those 8 IOP-blocked papers are now resolved** via user browser-session downloads (Kirby 2015, Koposov 2015, Li 2017, Chiti 2022, Bruce 2023, Heiger 2024, Tan 2025); only Hansen 2024 / Tucana V remains pending — see "Path B unresolved" below.
 
 Statuses:
 - `pending` — not yet attempted.
@@ -57,7 +57,13 @@ is the canonical correctness check.
 | antlia_2 | ji2021 | 508 | ~290 / 290 (Mm>0.5) | 288 / 287.95 | 5.7 / 7.30 (naive) ≈ 7.00 (decov) | 288.80 | 5.98 | (this commit) |
 | crater_2 | ji2021 | 207 | ~140 / 141 (Mm>0.5) | 89 / 89.43 | 2.7 / 4.13 (naive) ≈ 2.83 (decov) | 89.30 | 2.34 | 73bb830 |
 | tucana_2 | chiti2023 | 60 (per-epoch) | 19 unique mem stars (member list, p=1) | -124.7 / -125.03 (per-star IVW) | 3.8 / 4.13 (naive per-star) ≈ 4.07 (decov) | -124.70 | 3.80 | (this commit) |
-| pisces_2 | kirby2015 | 13 | 7 / 7 (Member?='Y') | -226 / -225.51 | 5.4 / 5.41 (naive) ≈ 4.36 (decov) | -226.50 | 5.40 | (this commit) |
+| pisces_2 | kirby2015 | 13 | 7 / 7 (Member?='Y') | -226 / -225.51 | 5.4 / 5.41 (naive) ≈ 4.36 (decov) | -226.50 | 5.40 | 66454a8 |
+| horologium_1 | koposov2015 | 18 | 5 / 5 (Member?='Yes') | — / 112.68 | 4.9 / 4.98 (naive) ≈ 4.93 (decov) | 112.80 | 4.90 | (this commit) |
+| eridanus_2 | li2017 | 92 (per-epoch) | 28 / 28 (MEM=1 unique) | 75.6 / 75.70 (per-star IVW) | 6.9 / 6.66 (naive per-star) | 75.60 | 6.90 | (this commit) |
+| grus_1 | chiti2022 | 80 (per-epoch) | 8 / 8 (MEM='M' unique) | -143.5 / -142.93 (per-star IVW) | 2.5 / 2.14 (naive per-star) ≈ 1.75 (decov) | -143.50 | 2.50 | (this commit) |
+| aquarius_2 | bruce2023 | 12 | 8 / 8 (Mem='M') | -65.3 / -65.54 | 4.7 / 4.58 (naive) ≈ 4.39 (decov) | -65.30 | 4.70 | (this commit) |
+| centaurus_1 | heiger2024 | 62 | 34 / 34 (Member=1) | 44.8 / 44.84 | 4.2 / 4.08 (naive) ≈ 3.97 (decov) | 44.80 | 4.20 | (this commit) |
+| leo_6 | tan2025 | 13 | 9 / 9 (ε_vhel<10) | 170.0 / 171.07 (confirmed only) | 2.85 / 4.18 (naive) ≈ 1.22 (decov)¹ | 170.03 | 2.85 |  (this commit) |
 
 ¹ Li 2018 reports σ_los = 3.4 km/s for Carina II from a binary-aware ML deconvolution. Our naive per-star std (5.33 km/s) does not deconvolve binaries; the data are stored faithfully (the per-epoch npz preserves all 30 Mm=2 epochs), and binary-aware aggregation is downstream of Stage 0b. Member counts and `<V>` match the paper exactly. For Carina III the smaller binary fraction makes the naive per-star std (5.66 km/s) match the paper's 5.6 km/s without deconvolution.
 
@@ -65,25 +71,14 @@ is the canonical correctness check.
 
 ² Our 6.15 is `sqrt(Var - med_eV^2)` over the 172 members with finite V — a quick deconvolution. Walker 2009's 6.6 km/s comes from their full ML deconvolution including per-star errors and binary handling. Within ~7%, consistent with the simpler estimator.
 
+¹ Leo VI: the 9 confirmed members have rather large ε_vhel (1.1–8.3 km/s, median ≈ 4.0). The naive per-star std (4.18) is dominated by these errors; a quick `sqrt(Var - med_eV²)` deconvolution gives 1.22 km/s, while the paper's ML estimator (which uses each star's own ε_vhel) recovers σ ≈ 2.85 km/s — within the ε-dominated regime our quick estimator is unreliable. The data are stored faithfully; binary-aware/error-deconvolved aggregation is downstream.
+
 ## Path B unresolved
 
-All 8 entries below share the same blocker — no VizieR catalog and the
-publisher hosts the machine-readable tables on a server protected by
-Radware's perfdrive bot-detection. From this cluster we can hit
-`https://iopscience.iop.org/...` but the MRT URL pattern only resolves
-after the user passes the bot challenge in a browser. Resolution for
-all of them is the same shape: open the article URL in a browser,
-download the per-star MRT (typically `tableX_mrt.txt`), drop it in
-`data/<bibkey>/`, then re-run
-`python -m data_ingest.stage0b_pathb --lvdb-key <key>` after the
-adapter is in place.
+One remaining unresolved entry. The paper's downloadable Table 2 does
+not include velocities; the σ_los LVDB cites must live in Table 1 (or
+in the paper text); needs that uploaded before ingest can proceed.
 
 | LVDB key | Paper bibkey | Article URL | Notes |
 |---|---|---|---|
-| horologium_1 | koposov2015 | https://iopscience.iop.org/article/10.1088/0004-637X/811/1/62 | "Kinematics & Chemistry of Reticulum 2 and Horologium 1" — VLT/GIRAFFE; 5 Hor I members, σ_los = 4.9 km/s. |
-| eridanus_2 | li2017 | https://iopscience.iop.org/article/10.3847/1538-4357/aa6113 | Distant UFD Eridanus II. |
-| grus_1 | chiti2022 | https://iopscience.iop.org/article/10.3847/1538-4357/ac96ed | UFD Grus I. |
-| aquarius_2 | bruce2023 | https://iopscience.iop.org/article/10.3847/1538-4357/acc7c4 | UFD Aquarius II. |
-| centaurus_1 | heiger2024 | https://iopscience.iop.org/article/10.3847/1538-4357/ad0d9f | Recent UFD Centaurus I. |
-| tucana_5 | hansen2024 | https://iopscience.iop.org/article/10.3847/1538-4357/ad429c | Recent UFD Tucana V. |
-| leo_6 | tan2025 | https://iopscience.iop.org/article/10.3847/1538-4357/ad9f23 | Very recent UFD Leo VI. |
+| tucana_5 | hansen2024 | https://iopscience.iop.org/article/10.3847/1538-4357/ad3a52 | Hansen+24 Tuc V abundance analysis (3 stars). The user-supplied Table 2 is *Stellar Parameters* (T_eff, log g, ξ, [Fe/H]) — no `v_hel` column. The σ_los = 1.2 km/s LVDB cites must come from Table 1 of this paper or its prose; needs that uploaded before ingest. |
