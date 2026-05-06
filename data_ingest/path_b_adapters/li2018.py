@@ -28,6 +28,8 @@ from pathlib import Path
 import numpy as np
 from astropy.table import Table
 
+from data_ingest.staging import per_star_indices
+
 _LVDB_KEY_TO_MEMBER_CODE = {
     "carina_2": 2,
     "carina_3": 3,
@@ -69,7 +71,7 @@ def load(staged_dir: Path, registry_row) -> tuple[dict, dict]:
         "V": _col("HRV"),
         "sigma_eps": _col("e_HRV"),
         "p": p,
-        "star_id": np.arange(n, dtype=np.int64),  # row-index for per-epoch
+        "star_id": per_star_indices(np.asarray(t["MagLiteS"], dtype=str)),
         "RA_star": _col("RAJ2000"),
         "Dec_star": _col("DEJ2000"),
         # Auxiliary

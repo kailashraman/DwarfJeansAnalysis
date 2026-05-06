@@ -16,6 +16,8 @@ from pathlib import Path
 import numpy as np
 from astropy.table import Table
 
+from data_ingest.staging import per_star_indices
+
 _LVDB_KEY_TO_GAL = {"tucana_4": "TucIV"}
 
 COLUMN_MAPPING = {
@@ -50,7 +52,7 @@ def load(staged_dir: Path, registry_row) -> tuple[dict, dict]:
         "V": _col("HRV"),
         "sigma_eps": _col("e_HRV"),
         "p": _col("Mm"),  # 0/1 verbatim
-        "star_id": np.arange(n, dtype=np.int64),
+        "star_id": per_star_indices(np.asarray(sub["DES"], dtype=str)),
         "RA_star": _col("RAJ2000"),
         "Dec_star": _col("DEJ2000"),
         "DES_source_id": np.asarray(sub["DES"], dtype=str),

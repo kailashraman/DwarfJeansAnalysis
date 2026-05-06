@@ -6,7 +6,7 @@ ingest. Updated and committed every time a paper's state changes.
 To continue from a fresh session: read this file, find the first paper marked
 `pending` or `blocked`, and pick up from there. Process order is fixed below.
 
-Last updated: 2026-05-06 (Hansen 2024 / Tucana V ingested from user-supplied Table 1 Observing Log — last IOP-blocked paper resolved; all 15 papers in the Path B sweep now done.)
+Last updated: 2026-05-06 (QA-sweep fix #1: harmonized `star_id` contract for per-epoch adapters li2018 / simon2020 / chiti2023 — `star_id` is now the cross-epoch grouping key per `docs/plan/data_sources.md:295`, matching the newer adapters. Affected catalogs regenerated; per-star σ values in the table below are slightly updated since they were previously computed with a row-index `star_id`.)
 
 ## Per-paper status
 
@@ -50,13 +50,13 @@ is the canonical correctness check.
 |---|---|---|---|---|---|---|---|---|
 | carina_1 | walker2009 | 1982 | 774¹ / 441 (Mmb=1, of which 172 have finite V) | 222.9 / 223.16 | 6.6 / 6.15² | 222.90 | 6.60 | 3546e78 |
 | reticulum_2 | walker2015 | 38 | 17 / 18 (Mm?=Y) | 64.3 / 65.53 | 3.6 / 3.69 (naive) ≈ 3.32 (quad-deconv) | 64.30 | 3.60 | 44c93c8 |
-| carina_2 | li2018 | 407 (per-epoch) | 18 / 18 (Mm=2 unique stars from 30 epochs) | 477.2 / 478.41 (per-star IVW) | 3.4 / 5.33 (naive per-star)¹ | 477.20 | 3.40 | (this commit) |
-| carina_3 | li2018 | 407 (per-epoch) | 4 / 4 (Mm=3 unique stars from 8 epochs) | 284.6 / 285.23 (per-star IVW) | 5.6 / 5.66 (naive per-star) | 284.60 | 5.60 | 6fe48e1 |
+| carina_2 | li2018 | 407 (per-epoch) | 18 / 18 (Mm=2 unique stars from 30 epochs) | 477.2 / 478.41 (per-star IVW) | 3.4 / 5.18 (naive per-star)¹ | 477.20 | 3.40 | (this commit) |
+| carina_3 | li2018 | 407 (per-epoch) | 4 / 4 (Mm=3 unique stars from 8 epochs) | 284.6 / 285.23 (per-star IVW) | 5.6 / 4.90 (naive per-star) | 284.60 | 5.60 | 6fe48e1 |
 | hydrus_1 | koposov2018 | 139 | ~28 / 33 (sigmoid(logodds) > 0.5) | 80.4 / 80.30 | 2.69 / 3.32 (naive) ≈ 2.96 (decov) | 80.40 | 2.70 | f623827 |
-| tucana_4 | simon2020 | 223 (per-epoch) | 12 / 11 (Mm=1 unique) | 15.9 / 16.09 (per-star IVW) | 4.3 / 3.96 (naive per-star) ≈ 3.80 (decov) | 15.90 | 4.30 | c077109 |
+| tucana_4 | simon2020 | 223 (per-epoch) | 12 / 11 (Mm=1 unique) | 15.9 / 16.09 (per-star IVW) | 4.3 / 3.77 (naive per-star) | 15.90 | 4.30 | c077109 |
 | antlia_2 | ji2021 | 508 | ~290 / 290 (Mm>0.5) | 288 / 287.95 | 5.7 / 7.30 (naive) ≈ 7.00 (decov) | 288.80 | 5.98 | (this commit) |
 | crater_2 | ji2021 | 207 | ~140 / 141 (Mm>0.5) | 89 / 89.43 | 2.7 / 4.13 (naive) ≈ 2.83 (decov) | 89.30 | 2.34 | 73bb830 |
-| tucana_2 | chiti2023 | 60 (per-epoch) | 19 unique mem stars (member list, p=1) | -124.7 / -125.03 (per-star IVW) | 3.8 / 4.13 (naive per-star) ≈ 4.07 (decov) | -124.70 | 3.80 | (this commit) |
+| tucana_2 | chiti2023 | 60 (per-epoch) | 19 unique mem stars (member list, p=1) | -124.7 / -125.03 (per-star IVW) | 3.8 / 4.02 (naive per-star) | -124.70 | 3.80 | (this commit) |
 | pisces_2 | kirby2015 | 13 | 7 / 7 (Member?='Y') | -226 / -225.51 | 5.4 / 5.41 (naive) ≈ 4.36 (decov) | -226.50 | 5.40 | 66454a8 |
 | horologium_1 | koposov2015 | 18 | 5 / 5 (Member?='Yes') | — / 112.68 | 4.9 / 4.98 (naive) ≈ 4.93 (decov) | 112.80 | 4.90 | (this commit) |
 | eridanus_2 | li2017 | 92 (per-epoch) | 28 / 28 (MEM=1 unique) | 75.6 / 75.70 (per-star IVW) | 6.9 / 6.66 (naive per-star) | 75.60 | 6.90 | (this commit) |

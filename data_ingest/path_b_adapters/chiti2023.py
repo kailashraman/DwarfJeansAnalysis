@@ -19,6 +19,8 @@ from pathlib import Path
 import numpy as np
 from astropy.table import Table
 
+from data_ingest.staging import per_star_indices
+
 COLUMN_MAPPING = {
     "RVel": "V",
     "e_RVel": "sigma_eps",
@@ -48,7 +50,7 @@ def load(staged_dir: Path, registry_row) -> tuple[dict, dict]:
         "V": _col("RVel"),
         "sigma_eps": _col("e_RVel"),
         "p": np.ones(n, dtype=float),  # member list -> all p=1
-        "star_id": np.arange(n, dtype=np.int64),
+        "star_id": per_star_indices(np.asarray(t["Name"], dtype=str)),
         "RA_star": _col("RAJ2000"),
         "Dec_star": _col("DEJ2000"),
         "Name_source_id": np.asarray(t["Name"], dtype=str),
