@@ -1,9 +1,13 @@
-"""Shared helpers for verifying staged data folders under data/<bibkey>/."""
+"""Shared helpers for verifying staged data folders and computing canonical
+per-star quantities used by both Stage 0b Path A (Geha) and Path B ingests."""
 
 from __future__ import annotations
 
 import hashlib
+import math
 from pathlib import Path
+
+import numpy as np
 
 
 def verify_checksums(folder: Path) -> None:
@@ -27,3 +31,20 @@ def verify_checksums(folder: Path) -> None:
                 f"SHA256 mismatch for {path}: expected {expected}, got {actual}. "
                 "Re-stage from the upstream source."
             )
+
+
+def projected_radius_kpc(ra_deg: np.ndarray, dec_deg: np.ndarray,
+                         ra_center_deg: float, dec_center_deg: float,
+                         distance_kpc: float) -> np.ndarray:
+    """Small-angle projected radius (kpc), measured from the LVDB-tabulated center.
+
+    R = distance × sin(angular_separation) ≈ distance × angular_separation
+    for the sub-degree separations relevant to MW dwarf members. Uses the
+    flat-sky (Δα·cos δ_c, Δδ) form, matching `Segue1_test/run_segue1.py:179–183`.
+    """
+    cos_d = math.cos(math.radians(dec_center_deg))
+    dRA = (ra_deg - ra_center_deg) * cos_d
+    dDec = dec_deg - dec_center_deg
+    sep_deg = np.sqrt(dRA * dRA + dDec * dDec)
+    sep_rad = np.deg2rad(sep_deg)
+    return distance_kpc * sep_rad

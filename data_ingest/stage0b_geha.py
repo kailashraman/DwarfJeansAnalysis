@@ -30,7 +30,7 @@ import pandas as pd
 import yaml
 from astropy.table import Table
 
-from data_ingest.staging import verify_checksums
+from data_ingest.staging import projected_radius_kpc, verify_checksums
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 GEHA_DIR = REPO_ROOT / "data" / "geha2026"
@@ -71,23 +71,6 @@ def _git_commit() -> str:
         return "unknown"
 
 
-def _projected_radius_kpc(ra_deg: np.ndarray, dec_deg: np.ndarray,
-                          ra_center_deg: float, dec_center_deg: float,
-                          distance_kpc: float) -> np.ndarray:
-    """Small-angle projected radius (kpc), measured from the LVDB-tabulated center.
-
-    R = distance * sin(angular_separation) ~ distance * angular_separation
-    for the sub-degree separations we care about. Uses the
-    (Δα·cos δ_c, Δδ) flat-sky form, matching run_segue1.py:179–183.
-    """
-    cos_d = math.cos(math.radians(dec_center_deg))
-    dRA = (ra_deg - ra_center_deg) * cos_d
-    dDec = dec_deg - dec_center_deg
-    sep_deg = np.sqrt(dRA * dRA + dDec * dDec)
-    sep_rad = np.deg2rad(sep_deg)
-    return distance_kpc * sep_rad
-
-
 def ingest_one(geha_df: pd.DataFrame, registry_row, *, build_utc: str, git_commit: str) -> Path:
     key = registry_row["lvdb_key"]
     geha_galaxy = registry_row["geha_galaxy"]
@@ -104,7 +87,7 @@ def ingest_one(geha_df: pd.DataFrame, registry_row, *, build_utc: str, git_commi
 
     ra_star = sub["RA"].to_numpy(dtype=float)
     dec_star = sub["DEC"].to_numpy(dtype=float)
-    R = _projected_radius_kpc(
+    R = projected_radius_kpc(
         ra_star, dec_star,
         float(registry_row["ra_deg"]), float(registry_row["dec_deg"]),
         float(registry_row["distance_kpc"]),
