@@ -9,7 +9,7 @@ J, D posterior chains and writes plots + summary.
 Per-star source options (SOURCE toggle):
   'simon': Simon+2011 VizieR Table 1, Bpr > 0.8
   'pace':  Pace pre-combined Bayes 0.8 file
-  'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB rhalf, Var != 1
+  'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB semi-major rhalf, Var != 1
            Uses LVDB nuisance priors instead of PS18 overrides.
 """
 from __future__ import annotations
@@ -54,7 +54,7 @@ PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
 #   'simon': segue1_kinematics_simon2011.csv (VizieR Simon+2011 Table 1) with Bpr > 0.8.
 #   'pace':  Pace_Segue1_Bayes_0d8_binary.dat (Pace 0.8-membership combined-velocity file).
 #            simon/pace select the same 62 stars (compare_pace_vs_bpr08.py); both use PS18 priors.
-#   'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB rhalf, Var != 1 → 47 stars.
+#   'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB semi-major rhalf, Var != 1 → 47 stars.
 #            Uses LVDB v1.0.5 nuisance priors (d, rhalf, ε) instead of PS18 overrides.
 SOURCE = "geha"  # 'simon' | 'pace' | 'geha'
 USE_P_WEIGHTS = False     # if False, replace post-cut p_i with 1.0 in the likelihood
@@ -192,13 +192,12 @@ def load_stars_pace(ra_center_deg: float, dec_center_deg: float) -> pd.DataFrame
 
 
 def load_stars_geha(ra_center_deg: float, dec_center_deg: float,
-                    rhalf_circ_arcmin: float) -> pd.DataFrame:
+                    rhalf_major_arcmin: float) -> pd.DataFrame:
     """
     Load Geha+2026 table3A for Segue 1 (Galaxy == 'Seg1').
     Selection per Geha+2026 §Sample Selection:
       - Pmem > 0.5
-      - within 2 × azimuthally-averaged half-light radius (circular aperture)
-        rhalf_circ = LVDB rhalf × sqrt(1 - eps)
+      - within 2 × LVDB v1.0.5 semi-major half-light radius
       - remove velocity-variable stars (Var == 1.0)
     Radii computed via the same flat-sky formula as load_stars_pace.
     """
@@ -213,7 +212,7 @@ def load_stars_geha(ra_center_deg: float, dec_center_deg: float,
 
     df = df.assign(Rad_arcmin=rad_arcmin)
     df = df[df["Pmem"] > P_CUT_GEHA]
-    df = df[df["Rad_arcmin"] <= 2.0 * rhalf_circ_arcmin]
+    df = df[df["Rad_arcmin"] <= 2.0 * rhalf_major_arcmin]
     df = df[df["Var"] != 1.0]
     df = df.reset_index(drop=True)
 
@@ -272,8 +271,7 @@ def load_stars(d_kpc: float, source: str,
     elif source == "geha":
         if ra_center_deg is None or dec_center_deg is None or lvdb_rhalf_arcmin is None:
             raise ValueError("source='geha' requires ra/dec center and lvdb_rhalf_arcmin")
-        # Circularized half-light radius = rhalf_major × sqrt(1 − ε); passed as cut radius.
-        # lvdb_rhalf_arcmin is already the circularized value (computed in main before call).
+        # lvdb_rhalf_arcmin is the LVDB v1.0.5 semi-major axis (GEHA_RHALF_CUT_ARCMIN); used directly, no √(1−ε) factor.
         keep = load_stars_geha(ra_center_deg, dec_center_deg, lvdb_rhalf_arcmin)
     else:
         raise ValueError(f"unknown source {source!r}")
@@ -465,8 +463,8 @@ def main():
                 "expected 0.018–0.035 kpc for Segue 1."
             )
 
-    # Geha radial aperture: Martin+2008 r_h (GEHA_RHALF_CUT_ARCMIN = 4.31') → 53 stars.
-    # Not the LVDB circularized value (2.96' → 41 stars) or LVDB major-axis (3.62' → 47).
+    # Geha radial aperture: LVDB v1.0.5 semi-major rhalf (GEHA_RHALF_CUT_ARCMIN = 3.62') → 47 stars.
+    # Alternatives: LVDB circularized 2.96' → 41 stars; Martin+2008 r_h 4.31' → 53 stars.
     _geha_cut_arcmin = GEHA_RHALF_CUT_ARCMIN
     stars = load_stars(g["d_kpc"], SOURCE,
                         ra_center_deg=g["ra_deg"], dec_center_deg=g["dec_deg"],
