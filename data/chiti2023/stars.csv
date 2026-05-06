@@ -1,0 +1,174 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - name: recno
+#   datatype: int32
+#   description: Record number assigned by the VizieR team. Should Not be used for identification.
+#   meta: !!omap
+#   - {ucd: RECORD}
+#   - {width: 8}
+# - name: Name
+#   datatype: string
+#   description: Name from Chiti+, 2021NatAs...5..392C
+#   meta: !!omap
+#   - {ucd: ID_MAIN}
+#   - {_votable_string_dtype: char}
+# - name: RAJ2000
+#   datatype: string
+#   description: '[22] Hour of right ascension (J2000)'
+#   meta: !!omap
+#   - {ucd: POS_EQ_RA_MAIN}
+#   - {xtype: hms}
+#   - {_votable_string_dtype: char}
+# - name: DEJ2000
+#   datatype: string
+#   description: '[57/58] Degree of declination (J2000)'
+#   meta: !!omap
+#   - {ucd: POS_EQ_DEC_MAIN}
+#   - {xtype: dms}
+#   - {_votable_string_dtype: char}
+# - name: Obs
+#   datatype: string
+#   description: UT date(s) of observation
+#   meta: !!omap
+#   - {ucd: TIME_DATE}
+#   - {_votable_string_dtype: char}
+#   - {_votable_arraysize: 32*}
+# - name: Slit
+#   unit: s
+#   datatype: float32
+#   format: '{:4.1f}'
+#   description: '[1] Slit size'
+#   meta: !!omap
+#   - {ucd: INST_SPECT_SLIT-LENGTH}
+#   - {width: 4}
+#   - {precision: '1'}
+# - name: gmag
+#   unit: mag
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[18.3/18.9] g-band magnitude'
+#   meta: !!omap
+#   - {ucd: PHOT_MAG_V}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: Texp
+#   unit: min
+#   datatype: int16
+#   description: '[150/365] Exposure time'
+#   meta: !!omap
+#   - {ucd: TIME_EXPTIME}
+#   - {width: 3}
+# - name: S/N4500
+#   datatype: int16
+#   description: '[12/19] Signal-to-noise ratio at 4500{AA}'
+#   meta: !!omap
+#   - {ucd: INST_S/N}
+#   - {width: 2}
+# - name: S/N6500
+#   datatype: int16
+#   description: '[22/40] Signal-to-noise ratio at 6500{AA}'
+#   meta: !!omap
+#   - {ucd: INST_S/N}
+#   - {width: 2}
+# - name: RVel
+#   unit: km / s
+#   datatype: float32
+#   format: '{:6.1f}'
+#   description: '[-129/-119] Heliocentric radial velocity'
+#   meta: !!omap
+#   - {ucd: VELOC_HC}
+#   - {width: 6}
+#   - {precision: '1'}
+# - name: e_RVel
+#   unit: km / s
+#   datatype: float32
+#   format: '{:4.1f}'
+#   description: '[0.9] Error on RVel'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 4}
+#   - {precision: '1'}
+# - name: Teff
+#   unit: K
+#   datatype: int16
+#   description: '[4810/5071] Effective temperature'
+#   meta: !!omap
+#   - {ucd: PHYS_TEMP_EFFEC}
+#   - {width: 4}
+# - name: e_Teff
+#   unit: K
+#   datatype: int16
+#   description: '[160/241] Error on Teff'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 3}
+# - name: logg
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[1.55/1.75] log surface gravity'
+#   meta: !!omap
+#   - {ucd: PHYS_GRAVITY_SURFACE}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: e_logg
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[0.3/0.9] Error on logg'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: nu
+#   unit: km / s
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[1.73/2.3] microturbulence velocity'
+#   meta: !!omap
+#   - {ucd: VELOC_MICRO-TURB}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: e_nu
+#   unit: km / s
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[0.2/0.3] Error on nu'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: '[Fe/H]'
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[-3.59/-1.93] log metallicity'
+#   meta: !!omap
+#   - {ucd: PHYS_ABUND_FE/H}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: e_[Fe/H]
+#   datatype: float32
+#   format: '{:5.2f}'
+#   description: '[0.1/0.3] Error on [Fe/H]'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 5}
+#   - {precision: '2'}
+# - name: SimbadName
+#   datatype: string
+#   description: Simbad column added by the CDS
+#   meta: !!omap
+#   - {ucd: ID_ALTERNATIVE}
+#   - values: {'null': ' '}
+#   - {_votable_string_dtype: char}
+#   - {_votable_arraysize: 28*}
+# meta: !!omap
+# - {ID: J_AJ_165_55_stars}
+# - {name: J/AJ/165/55/stars}
+# - {description: Parameters for observed stars (paste table1 and table2)}
+# schema: astropy-2.0
+recno Name RAJ2000 DEJ2000 Obs Slit gmag Texp S/N4500 S/N6500 RVel e_RVel Teff e_Teff logg e_logg nu e_nu [Fe/H] e_[Fe/H] SimbadName
+1 TucII-301 "22 50 45.097" "-58 56 20.483" "2021 Jul 30, Oct 5" 1.0 18.87 355 12 22 -125.1 0.9 4864 241 1.6 0.42 1.73 0.27 -3.41 0.23 "DES J225045.09-585620.4"
+2 TucII-303 "22 53 05.194" "-57 54 27.032" "2020 Oct 10, Dec 1" 1.0 18.44 310 15 33 -128.9 0.9 5071 183 1.55 0.81 2.24 0.23 -2.74 0.17 "DES J225305.19-575427.0"
+3 TucII-305 "22 57 46.859" "-57 43 39.299" "2020 Oct 08, 09, 10" 1.0 18.47 365 19 40 -125.3 0.9 4810 226 1.6 0.31 2.3 0.26 -3.59 0.26 "Gaia DR3 6493416816937526016"
+4 TucII-306 "22 51 37.019" "-58 53 37.579" "2021 Jul 30, Oct 5" 1.0 18.38 150 17 28 -119.1 0.9 4855 215 1.55 0.46 2.04 0.23 -3.26 0.22 "DES J225137.01-585337.5"
+5 TucII-309 "22 49 24.690" "-58 20 47.429" "2020 Oct 10; 2021 Jun 07, Oct 05" 1.0 18.73 203 15 28 -125.3 0.9 4900 160 1.75 0.76 2.2 0.22 -1.93 0.22 "DES J224924.69-582047.4"

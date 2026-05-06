@@ -6,7 +6,7 @@ ingest. Updated and committed every time a paper's state changes.
 To continue from a fresh session: read this file, find the first paper marked
 `pending` or `blocked`, and pick up from there. Process order is fixed below.
 
-Last updated: 2026-05-05 (Ji 2021 → Antlia II + Crater II ingested)
+Last updated: 2026-05-05 (Chiti 2023 → Tucana II ingested; all VizieR-fetchable papers complete)
 
 ## Per-paper status
 
@@ -26,7 +26,7 @@ discoveries next, likely-blocked last). One paper per commit.
 | 9 | Ji 2021 (`2021ApJ...921...32J`) | Antlia II + Crater II | done | VizieR `J/ApJ/921/32`; table4=Antlia II, table5=Crater II; continuous `Mm` |
 | 10 | Chiti 2022 (`2022ApJ...939...41C`) | Grus I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
 | 11 | Bruce 2023 (`2023ApJ...950..167B`) | Aquarius II | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
-| 12 | Chiti 2023 (`2023AJ....165...55C`) | Tucana II | pending | VizieR `J/AJ/165/55` |
+| 12 | Chiti 2023 (`2023AJ....165...55C`) | Tucana II | done | VizieR `J/AJ/165/55/table6`; per-epoch member-list, p=1 |
 | 13 | Heiger 2024 (`2024ApJ...961..234H`) | Centaurus I | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
 | 14 | Hansen 2024 (`2024ApJ...968...21H`) | Tucana V | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
 | 15 | Tan 2025 (`2025ApJ...979..176T`) | Leo VI | blocked | Not on VizieR; IOPscience MRT bot-walled. See "Path B unresolved" below. |
@@ -55,7 +55,8 @@ is the canonical correctness check.
 | hydrus_1 | koposov2018 | 139 | ~28 / 33 (sigmoid(logodds) > 0.5) | 80.4 / 80.30 | 2.69 / 3.32 (naive) ≈ 2.96 (decov) | 80.40 | 2.70 | f623827 |
 | tucana_4 | simon2020 | 223 (per-epoch) | 12 / 11 (Mm=1 unique) | 15.9 / 16.09 (per-star IVW) | 4.3 / 3.96 (naive per-star) ≈ 3.80 (decov) | 15.90 | 4.30 | c077109 |
 | antlia_2 | ji2021 | 508 | ~290 / 290 (Mm>0.5) | 288 / 287.95 | 5.7 / 7.30 (naive) ≈ 7.00 (decov) | 288.80 | 5.98 | (this commit) |
-| crater_2 | ji2021 | 207 | ~140 / 141 (Mm>0.5) | 89 / 89.43 | 2.7 / 4.13 (naive) ≈ 2.83 (decov) | 89.30 | 2.34 | (this commit) |
+| crater_2 | ji2021 | 207 | ~140 / 141 (Mm>0.5) | 89 / 89.43 | 2.7 / 4.13 (naive) ≈ 2.83 (decov) | 89.30 | 2.34 | 73bb830 |
+| tucana_2 | chiti2023 | 60 (per-epoch) | 19 unique mem stars (member list, p=1) | -124.7 / -125.03 (per-star IVW) | 3.8 / 4.13 (naive per-star) ≈ 4.07 (decov) | -124.70 | 3.80 | (this commit) |
 
 ¹ Li 2018 reports σ_los = 3.4 km/s for Carina II from a binary-aware ML deconvolution. Our naive per-star std (5.33 km/s) does not deconvolve binaries; the data are stored faithfully (the per-epoch npz preserves all 30 Mm=2 epochs), and binary-aware aggregation is downstream of Stage 0b. Member counts and `<V>` match the paper exactly. For Carina III the smaller binary fraction makes the naive per-star std (5.66 km/s) match the paper's 5.6 km/s without deconvolution.
 

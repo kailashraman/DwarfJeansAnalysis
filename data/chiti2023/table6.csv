@@ -1,0 +1,144 @@
+# %ECSV 1.0
+# ---
+# datatype:
+# - name: recno
+#   datatype: int32
+#   description: Record number assigned by the VizieR team. Should Not be used for identification.
+#   meta: !!omap
+#   - {ucd: RECORD}
+#   - {width: 8}
+# - name: Name
+#   datatype: string
+#   description: Star identifier
+#   meta: !!omap
+#   - {ucd: ID_MAIN}
+#   - {_votable_string_dtype: char}
+# - name: RAJ2000
+#   unit: deg
+#   datatype: float64
+#   format: '{:9.5f}'
+#   description: '[342/345] Degree of Right Ascension (J2000)'
+#   meta: !!omap
+#   - {ucd: POS_EQ_RA_MAIN}
+#   - {width: 9}
+#   - {precision: '5'}
+# - name: DEJ2000
+#   unit: deg
+#   datatype: float64
+#   format: '{:9.5f}'
+#   description: '[-59/-57] Degree of Declination (J2000)'
+#   meta: !!omap
+#   - {ucd: POS_EQ_DEC_MAIN}
+#   - {width: 9}
+#   - {precision: '5'}
+# - name: MJD
+#   unit: d
+#   datatype: float32
+#   format: '{:7.1f}'
+#   description: '[57221/59494] Modified Julian Date at midpoint of the observation (JD-2400000.5)'
+#   meta: !!omap
+#   - {ucd: TIME_DATE}
+#   - {width: 7}
+#   - {precision: '1'}
+# - name: Inst
+#   datatype: string
+#   description: Instrument used (1)
+#   meta: !!omap
+#   - {ucd: INST_ID}
+#   - {_votable_string_dtype: char}
+# - name: RVel
+#   unit: km / s
+#   datatype: float32
+#   format: '{:6.1f}'
+#   description: '[-136/-115] Heliocentric radial velocity'
+#   meta: !!omap
+#   - {ucd: VELOC_HC}
+#   - {width: 6}
+#   - {precision: '1'}
+# - name: f_RVel
+#   datatype: string
+#   description: '[b] Flag on RVel (2)'
+#   meta: !!omap
+#   - {ucd: CODE_MISC}
+#   - {_votable_string_dtype: char}
+# - name: e_RVel
+#   unit: km / s
+#   datatype: float32
+#   format: '{:4.1f}'
+#   description: '[0.5/9] Error on RVel'
+#   meta: !!omap
+#   - {ucd: ERROR}
+#   - {width: 4}
+#   - {precision: '1'}
+# - name: Ref
+#   datatype: uint8
+#   description: '[1/5] Reference used (3)'
+#   meta: !!omap
+#   - {ucd: REFER_CODE}
+#   - {width: 1}
+# meta: !!omap
+# - {ID: J_AJ_165_55_table6}
+# - {name: J/AJ/165/55/table6}
+# - {description: '*Velocity measurements'}
+# schema: astropy-2.0
+recno Name RAJ2000 DEJ2000 MJD Inst RVel f_RVel e_RVel Ref
+1 TucII-006 342.92942 -58.54269 57221.3 M2FS -126.0 b 0.7 2
+2 TucII-006 342.92942 -58.54269 57278.0 M2FS -125.4 b 0.8 2
+3 TucII-006 342.92942 -58.54269 57228.0 IMACS -126.4 "" 1.0 3
+4 TucII-006 342.92942 -58.54269 57534.4 IMACS -125.0 "" 1.6 3
+5 TucII-006 342.92942 -58.54269 57638.2 IMACS -127.6 "" 1.2 3
+6 TucII-006 342.92942 -58.54269 57629.7 MIKE -123.3 "" 1.2 4
+7 TucII-006 342.92942 -58.54269 57981.2 MIKE -126.4 "" 1.3 5
+8 TucII-011 342.9595 -58.62783 57221.3 M2FS -125.1 "" 0.5 2
+9 TucII-011 342.9595 -58.62783 57278.0 M2FS -124.5 b 0.5 2
+10 TucII-011 342.9595 -58.62783 57228.0 IMACS -126.6 "" 1.0 3
+11 TucII-011 342.9595 -58.62783 57534.4 IMACS -127.4 "" 1.5 3
+12 TucII-011 342.9595 -58.62783 57638.2 IMACS -126.0 "" 1.2 3
+13 TucII-011 342.9595 -58.62783 57629.7 MIKE -124.1 "" 1.2 4
+14 TucII-011 342.9595 -58.62783 57981.1 MIKE -125.7 "" 1.2 5
+15 TucII-022 343.08908 -58.51869 57221.3 M2FS -117.7 b 2.0 2
+16 TucII-022 343.08908 -58.51869 57228.0 IMACS -120.8 "" 1.1 3
+17 TucII-022 343.08908 -58.51869 57534.4 IMACS -120.6 "" 2.7 3
+18 TucII-022 343.08908 -58.51869 57638.2 IMACS -121.3 "" 1.3 3
+19 TucII-022 343.08908 -58.51869 58699.4 MagE -123.3 "" 3.3 3
+20 TucII-033 342.78467 -58.55225 57221.3 M2FS -123.9 b 0.5 2
+21 TucII-033 342.78467 -58.55225 57278.0 M2FS -126.0 b 0.5 2
+22 TucII-033 342.78467 -58.55225 57630.2 MIKE -126.4 "" 1.2 4
+23 TucII-033 342.78467 -58.55225 57981.3 MIKE -126.3 "" 1.2 5
+24 TucII-033 342.78467 -58.55225 58701.2 MagE -129.1 "" 3.1 5
+25 TucII-052 342.71513 -58.57569 57221.3 M2FS -120.3 b 0.7 2
+26 TucII-052 342.71513 -58.57569 57278.0 M2FS -121.4 b 0.9 2
+27 TucII-052 342.71513 -58.57569 57630.2 MIKE -121.1 "" 1.2 4
+28 TucII-052 342.71513 -58.57569 57981.2 MIKE -121.1 "" 1.2 5
+29 TucII-074 343.27779 -58.52111 57221.3 M2FS -123.5 b 1.5 2
+30 TucII-074 343.27779 -58.52111 57278.0 M2FS -127.8 b 1.8 2
+31 TucII-078 342.67112 -58.51897 57221.3 M2FS -132.5 b 0.9 2
+32 TucII-078 342.67112 -58.51897 57278.0 M2FS -133.3 b 0.8 2
+33 TucII-078 342.67112 -58.51897 57980.1 MIKE -124.5 "" 1.2 5
+34 TucII-085 343.31625 -58.53128 57221.3 M2FS -128.3 b 8.9 2
+35 Star12 342.87278 -58.51841 57228.0 IMACS -128.3 "" 2.8 3
+36 Star12 342.87278 -58.51841 57534.4 IMACS -135.1 "" 5.2 3
+37 Star12 342.87278 -58.51841 57638.2 IMACS -134.8 "" 1.8 3
+38 Star68 343.13634 -58.60846 57228.0 IMACS -128.0 "" 1.2 3
+39 Star68 343.13634 -58.60846 57534.4 IMACS -131.6 "" 2.2 3
+40 Star68 343.13634 -58.60846 57638.2 IMACS -126.5 "" 1.4 3
+41 Star68 343.13634 -58.60846 58701.2 MagE -123.0 "" 3.3 3
+42 TucII-203 342.53696 -58.49975 57979.6 MIKE -126.3 "" 1.2 5
+43 TucII-206 343.65279 -58.61608 58036.5 MIKE -122.8 "" 1.2 5
+44 TucII-301 342.6879 -58.93902 58701.0 MagE -128.0 "" 3.3 3
+45 TucII-301 342.6879 -58.93902 59426.3 MIKE -125.5 "" 0.9 1
+46 TucII-301 342.6879 -58.93902 59493.2 MIKE -122.6 "" 1.1 1
+47 TucII-303 343.27164 -57.90751 58700.1 MagE -130.0 "" 3.5 3
+48 TucII-303 343.27164 -57.90751 59133.3 MIKE -128.7 "" 0.9 1
+49 TucII-303 343.27164 -57.90751 59185.1 MIKE -129.4 "" 0.9 1
+50 TucII-305 344.44525 -57.72758 58701.3 MagE -124.5 "" 3.1 3
+51 TucII-305 344.44525 -57.72758 59132.2 MIKE -125.3 "" 0.9 1
+52 TucII-306 342.90425 -58.89377 58700.1 MagE -120.2 "" 3.1 3
+53 TucII-306 342.90425 -58.89377 59426.4 MIKE -118.8 "" 0.9 1
+54 TucII-306 342.90425 -58.89377 59493.1 MIKE -119.2 "" 0.9 1
+55 TucII-309 342.35287 -58.34651 58700.3 MagE -133.8 "" 3.1 3
+56 TucII-309 342.35287 -58.34651 59133.1 MIKE -126.1 "" 0.9 1
+57 TucII-309 342.35287 -58.34651 59373.2 MIKE -124.0 "" 0.9 1
+58 TucII-309 342.35287 -58.34651 59493.2 MIKE -125.0 "" 0.9 1
+59 TucII-310 343.1974 -58.76781 58700.2 MagE -124.6 "" 3.5 3
+60 TucII-320 342.75384 -58.53725 58699.3 MagE -115.6 "" 3.2 3
