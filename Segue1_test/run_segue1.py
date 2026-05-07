@@ -15,7 +15,6 @@ Per-star source options (SOURCE toggle):
 from __future__ import annotations
 
 import os
-import sys
 import time
 import urllib.request
 from pathlib import Path
@@ -28,11 +27,10 @@ import matplotlib.pyplot as plt
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
-sys.path.insert(0, str(REPO / "docs" / "plan"))
 
-import jeans  # noqa: E402
-import jeans_inference  # noqa: E402
-import j_d_factors as jdf  # noqa: E402
+from dwarfjeans.jeans import solver as jeans
+from dwarfjeans.jeans import inference as jeans_inference
+from dwarfjeans.jd import factors as jdf
 
 LVDB_URL = ("https://github.com/apace7/local_volume_database/"
             "releases/download/v1.0.5/comb_all.csv")

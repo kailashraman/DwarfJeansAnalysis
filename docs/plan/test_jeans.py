@@ -24,7 +24,7 @@ import time
 import warnings
 import numpy as np
 
-import jeans
+from dwarfjeans.jeans import solver as jeans
 
 
 # ----------------------------------------------------------------------------

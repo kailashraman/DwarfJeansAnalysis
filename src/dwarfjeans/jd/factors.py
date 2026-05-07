@@ -44,7 +44,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import jeans  # only for the gravitational constant check + sanity
+from dwarfjeans.jeans import solver as jeans  # only for the gravitational constant check + sanity
 
 
 # Unit conversion: 1 Msun² / kpc^5 → GeV² / cm^5

@@ -21,8 +21,8 @@ Two questions:
 import json
 import numpy as np
 
-import jeans
-import j_d_factors as jd
+from dwarfjeans.jeans import solver as jeans
+from dwarfjeans.jd import factors as jd
 
 
 # ---------------------------------------------------------------------------

@@ -36,8 +36,8 @@ import argparse
 import numpy as np
 from scipy import stats
 
-import jeans
-import jeans_inference
+from dwarfjeans.jeans import solver as jeans
+from dwarfjeans.jeans import inference as jeans_inference
 
 
 OUT_DIR = "mc_results"

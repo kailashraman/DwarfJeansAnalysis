@@ -25,8 +25,8 @@ import argparse
 import numpy as np
 from scipy import stats
 
-import mock_galaxy
-import jeans_inference
+from dwarfjeans.mocks import galaxy as mock_galaxy
+from dwarfjeans.jeans import inference as jeans_inference
 
 
 # -- Configuration -----------------------------------------------------------

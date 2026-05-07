@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import jeans
+from dwarfjeans.jeans import solver as jeans
 
 
 def beta_tilde_to_beta(beta_tilde: float) -> float:

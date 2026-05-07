@@ -24,7 +24,7 @@ from __future__ import annotations
 
 import numpy as np
 
-import jeans
+from dwarfjeans.jeans import solver as jeans
 
 
 # Cover ultra-faints (r_p ~ 0.03 kpc, r_s ~ 0.1 kpc), classicals (r_p ~ 0.3,

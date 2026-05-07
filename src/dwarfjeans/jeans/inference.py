@@ -29,7 +29,7 @@ import numpy as np
 from scipy.stats import norm, truncnorm
 import dynesty
 
-import jeans
+from dwarfjeans.jeans import solver as jeans
 
 
 # Prior bounds (matching stage2.md)
