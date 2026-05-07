@@ -21,7 +21,7 @@ Given an LVDB key, this script runs the full Stage-1 inference:
      to ``results/production/<lvdb_key>/<prior>/<timestamp>/``.
 
 Usage:
-    python -m tests.integration.run_production --lvdb-key tucana_2
+    python scripts/run_production.py --lvdb-key tucana_2
 
 Run ``--help`` for the full argparse interface.
 """
@@ -37,7 +37,7 @@ from pathlib import Path
 import numpy as np
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parents[1]
+REPO = HERE.parent
 
 from dwarfjeans.jeans import solver as jeans
 from dwarfjeans.jeans import inference as jeans_inference
