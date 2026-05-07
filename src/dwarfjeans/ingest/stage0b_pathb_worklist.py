@@ -8,7 +8,7 @@ paper is its own per-paper engineering task (different schemas, different
 membership conventions, different per-epoch / per-star granularity).
 
 Run:
-    python -m data_ingest.stage0b_pathb_worklist
+    python -m dwarfjeans.ingest.stage0b_pathb_worklist
 
 Outputs:
     data/path_b_worklist.csv
@@ -24,7 +24,7 @@ from pathlib import Path
 import pandas as pd
 from astropy.table import Table
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_ECSV = REPO_ROOT / "data" / "registry" / "galaxies.ecsv"
 WORKLIST_CSV = REPO_ROOT / "data" / "path_b_worklist.csv"
 WORKLIST_MD = REPO_ROOT / "data" / "path_b_worklist.md"
@@ -95,7 +95,7 @@ def main() -> int:
         "After staging, write a per-paper adapter (a small dict / YAML mapping the "
         "paper's column names to canonical `V`, `sigma_eps`, `p`, `star_id`, "
         "`RA_star`, `Dec_star`) and run a per-galaxy ingest analogous to "
-        "`data_ingest/stage0b_geha.py:ingest_one`."
+        "`dwarfjeans/ingest/stage0b_geha.py:ingest_one`."
     )
     lines.append("")
     lines.append("---")

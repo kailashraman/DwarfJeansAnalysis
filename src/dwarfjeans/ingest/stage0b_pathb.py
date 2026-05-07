@@ -4,10 +4,10 @@ Implements docs/plan/data_sources.md §"Path B — LVDB `ref_vlos` paper ingest"
 
 Run:
     # All Path B galaxies for which an adapter exists
-    python -m data_ingest.stage0b_pathb
+    python -m dwarfjeans.ingest.stage0b_pathb
 
     # Just one galaxy (useful when iterating one paper at a time)
-    python -m data_ingest.stage0b_pathb --lvdb-key carina_1
+    python -m dwarfjeans.ingest.stage0b_pathb --lvdb-key carina_1
 
 The driver looks up the adapter for each Path B registry row by deriving the
 `<bibkey>` (`<lastname><year>` lowercased) from the `ref_vlos` column. A
@@ -31,9 +31,9 @@ import numpy as np
 import pandas as pd
 from astropy.table import Table
 
-from data_ingest.staging import projected_radius_kpc, verify_checksums
+from dwarfjeans.ingest.staging import projected_radius_kpc, verify_checksums
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_ECSV = REPO_ROOT / "data" / "registry" / "galaxies.ecsv"
 STAR_CATALOG_DIR = REPO_ROOT / "data" / "star_catalogs"
 
@@ -69,10 +69,10 @@ def ingest_one(registry_row, *, build_utc: str, git_commit: str) -> Path:
     verify_checksums(staged_dir)
 
     try:
-        adapter = importlib.import_module(f"data_ingest.path_b_adapters.{bibkey}")
+        adapter = importlib.import_module(f"dwarfjeans.ingest.path_b_adapters.{bibkey}")
     except ModuleNotFoundError as e:
         raise RuntimeError(
-            f"{lvdb_key}: no adapter at data_ingest/path_b_adapters/{bibkey}.py "
+            f"{lvdb_key}: no adapter at dwarfjeans/ingest/path_b_adapters/{bibkey}.py "
             f"({e}). Add the adapter and retry."
         )
 

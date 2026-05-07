@@ -19,7 +19,7 @@ from pathlib import Path
 import numpy as np
 from astropy.table import Table
 
-from data_ingest.staging import per_star_indices
+from dwarfjeans.ingest.staging import per_star_indices
 
 COLUMN_MAPPING = {
     "RVel": "V",

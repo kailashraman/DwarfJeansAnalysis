@@ -3,7 +3,7 @@
 Implements docs/plan/data_sources.md §"Path A — Geha DEIMOS ingest".
 
 Run:
-    python -m data_ingest.stage0b_geha
+    python -m dwarfjeans.ingest.stage0b_geha
 
 Outputs:
     data/star_catalogs/<lvdb_key>.npz   (one per Path A galaxy in study_sample.yaml)
@@ -30,14 +30,15 @@ import pandas as pd
 import yaml
 from astropy.table import Table
 
-from data_ingest.staging import projected_radius_kpc, verify_checksums
+from dwarfjeans.ingest.staging import projected_radius_kpc, verify_checksums
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CONFIG_DIR = Path(__file__).resolve().parent / "config"
 GEHA_DIR = REPO_ROOT / "data" / "geha2026"
 GEHA_CSV = GEHA_DIR / "table3A_20260110.csv"
 REGISTRY_ECSV = REPO_ROOT / "data" / "registry" / "galaxies.ecsv"
 STAR_CATALOG_DIR = REPO_ROOT / "data" / "star_catalogs"
-STUDY_SAMPLE_YAML = REPO_ROOT / "data_ingest" / "config" / "study_sample.yaml"
+STUDY_SAMPLE_YAML = CONFIG_DIR / "study_sample.yaml"
 
 GEHA_BIBCODE_PAPER1 = "2026arXiv260210200G"  # placeholder until ADS resolves arXiv:2602.10200
 GEHA_BIBCODE_PAPER2 = "2026arXiv260210202G"  # placeholder until ADS resolves arXiv:2602.10202

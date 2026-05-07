@@ -4,7 +4,7 @@ Implements docs/plan/data_sources.md §"How this changes Stage 0 of the pipeline
 "Filtering rules at ingest" / "Transformations we apply".
 
 Run:
-    python -m data_ingest.stage0a_registry
+    python -m dwarfjeans.ingest.stage0a_registry
 
 Outputs:
     data/registry/galaxies.ecsv
@@ -28,14 +28,15 @@ import yaml
 from astropy.table import Table
 from astropy import units as u
 
-from data_ingest.staging import verify_checksums
+from dwarfjeans.ingest.staging import verify_checksums
 
-REPO_ROOT = Path(__file__).resolve().parents[1]
+REPO_ROOT = Path(__file__).resolve().parents[3]
+CONFIG_DIR = Path(__file__).resolve().parent / "config"
 LVDB_DIR = REPO_ROOT / "data" / "lvdb_v1.0.5"
 LVDB_CSV = LVDB_DIR / "comb_all.csv"
 REGISTRY_DIR = REPO_ROOT / "data" / "registry"
-STUDY_SAMPLE_YAML = REPO_ROOT / "data_ingest" / "config" / "study_sample.yaml"
-SPATIAL_OVERRIDES_YAML = REPO_ROOT / "data_ingest" / "config" / "spatial_model_overrides.yaml"
+STUDY_SAMPLE_YAML = CONFIG_DIR / "study_sample.yaml"
+SPATIAL_OVERRIDES_YAML = CONFIG_DIR / "spatial_model_overrides.yaml"
 
 ARCMIN_TO_RAD = math.pi / (180.0 * 60.0)
 
