@@ -2,6 +2,7 @@
 
 import io
 import json
+from pathlib import Path
 
 import numpy as np
 import pytest
@@ -9,6 +10,12 @@ import pytest
 from dwarfjeans.ingest.combiners import CombinePolicy
 from dwarfjeans.jeans.preprocess import prepare_jeans_input
 from dwarfjeans.jeans.selection import SelectionPolicy
+
+REPO = Path(__file__).resolve().parents[2]
+PER_EPOCH_KEYS = (
+    "carina_2", "carina_3", "eridanus_2", "grus_1",
+    "tucana_2", "tucana_4", "tucana_5",
+)
 
 
 def _per_star_npz(R, V, sigma_eps, p, **extras) -> np.lib.npyio.NpzFile:
@@ -175,3 +182,41 @@ def test_selection_blocks_per_epoch_directly():
     )
     with pytest.raises(ValueError, match="per-epoch"):
         select_jeans_stars(npz, {"rhalf_major_pc": 100.0})
+
+
+def _registry_row_for(lvdb_key: str) -> dict:
+    """Read rhalf_major_pc out of data/registry/galaxies.ecsv for the given
+    LVDB key. Uses shlex to honor quoted tokens (e.g. ``"Segue 1"``)."""
+    import shlex
+    ecsv = REPO / "data" / "registry" / "galaxies.ecsv"
+    header = None
+    for line in ecsv.read_text().splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        toks = shlex.split(line)
+        if header is None:
+            header = toks
+            continue
+        if toks[0] == lvdb_key:
+            row = dict(zip(header, toks))
+            return {"rhalf_major_pc": float(row["rhalf_major_pc"])}
+    raise KeyError(lvdb_key)
+
+
+@pytest.mark.parametrize("key", PER_EPOCH_KEYS)
+def test_per_epoch_real_catalog_round_trip(key):
+    """Smoke test: every per-epoch catalog in data/star_catalogs must
+    survive prepare_jeans_input under the registered handler."""
+    path = REPO / "data" / "star_catalogs" / f"{key}.npz"
+    if not path.exists():
+        pytest.skip(f"{path} not present")
+    cat = np.load(path, allow_pickle=True)
+    reg = _registry_row_for(key)
+    arrays, audit = prepare_jeans_input(cat, reg)
+    assert audit["granularity"] == "per_epoch"
+    assert audit["combine"] is not None
+    assert audit["combine"]["n_input_rows"] > 0
+    assert audit["combine"]["n_stars"] > 0
+    assert audit["selection"]["n_final"] >= 0
+    assert "V" in arrays and "sigma_eps" in arrays and "R" in arrays
+    assert len(arrays["V"]) == audit["selection"]["n_final"]
