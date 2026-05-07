@@ -23,6 +23,59 @@ Single-epoch input is handled gracefully: ``ivw_combine`` returns the
 single value with σ floored as ``sqrt(σ² + σ_sys²)``;
 ``variability_chi2`` returns ``var_flag=False`` and ``p_value=NaN`` so
 the star is left unflagged.
+
+----
+
+**Convention: σ_sys treated as statistical** (decided 2026-05-07).
+
+Every UFD spectroscopy paper we ingest (Li+2017, Li+2018, Chiti+2022,
+Chiti+2023, Simon+2020, ...) reports per-epoch errors that already
+have a systematic floor σ_sys added in quadrature with the statistical
+error: ``e_RVel² = σ_stat² + σ_sys²``. Strictly, σ_sys is an
+*instrument-correlated* term and should not be averaged down by 1/√N
+along with σ_stat in the IVW; the textbook treatment is to deconvolve
+σ_sys from each epoch's error, IVW the σ_stat values, then re-add σ_sys
+in quadrature to the combined uncertainty.
+
+This module does **not** do that deconvolution. We feed published
+``e_RVel`` straight into ``ivw_combine`` (with ``sigma_sys=0`` from the
+caller's ``CombinePolicy``) and treat σ_sys as if it were statistical.
+Consequence: the combined uncertainty ``σ_vbar`` is biased *low* by a
+factor approaching ``σ_stat / sqrt(σ_stat² + σ_sys²)`` at large N
+(typical bias ~10–30% for N=2–5 epochs at σ_sys ~ σ_stat). χ² /
+p-values for variability flagging are biased correspondingly *high*
+(too few stars flagged variable). The bias is conservative-low on σ
+— inferred velocity dispersions absorb it as scatter — and small for
+the multi-epoch counts we currently see (median N=2–3 across the seven
+per-epoch catalogs).
+
+Why we accept this approximation for now:
+
+  - Per-paper σ_sys values are well-bounded (0.5–1.2 km/s) and
+    documented in each handler's docstring + ``docs/plan/per_paper_combiners.md``.
+  - The fully-correlated-σ_sys deconvolution is straightforward to
+    swap in later — just change ``default.combine`` to deconvolve before
+    calling ``ivw_combine`` and re-add post-combine, keeping
+    ``CombinePolicy.sigma_sys_kms`` populated with the published value.
+  - Any per-paper handler that wants the strict treatment can
+    preprocess ``per_epoch["sigma_eps"]`` to ``sqrt(σ² − σ_sys²)`` and
+    pass ``CombinePolicy(sigma_sys_kms=σ_sys)`` to ``ivw_combine``
+    explicitly — the primitive supports it.
+
+If a future analysis is sensitive to the σ_vbar bias (e.g. precision
+σ_los measurements at the 0.1 km/s level), revisit this. For the
+current Jeans inference at σ_los ~ a few km/s, the bias is well below
+the chain-noise floor.
+
+**Caveat — small-sample galaxies.** The "below chain noise" claim
+assumes ≳5 surviving members per galaxy, where per-star σ_vbar errors
+enter the σ_los likelihood quadratically alongside the dispersion
+itself and a 10–30% per-star error inflation produces a much smaller
+σ_los bias. For galaxies with ≤3 selected members (e.g. Tucana V
+after dropping the binary Tuc V-1, leaving 2 stars), per-star σ_vbar
+is a leading contributor to σ_los and the bound does not apply.
+For these galaxies either swap in the strict deconvolution path or
+propagate the bias explicitly into the systematic-error budget.
 """
 
 from __future__ import annotations

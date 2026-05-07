@@ -33,11 +33,25 @@ from dataclasses import dataclass
 @dataclass(frozen=True)
 class CombinePolicy:
     """Tunables shared across handlers. Dataset-specific overrides go in
-    the per-dataset module."""
+    the per-dataset module.
+
+    .. note::
+       ``sigma_sys_kms`` is the systematic floor that ``default.combine``
+       adds in quadrature *after* the IVW. Under the current
+       "σ_sys-as-statistical" convention (see ``multi_epoch.py``
+       module docstring) every per-paper handler sets this to ``0.0``
+       because the source paper has already added its σ_sys into the
+       published per-epoch ``e_RVel``; setting it to a non-zero value
+       here would double-count. A handler that opts into the strict-
+       deconvolution path (also documented in ``multi_epoch.py``) may
+       set ``sigma_sys_kms`` here explicitly to the published value.
+       See ``docs/plan/per_paper_combiners.md`` for the per-paper
+       review table.
+    """
 
     sigma_sys_kms: float = 0.0     # added in quadrature *after* the IVW
     p_threshold: float = 0.01      # variability χ² p-value threshold
-    zero_point_offsets_kms: dict = None  # per-instrument additive offsets
+    zero_point_offsets_kms: dict = None  # per-instrument additive offsets — NOT applied by default.combine yet (open issue #4 in docs/plan/per_paper_combiners.md)
 
 
 # Per-paper handlers. Each module wraps default.combine and exposes a
