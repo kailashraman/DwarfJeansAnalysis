@@ -37,6 +37,15 @@ Zero-point offsets: None to apply. §3.1 figure caption: "There are no
                 zero-point shift between the various spectrographs, and
                 that combining the three datasets will not introduce
                 additional velocity uncertainties."
+                Note: the staged carina_2.npz `Inst` column is
+                mask-granular (`IMACS-Car2Mask1`, `IMACS-Car2Mask2`,
+                `IMACS-Car3LongSlit`, `IMACS-Car3Mask1`, `AAT-Jan`,
+                `AAT-May`, `VLT-Feb`), not instrument-level. If a
+                future contributor enables `zero_point_offsets_kms`
+                here, the dict keys must match these mask-level tags
+                (or the adapter must be modified to normalize first);
+                otherwise the framework's unknown-tag guard will fire
+                — correct fail-loud behavior.
 Variability flagging in source: paper Table footnote (c): "There are 18
                                  spectroscopic members but only the 14
                                  non-variable stars are used for
