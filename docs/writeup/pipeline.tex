@@ -1,0 +1,160 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{siunitx}
+\usepackage[hyphens]{url}
+\usepackage[hidelinks]{hyperref}
+\usepackage{xcolor}
+
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+\newcommand{\code}[1]{\texttt{#1}}
+\newcommand{\Msun}{M_\odot}
+\newcommand{\kpc}{\mathrm{kpc}}
+\newcommand{\kms}{\mathrm{km\,s^{-1}}}
+
+\title{DwarfJeans Analysis Pipeline}
+\author{Kailash Raman}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+\todo{One-paragraph description of the spherical-Jeans modeling
+pipeline for dwarf-galaxy stellar kinematics: inputs (per-star
+line-of-sight velocities), the assumed model (NFW halo + Plummer
+tracer + constant anisotropy), the inference target (halo $(r_s,
+\rho_s)$ posteriors and downstream $J$/$D$ factors), and the
+calibration strategy (Asimov + Monte Carlo recovery on synthetic
+mocks).}
+\end{abstract}
+
+\noindent\emph{This document describes the pipeline as implemented
+in code. Repository layout, module boundaries, and migration history
+live in \code{ARCHITECTURE.md} at the repository root; this writeup
+does not duplicate that content.}
+
+\tableofcontents
+
+% ===================================================================
+\section{Stage 0a: Galaxy registry}
+\label{sec:stage0a}
+
+\todo{Describe the LVDB v1.0.5 ingest, the
+\code{src/dwarfjeans/ingest/config/study_sample.yaml} filter, the
+hand-curated \code{spatial\_model\_overrides.yaml} (LVDB v1.0.5 has
+no native \code{spatial\_model} column), and the resulting
+\code{data/registry/galaxies.ecsv} schema. Cite
+\code{docs/plan/data\_sources.md} for the column-by-column
+provenance.}
+
+% ===================================================================
+\section{Stage 0b: Per-galaxy stellar kinematic ingest}
+\label{sec:stage0b}
+
+\subsection{Path A: Geha et al. 2026}
+\todo{Describe the Geha 2026 \code{table3A} ingest: \code{Pmem}
+threshold, $r_h$ aperture, velocity-variability cut, output
+schema.}
+
+\subsection{Path B: per-paper adapters}
+\todo{Describe the Path B sweep: 17 galaxies / 15 papers, adapter
+contract (\code{load(staged\_dir, registry\_row) -> (arrays,
+meta\_extra)}), per-epoch vs. per-star contracts, the binary-aware
+aggregation deferral (Carina I, Carina II, Leo VI, Tuc V).}
+
+\subsection{Multi-epoch combination and variability flagging}
+\todo{Describe the per-epoch $\to$ per-star step (future
+\code{ingest/multi\_epoch.py} + per-dataset handlers in
+\code{ingest/combiners/}).
+Inverse-variance combine with per-instrument zero-point offsets
+applied before the weighted mean and an instrument systematic error
+floor (e.g.\ \SI{1.1}{\kms} for DEIMOS) added in quadrature after:
+\[
+\bar{v} = \frac{\sum_i v_i / \sigma_i^2}{\sum_i 1 / \sigma_i^2},
+\qquad
+\sigma_{\bar{v}} = \left(\sum_i 1/\sigma_i^2\right)^{-1/2}
+\oplus \sigma_\text{sys}.
+\]
+Variability flag via $\chi^2 = \sum_i (v_i - \bar{v})^2 / \sigma_i^2$
+against a $p$-value threshold (e.g.\ $p < 0.01$); single-epoch stars
+remain unflagged.}
+
+% ===================================================================
+\section{Stage 1: Spherical Jeans inference}
+\label{sec:stage1}
+
+\subsection{Model}
+\todo{NFW halo, Plummer tracer, constant velocity-anisotropy $\beta$.
+State the Jeans equation in the form actually solved in
+\code{src/dwarfjeans/jeans/solver.py} (Pace \& Strigari 2018
+eqs.~3--7); give the projection integral that produces $\sigma_\text{los}(R)$.}
+
+\subsection{Likelihood}
+\todo{Per-star Gaussian likelihood with membership weights and
+systematic error floor; pseudo-likelihood sum
+$\ln\mathcal{L} = \sum_i p_i \ln \mathcal{L}_i$ (see
+\code{docs/plan/jeffreys\_jeans\_derivation.md}).}
+
+\subsection{Priors}
+\todo{Prior choices currently implemented in
+\code{src/dwarfjeans/jeans/inference.py} (and to be extracted into
+\code{src/dwarfjeans/jeans/priors.py}, migration step 4b): log-flat
+uniform vs.\ conditional Jeffreys on $(r_s, \rho_s)$. Include the
+Jeffreys log-determinant correction
+$\tfrac{1}{2}\ln D$ as in
+\code{docs/plan/jeffreys\_jeans\_derivation.md}.}
+
+\subsection{Sampler}
+\todo{\code{dynesty} static nested sampling; default \code{nlive},
+stopping criterion, post-processing (equal-weight resampling).}
+
+% ===================================================================
+\section{Stage 2: Population Monte Carlo calibration}
+\label{sec:stage2}
+
+\todo{Mock-pipeline calibration per the gold-standard rule
+(\code{CLAUDE.md}). Generate $N_\text{real}$ synthetic UFDs at fixed
+truth (NFW + Plummer + $\beta$), run end-to-end inference per
+realization, report bias and dispersion in
+$M(r_{1/2})$ and downstream $J$/$D$.
+Asimov check: single $N_\star \to \infty$ realization to isolate
+prior/projection bias from sampling noise. Implementation:
+\code{tests/integration/run\_ufd\_population.py},
+\code{tests/integration/analyze\_asimov.py}; specs in
+\code{docs/plan/stage2.md} and \code{docs/plan/README\_mc\_test.md}.
+Open item: rerun under Jeffreys prior (TODO in
+\code{docs/plan/stage2.md}, migration step 4b prerequisite).}
+
+% ===================================================================
+\section{Stage 3: $J$- and $D$-factor extraction}
+\label{sec:stage3}
+
+\todo{Tidally-truncated NFW $J$ and $D$ integrals as implemented in
+\code{src/dwarfjeans/jd/factors.py}; chain push and four reporting
+angles; Asimov-bias decomposition (MAP vs.\ median vs.\ truth on
+$\log_{10} J(\alpha_c)$, small-$x$ analytic check, bias decomposition
+by 1D projection). Specs in \code{docs/plan/stage3.md}.}
+
+% ===================================================================
+\section{Tests}
+\label{sec:tests}
+
+\subsection{Unit tests (\code{tests/unit/})}
+\todo{\code{test\_jeans.py} and \code{test\_jeans\_vs\_quad.py} —
+solver-level checks against analytic limits and quadrature
+cross-checks.}
+
+\subsection{Integration tests (\code{tests/integration/})}
+\todo{Whole-pipeline tests:
+\code{run\_segue1.py} (Segue 1 testbed; reproduces P\&S 2018),
+\code{run\_ufd\_population.py} (15-realization MC recovery),
+\code{analyze\_asimov.py} (Asimov bias decomposition).}
+
+% ===================================================================
+\section*{Acknowledgements}
+\todo{Surveys, software, funding.}
+
+\end{document}
