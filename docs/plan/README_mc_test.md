@@ -48,7 +48,7 @@ attribution (J ∝ ρ_s² r_s³) is wrong: chain spans 3 dex in `log r_s` and cr
 the small-x → large-x regime, so `log J(r_s, ρ_s)` is curved, not log-linear, over
 the chain ridge. Marginal-projection decomposition shows the bias is a small
 (+0.16 dex) residual between large opposite-sign 1D offsets (+0.46 from `log r_s`,
-−0.32 from `log ρ_s`). Run `python analyze_asimov.py` to reproduce; full write-up
+−0.32 from `log ρ_s`). Run `python tests/integration/analyze_asimov.py` to reproduce; full write-up
 in **`stage3.md` → Asimov verification of the J-bias source**.
 
 **Reporting policy** (per `pipeline_overview.md` Stage 4): the main pipeline
@@ -115,12 +115,12 @@ compare *both* median and MAP to truth.
   decomposition for `log J`, the small-x analytic test, the
   marginal-projection decomposition, the J/D bias-ratio scaling, and
   the prior-edge diagnostic. Writes
-  `mc_results/asimov_chain_diagnostics.npz` and (if matplotlib is
+  `results/tests/ufd_population/asimov_chain_diagnostics.npz` and (if matplotlib is
   available) the triptych plot
-  `mc_results/asimov_diagnostic.png`. Run after a fresh Asimov chain
+  `results/tests/ufd_population/asimov_diagnostic.png`. Run after a fresh Asimov chain
   to re-verify the bias attribution.
 
-### Output artifacts (in `mc_results/`)
+### Output artifacts (in `results/tests/ufd_population/`)
 
 - `compact_ufd_seed{0..14}.npz` — per-realization equal-weight chains
   + per-star data + truth dict. Bundled in this zip (~1.3 MB total).

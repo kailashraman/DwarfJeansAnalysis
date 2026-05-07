@@ -11,7 +11,7 @@ The Plummer scale radius `r_p` for Stage 2's tracer model is **not** fit by us f
 
 | Date | Change |
 |---|---|
-| 2026-05-05 | Reconciled with on-disk data: (a) Geha Path A `p_i ← Pmem` (the `Pmem_novar` column does not exist in `table3A_20260110.csv`; `Var` is carried as auxiliary). (b) LVDB v1.0.5 has no `spatial_model` column; profile flag now sourced from a hand-curated `data_ingest/config/spatial_model_overrides.yaml`. |
+| 2026-05-05 | Reconciled with on-disk data: (a) Geha Path A `p_i ← Pmem` (the `Pmem_novar` column does not exist in `table3A_20260110.csv`; `Var` is carried as auxiliary). (b) LVDB v1.0.5 has no `spatial_model` column; profile flag now sourced from a hand-curated `src/dwarfjeans/ingest/config/spatial_model_overrides.yaml`. |
 | 2026-05-05 | Clarified the **missing-probability default**: `p_i = 1` applies only to papers that *publish a member list* and let null mean "implicit member." For papers that publish every observed star with a *continuous* classification (e.g., Koposov 2018's `logodds` column for Hydrus I), a null/masked probability means "fit failed" rather than "implicit member"; per-paper adapters in this case set `p_i = 0` for the masked rows and override the global default. The override decision is recorded in the per-paper adapter's `notes` and in the per-galaxy `_meta` `membership_rule` field. |
 
 ---
@@ -89,7 +89,7 @@ The raw inputs we read into the registry (each with its `_em` / `_ep` errors):
 
 Plus all the other registry fields (kinematics, photometry, etc.) covered above.
 
-**Note on `spatial_model`:** earlier drafts assumed an LVDB-tabulated `spatial_model` flag (`plummer` / `exponential` / `sersic` / `king`) would be available per galaxy. **LVDB v1.0.5 does not expose such a column** in `comb_all.csv` (verified 2026-05-05). The Plummer-radius derivation below therefore reads the profile flag from a hand-curated YAML override file in the pipeline config (`data_ingest/config/spatial_model_overrides.yaml`), keyed by LVDB `key`, defaulting to `plummer` and listing explicit overrides for the bright classicals known to be exponential / Sersic / King fits in the literature (Sextans, Carina, Leo I, Leo II, Sculptor, Draco, Ursa Minor — to be enumerated against the literature at YAML-write time). When a future LVDB release exposes the column natively, the loader can switch to consuming it directly.
+**Note on `spatial_model`:** earlier drafts assumed an LVDB-tabulated `spatial_model` flag (`plummer` / `exponential` / `sersic` / `king`) would be available per galaxy. **LVDB v1.0.5 does not expose such a column** in `comb_all.csv` (verified 2026-05-05). The Plummer-radius derivation below therefore reads the profile flag from a hand-curated YAML override file in the pipeline config (`src/dwarfjeans/ingest/config/spatial_model_overrides.yaml`), keyed by LVDB `key`, defaulting to `plummer` and listing explicit overrides for the bright classicals known to be exponential / Sersic / King fits in the literature (Sextans, Carina, Leo I, Leo II, Sculptor, Draco, Ursa Minor — to be enumerated against the literature at YAML-write time). When a future LVDB release exposes the column natively, the loader can switch to consuming it directly.
 
 ### Transformations we apply
 
@@ -161,7 +161,7 @@ For each galaxy the registry stores, with provenance:
 - `r_half_2d_pc` — our `r_1/2`, derived as `rhalf_major × √(1−ε)`; this is what enters the Jeans likelihood as P&S `r_1/2`
 - `r_half_2d_pc_err` — derived diagnostic only, not used in the likelihood
 - `plummer_radius_pc` — `r_p`, derived from LVDB structural parameters via per-profile conversion (`r_p = r_1/2` for Plummer fits, `r_p = 1.68 × r_exponential` for exponential fits, etc. — see Half-Light Radius Handling)
-- `spatial_model` — string flag, sourced from `data_ingest/config/spatial_model_overrides.yaml` (LVDB v1.0.5 has no native column); kept as metadata for the Plummer-fit consistency check
+- `spatial_model` — string flag, sourced from `src/dwarfjeans/ingest/config/spatial_model_overrides.yaml` (LVDB v1.0.5 has no native column); kept as metadata for the Plummer-fit consistency check
 
 The 3D half-light radius is **not** stored; it's computed at the call site whenever needed (and the call site always passes through a profile-aware factor explicitly).
 

@@ -4,7 +4,7 @@ Generated from `data/registry/galaxies.ecsv` — 17 Path B galaxies across 15 di
 
 For each entry below, follow `docs/plan/data_sources.md` §"Path B — LVDB `ref_vlos` paper ingest" steps 3–5: locate the per-star catalog (VizieR preferred, journal MRT next, author page last resort), download into the suggested `data/<bibkey>/` folder, write `PROVENANCE.md`, and run `sha256sum *.* > checksums.sha256`.
 
-After staging, write a per-paper adapter (a small dict / YAML mapping the paper's column names to canonical `V`, `sigma_eps`, `p`, `star_id`, `RA_star`, `Dec_star`) and run a per-galaxy ingest analogous to `data_ingest/stage0b_geha.py:ingest_one`.
+After staging, write a per-paper adapter (a small dict / YAML mapping the paper's column names to canonical `V`, `sigma_eps`, `p`, `star_id`, `RA_star`, `Dec_star`) and run a per-galaxy ingest analogous to `src/dwarfjeans/ingest/stage0b_geha.py:ingest_one`.
 
 ---
 

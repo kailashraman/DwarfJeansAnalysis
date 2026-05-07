@@ -2,9 +2,9 @@
 
 This document collects the settled conventions for storing, modeling, and propagating uncertainties throughout the pipeline. It is the single source of truth for these decisions; other docs link here rather than restating the rules.
 
-**Status (Segue 1 test).** The split-normal infrastructure described here is the design target for the population pipeline. The Segue 1 test (`Segue1_test/run_segue1.py`) uses **symmetric Gaussians** as an interim step (truncated for ε): `d ~ N(23.0, 2.0)`, `ε ~ N(0.47, 0.11)` truncated to `[0, 1)`, `rhalf_arcmin ~ N(4.31, 1.03)`. The implementation lives in `make_prior_transform_with_nuisances` in `docs/plan/jeans_inference.py`; swapping in split-normal inverse-CDFs (per "Implementation note" below) is a one-function-replacement once the LVDB asymmetric-error fields are pulled per-galaxy.
+**Status (Segue 1 test).** The split-normal infrastructure described here is the design target for the population pipeline. The Segue 1 test (`tests/integration/run_segue1.py`) uses **symmetric Gaussians** as an interim step (truncated for ε): `d ~ N(23.0, 2.0)`, `ε ~ N(0.47, 0.11)` truncated to `[0, 1)`, `rhalf_arcmin ~ N(4.31, 1.03)`. The implementation lives in `make_prior_transform_with_nuisances` in `src/dwarfjeans/jeans/inference.py`; swapping in split-normal inverse-CDFs (per "Implementation note" below) is a one-function-replacement once the LVDB asymmetric-error fields are pulled per-galaxy.
 
-The constant-σ block (Walker+2006) added to `Segue1_test/run_segue1.py` uses a different prior — the **proper Jeffreys (Fisher-determinant) prior on σ_los**, derived from the (V̄, σ) Fisher matrix of the membership-weighted likelihood. The algebra and the implementation pointer are in `docs/plan/segue1_test.md`. That prior is for a different parameter (σ_los, not d/ε/rhalf) and so is orthogonal to the split-normal convention here.
+The constant-σ block (Walker+2006) added to `tests/integration/run_segue1.py` uses a different prior — the **proper Jeffreys (Fisher-determinant) prior on σ_los**, derived from the (V̄, σ) Fisher matrix of the membership-weighted likelihood. The algebra and the implementation pointer are in `docs/plan/segue1_test.md`. That prior is for a different parameter (σ_los, not d/ε/rhalf) and so is orthogonal to the split-normal convention here.
 
 ---
 

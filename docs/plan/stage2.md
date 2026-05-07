@@ -63,14 +63,14 @@ using the LVDB-tabulated central values for `rhalf` and `ε`. The Stage 2 prior 
 
 ### Segue 1 test (interim) vs full population pipeline
 
-The Segue 1 implementation in `Segue1_test/run_segue1.py` is a 7D nuisance-marginalized run, departing from the population-pipeline spec above in two ways:
+The Segue 1 implementation in `tests/integration/run_segue1.py` is a 7D nuisance-marginalized run, departing from the population-pipeline spec above in two ways:
 
 1. **Symmetric Gaussian priors instead of split-normal.** Per-galaxy LVDB asymmetric error bars are not yet plumbed in. The Segue 1 priors are hardcoded to the P&S 2018 / Martin+2008 central values:
    - `d ~ N(23.0, 2.0)` kpc,
    - `ε ~ N(0.47, 0.11)` truncated to `[0, 1)`,
    - `rhalf_arcmin ~ N(4.31, 1.03)` (chosen so that, at the fiducial `(d=23, ε=0.47)`, the implied `r_p = 21 ± 5 pc` matches P&S 2018).
 
-   The Plummer scale is *derived* per draw: `r_p = d · rhalf_arcmin · ARCMIN_TO_RAD · √(1−ε)`. Implementation: `make_prior_transform_with_nuisances` and `make_loglike_with_nuisances` in `docs/plan/jeans_inference.py`. Splicing in split-normal inverse-CDFs from `uncertainty_conventions.md` is a one-function-replacement when the population pipeline is staged.
+   The Plummer scale is *derived* per draw: `r_p = d · rhalf_arcmin · ARCMIN_TO_RAD · √(1−ε)`. Implementation: `make_prior_transform_with_nuisances` and `make_loglike_with_nuisances` in `src/dwarfjeans/jeans/inference.py`. Splicing in split-normal inverse-CDFs from `uncertainty_conventions.md` is a one-function-replacement when the population pipeline is staged.
 
 2. **Per-draw `r_s > r_p` rejection inside the likelihood.** Because the sampled `r_p` varies per draw, the constraint is enforced inside `make_loglike_with_nuisances` by returning `−1e300` when `r_s ≤ r_p`. This is the literal, stochastic version of the P&S 2018 constraint (vs the LVDB-median floor described above). Rejection rate is low enough on Segue 1 that the 7D wall time matches the 4D run (~290 s).
 
@@ -171,7 +171,7 @@ A consequence of the Asimov-likelihood construction is that V_sys does not appea
 
 What the Asimov test validates: that the likelihood, Jeans projection, dynesty wrapper, and J/D integrators run end-to-end and place the posterior peak at truth in the absence of statistical noise. What it cannot validate (by construction, n=1): the calibration metrics std(z), cov68%, KS-vs-N(0,1), or the population-level J-median offset — those are the 15-realization MC's job. Asimov medians can drift from truth by a fraction of σ even when the MLE is at truth; this is posterior asymmetry under a curved transform, not bias, and the offset should be smaller than the realization-to-realization spread measured by the MC. [`stage3.md`](./stage3.md) § Asimov verification of the J-bias source confirms this on the J posterior directly.
 
-Asimov halo / `M(r_½)` results (run with `python run_ufd_population.py --asimov`, ~25 s wall): MLE at truth, `M(r_½, 3D)` median 0.04 dex above truth (1σ width 0.14 dex, matches MC ⟨σ⟩ = 0.15 dex). The corresponding Asimov J/D-factor results (offsets 0.15–0.23 dex on J and ≤ 0.11 dex on D, with their full chain-MAP-vs-median decomposition) live in [`stage3.md`](./stage3.md). Result artifacts: `mc_results/compact_ufd_asimov.npz`, `mc_results/ufd_asimov_table.json`, `mc_results/ufd_asimov_jd.json`.
+Asimov halo / `M(r_½)` results (run with `python tests/integration/run_ufd_population.py --asimov`, ~25 s wall): MLE at truth, `M(r_½, 3D)` median 0.04 dex above truth (1σ width 0.14 dex, matches MC ⟨σ⟩ = 0.15 dex). The corresponding Asimov J/D-factor results (offsets 0.15–0.23 dex on J and ≤ 0.11 dex on D, with their full chain-MAP-vs-median decomposition) live in [`stage3.md`](./stage3.md). Result artifacts: `results/tests/ufd_population/compact_ufd_asimov.npz`, `results/tests/ufd_population/ufd_asimov_table.json`, `results/tests/ufd_population/ufd_asimov_jd.json`.
 
 What the MC test does *not* validate: nuisance marginalization (`d`, `r_p`, `ε`, proper motions held fixed at truth), the `r_s > r_1/2(median)` constraint (omitted to avoid prejudging the recovery), and the production sampler config (test used `sample='unif'`, `nlive=300`, `dlogz=0.5` for run-time tractability vs. production's `'rwalk'`, `nlive=500`, `dlogz=0.1`). A second-pass MC with full nuisances and production sampler settings is a Stage 2 prerequisite once nuisance ingestion is wired up; until then the MC result establishes the halo-likelihood + projection + sampler chain works on clean data, not that the production pipeline as a whole is calibrated. Scripts and result artifacts: see `mc_test/README_mc_test.md`.
 

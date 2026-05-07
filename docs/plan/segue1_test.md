@@ -2,7 +2,7 @@
 
 A single-galaxy end-to-end test of the Jeans inference pipeline on Segue 1, the
 ultra-faint dwarf. Purpose: validate the pipeline on real data and compare against
-Pace & Strigari 2018 (P&S 2018). Script: `Segue1_test/run_segue1.py`, importing
+Pace & Strigari 2018 (P&S 2018). Script: `tests/integration/run_segue1.py`, importing
 from `docs/plan/` (the live working copy of the pipeline modules).
 
 ---
@@ -28,7 +28,7 @@ These derived quantities are now **per-draw posterior chains** in the 7D nuisanc
 
 ## Membership
 
-Simon & Geha 2011 per-star kinematic catalog (`Segue1_test/data/segue1_kinematics_simon2011.csv`).
+Simon & Geha 2011 per-star kinematic catalog (`data/segue1/segue1_kinematics_simon2011.csv`).
 The bundled VizieR table has 522 rows / 393 unique stars; 97 of those stars have 2–3
 epochs across 15 distinct MJDs, with `Bpr` filled on exactly one row per star and `NaN`
 on the rest. `load_stars_simon` groups by SDSS id, propagates the single non-NaN `Bpr`,
@@ -46,7 +46,7 @@ all 62 stars, but eV is underestimated relative to Pace on roughly half of the m
 stars (Pace runs a binary-aware estimator). This biases σ_los/β slightly relative to a Pace
 run; the discrepancy is documented but not corrected here.
 
-Pace's 0.8-membership combined-velocity file (`Segue1_test/data/Pace_Segue1_Bayes_0d8_binary.dat`)
+Pace's 0.8-membership combined-velocity file (`data/segue1/Pace_Segue1_Bayes_0d8_binary.dat`)
 is also bundled and selects the same 62 stars (verified by `compare_pace_vs_bpr08.py`). The
 `SOURCE` constant in `run_segue1.py` toggles between the two inputs (`'simon'` vs `'pace'`);
 Pace-source outputs are written with a `_pace` suffix.
@@ -132,7 +132,7 @@ logZ = −209.61 ± 0.13; n_eq = 5227 equal-weight samples. Wall time 479 s.
 
 **Nuisance posteriors all sit on top of their priors** (data don't add information about d, ε, rhalf — expected, since they enter only through the dynamical scale `r_p` and the per-star R conversion). The implied marginal `r_p = 20⁺⁶₋₅ pc` matches P&S 2018's 21 ± 5 pc target.
 
-**Effect of switching from log-flat to the conditional Jeffreys prior on (ln ρ_s, ln r_s).** Held against the log-flat baseline (`Segue1_test/baseline_logflat/`):
+**Effect of switching from log-flat to the conditional Jeffreys prior on (ln ρ_s, ln r_s).** Held against the log-flat baseline (`results/tests/segue1/baseline_logflat/`):
 - ρ_s posterior shifts up by ~1.4 dex and tightens — the low-ρ_s tail is correctly suppressed (the doc's main qualitative prediction: in the unresolved-σ regime, w̃_i ∝ ρ_s², so the prior decays as ρ_s² rather than being log-flat there).
 - σ_los at R_½ shifts from 2.84 → 3.86 km/s, **now matching the prior-independent Walker constant-σ result (3.96 km/s) to within rounding**. The log-flat Jeans posterior was biased low against the data-driven Walker estimate; the Jeffreys prior corrects this.
 - M_half (2D and 3D) shifts up by ~0.3 dex and tightens by ~3×.
@@ -140,7 +140,7 @@ logZ = −209.61 ± 0.13; n_eq = 5227 equal-weight samples. Wall time 479 s.
 
 **P&S 2018 Table A1 reference (Segue 1):** σ_los = 3.10 +0.90/−0.80 km/s. Our Walker constant-σ result agrees within ~1σ on the median (errors ~30% wider). The Walker Bayesian credible interval (proper Jeffreys on σ) and the prior-independent profile-LL interval coincide to two decimals; the Jeans+Jeffreys σ_los at R_½ now agrees with both — strong indicator the result is robust.
 
-**Comparison-run snapshots.** The following `summary_*.csv` files in `Segue1_test/` are bundled as research artifacts:
+**Comparison-run snapshots.** The following `summary_*.csv` files in `results/tests/segue1/` are bundled as research artifacts:
 - `summary.csv`, `summary_pace.csv` — Simon and Pace ingest at the toggled-on baseline (`USE_P_WEIGHTS=True`, no fix-rp). Production-quality nlive=2000.
 - `summary_nop.csv`, `summary_pace_nop.csv` — same data, `USE_P_WEIGHTS=False` (post-cut p_i collapsed to 1). nlive=2000. Effective no-op for both ingests on this 62-star sample.
 - `summary_pace_fixrp.csv` — Pace with `FIX_R_P_ARCMIN=(4.49, 0.85)`, nlive=500. Demonstrates the geometry's lever on (r_s, ρ_s, J): a 43% larger angular Plummer scale moves ρ_s by −0.37 dex and J(α_c) by −0.30 dex while leaving M_half nearly invariant.

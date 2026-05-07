@@ -21,7 +21,7 @@ The Walker+2006 pseudo-likelihood for $N$ stars with velocities $V_i$, errors $\
 $$\ln \mathcal{L}(\bar V, \rho_s, r_s, \beta) = \sum_i p_i\,\ln\mathcal{N}\!\left(V_i\,;\,\bar V,\,s_i^2\right) = \sum_i p_i\!\left[-\tfrac12\ln(2\pi s_i^2) - \frac{(V_i-\bar V)^2}{2 s_i^2}\right],$$
 $$s_i^2 \equiv \sigma_{\rm los}^2(R_i; \rho_s, r_s, \beta) + \varepsilon_i^2.$$
 
-This is the form actually evaluated in the code (`docs/plan/jeans_inference.py:187, 232`: `ll = float(np.sum(p * ln_li))`). It downweights low-probability members but is *not* a normalized probability density on the data — it is a pseudo-likelihood. We treat it as the score-generating object and define Fisher information by $\mathcal{I}_{jk} \equiv -\mathbb{E}[\partial^2_{\theta_j\theta_k}\ln\mathcal{L}]$ at the model's predicted moments; this is the standard "Jeffreys for a pseudo-likelihood" construction.
+This is the form actually evaluated in the code (`src/dwarfjeans/jeans/inference.py:187, 232`: `ll = float(np.sum(p * ln_li))`). It downweights low-probability members but is *not* a normalized probability density on the data — it is a pseudo-likelihood. We treat it as the score-generating object and define Fisher information by $\mathcal{I}_{jk} \equiv -\mathbb{E}[\partial^2_{\theta_j\theta_k}\ln\mathcal{L}]$ at the model's predicted moments; this is the standard "Jeffreys for a pseudo-likelihood" construction.
 
 We seek the Jeffreys prior $p(\theta) \propto \sqrt{\det \mathcal{I}(\theta)}$.
 
