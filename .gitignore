@@ -29,8 +29,6 @@ env/
 *.svg
 *.gif
 *.pdf
-# ...except the pipeline writeup PDF (built from docs/writeup/pipeline.tex)
-!docs/writeup/pipeline.pdf
 
 # Outputs / chains
 outputs/

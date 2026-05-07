@@ -51,8 +51,8 @@ DwarfJeansAnalysis/
 │       └── analyze_asimov.py        ← from docs/plan/
 ├── docs/
 │   ├── writeup/
-│   │   ├── pipeline.tex             single doc, all stages
-│   │   └── pipeline.pdf
+│   │   └── pipeline.tex             single doc, all stages
+│   │                                 (PDF built by CI — not committed)
 │   ├── plan/                        living markdown specs
 │   └── original-plan/               frozen reference (read-only)
 ├── data/                            unchanged
@@ -91,8 +91,11 @@ DwarfJeansAnalysis/
   outputs.
 
 - **`docs/writeup/`.** Single `pipeline.tex` covering all stages,
-  per CLAUDE.md. The `.tex` source and the latest compiled PDF both
-  live in the repo and are updated whenever the pipeline changes.
+  per CLAUDE.md. The `.tex` source lives in the repo; the compiled
+  PDF is built by `.github/workflows/writeup.yml` on changes to
+  `docs/writeup/**` and exposed as a workflow artifact. The PDF is
+  treated as a community-facing CI artifact rather than a repo
+  asset, so it is not committed.
 
 - **`jeans/priors.py` is its own module** because we already run with
   multiple prior choices (logflat vs. Jeffreys for Segue 1) and Stage 2
@@ -187,7 +190,8 @@ change with a layout change.
    (including the one-shot diagnostic
    `compare_pace_vs_bpr08.py`, which has served its purpose).
 7. Create `docs/writeup/pipeline.tex` skeleton (single document,
-   sections per stage) and check in the compiled PDF.
+   sections per stage). The compiled PDF is published by the
+   step-8 CI workflow as a build artifact — not committed.
 8. Add CI under `.github/workflows/` running `pytest tests/unit` and
    the LaTeX build on each PR.
 
