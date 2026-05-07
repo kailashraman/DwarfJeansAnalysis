@@ -192,6 +192,27 @@ def load_stars_pace(ra_center_deg: float, dec_center_deg: float) -> pd.DataFrame
     return keep
 
 
+def _read_registry_rhalf_major_pc(lvdb_key: str) -> float:
+    """Read rhalf_major_pc from data/registry/galaxies.ecsv. The registry
+    is the single source of truth — the staged R_kpc was computed with
+    the same row's distance_kpc, so the radial cut is internally
+    consistent regardless of any later LVDB changes.
+    """
+    import shlex
+    ecsv = REPO / "data" / "registry" / "galaxies.ecsv"
+    header = None
+    for line in ecsv.read_text().splitlines():
+        if line.startswith("#") or not line.strip():
+            continue
+        toks = shlex.split(line)
+        if header is None:
+            header = toks
+            continue
+        if toks[0] == lvdb_key:
+            return float(dict(zip(header, toks))["rhalf_major_pc"])
+    raise KeyError(f"{lvdb_key!r} not found in {ecsv}")
+
+
 def load_stars_geha(d_kpc: float, rhalf_major_pc: float) -> tuple[pd.DataFrame, dict]:
     """
     Route the Segue 1 Geha-staged catalog through the analysis-time
@@ -475,13 +496,11 @@ def main():
                 "expected 0.018–0.035 kpc for Segue 1."
             )
 
-    # Geha radial aperture: LVDB v1.0.5 semi-major rhalf (GEHA_RHALF_CUT_ARCMIN = 3.62') → 47 stars.
-    # Alternatives: LVDB circularized 2.96' → 41 stars; Martin+2008 r_h 4.31' → 53 stars.
-    _geha_cut_arcmin = GEHA_RHALF_CUT_ARCMIN
-    # Convert LVDB semi-major axis (arcmin) to pc using the runtime LVDB d_kpc
-    # so the radial cut here matches the historical bespoke selection
-    # (Rad_arcmin ≤ 2 × rhalf_major_arcmin) bit-for-bit.
-    _rhalf_major_pc = g["d_kpc"] * _geha_cut_arcmin * ARCMIN_TO_RAD * 1000.0
+    # Geha radial aperture: rhalf_major_pc comes from data/registry/galaxies.ecsv
+    # — the same canonical column staging.projected_radius_kpc used to
+    # bake R_kpc into the .npz, so the cut and the radii can't drift.
+    _rhalf_major_pc = _read_registry_rhalf_major_pc("segue_1")
+    _geha_cut_arcmin = GEHA_RHALF_CUT_ARCMIN  # kept for logging continuity
     stars, geha_audit = load_stars(g["d_kpc"], SOURCE,
                         ra_center_deg=g["ra_deg"], dec_center_deg=g["dec_deg"],
                         lvdb_rhalf_arcmin=_geha_cut_arcmin,
@@ -492,8 +511,8 @@ def main():
     logp(f"\n=== Per-star data ({src_name}) ===")
     logp(f"  source: {SOURCE!r}")
     _pmem_cut = P_CUT_GEHA if SOURCE == "geha" else P_CUT
-    _cut_desc = (f"Pmem>{_pmem_cut}, R<2×rhalf_major_pc={_rhalf_major_pc:.2f}pc "
-                 f"(={_geha_cut_arcmin:.2f}′ at d={g['d_kpc']:.2f} kpc), drop Var==1"
+    _cut_desc = (f"Pmem>{_pmem_cut}, R<2×rhalf_major_pc={_rhalf_major_pc:.3f}pc "
+                 f"(from data/registry/galaxies.ecsv), drop Var==1"
                  if SOURCE == "geha" else f"Bpr > {_pmem_cut}")
     logp(f"  {_cut_desc}: N = {len(stars)}")
     if geha_audit is not None:
