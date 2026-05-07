@@ -27,10 +27,10 @@ from typing import Any, Mapping
 import numpy as np
 
 
-def _read_r_unit(meta_obj) -> str | None:
-    """Extract the ``R_unit`` field from a catalog's ``_meta`` blob if
-    present and parseable. Returns None on missing/unparseable input —
-    the caller decides whether to enforce."""
+def _read_meta_field(meta_obj, key: str) -> str | None:
+    """Extract a string field from a catalog's ``_meta`` blob if present
+    and parseable. Returns None on missing/unparseable input — the
+    caller decides whether to enforce."""
     if meta_obj is None:
         return None
     try:
@@ -44,7 +44,7 @@ def _read_r_unit(meta_obj) -> str | None:
             meta = json.loads(str(payload))
     except (ValueError, TypeError):
         return None
-    val = meta.get("R_unit") if isinstance(meta, dict) else None
+    val = meta.get(key) if isinstance(meta, dict) else None
     return val if isinstance(val, str) else None
 
 
@@ -116,10 +116,23 @@ def select_jeans_stars(
         raise KeyError("catalog missing required 'R' column")
     n_input = len(cat["R"])
 
+    # Granularity guard: selection treats every row as one star. Running
+    # it on a per-epoch catalog would silently apply the radial cut to
+    # individual epochs and double-count stars in the survivor set. The
+    # caller must combine first (see jeans.preprocess.prepare_jeans_input).
+    granularity = _read_meta_field(cat.get("_meta"), "catalog_granularity")
+    if granularity == "per_epoch":
+        raise ValueError(
+            "select_jeans_stars on a per-epoch catalog would treat each "
+            "epoch as a separate star. Combine first via "
+            "jeans.preprocess.prepare_jeans_input, or use the combiner "
+            "directly from ingest.combiners."
+        )
+
     # Unit-consistency check: if the catalog declares an R unit in its
     # _meta dict, assert it is kpc (the only convention this module
     # supports). Catalogs without the annotation pass through.
-    r_unit = _read_r_unit(cat.get("_meta"))
+    r_unit = _read_meta_field(cat.get("_meta"), "R_unit")
     if r_unit is not None and r_unit != "kpc":
         raise ValueError(
             f"catalog has R_unit={r_unit!r}; selection requires kpc. "

@@ -27,15 +27,19 @@ DwarfJeansAnalysis/
 │       │   ├── stage0b_pathb.py
 │       │   ├── stage0b_pathb_worklist.py
 │       │   ├── staging.py
-│       │   ├── path_b_adapters/     per-paper raw → per-epoch
-│       │   ├── multi_epoch.py       (future) IVW + χ² primitives
-│       │   └── combiners/           (future) per-dataset per-epoch → per-star
+│       │   ├── path_b_adapters/     per-paper raw → per-star OR per-epoch
+│       │   ├── multi_epoch.py       IVW + χ² primitives (analysis-time use)
+│       │   └── combiners/           per-dataset per-epoch → per-star handlers
 │       ├── jeans/
 │       │   ├── inference.py         ← from docs/plan/jeans_inference.py
 │       │   ├── solver.py            ← from docs/plan/jeans.py
-│       │   └── priors.py            (extracted from jeans_inference.py:
-│       │                             prior-transform builders, Jeffreys
-│       │                             log-term, prior bounds)
+│       │   ├── priors.py            three-prior registry (uniform,
+│       │   │                         loguniform, jeffreys); jeffreys
+│       │   │                         Fisher-determinant log term
+│       │   ├── selection.py         principled per-star cuts (p, R, var)
+│       │   └── preprocess.py        per-epoch → per-star → selection
+│       │                             orchestrator (combine_policy +
+│       │                             selection_policy)
 │       ├── jd/                      ← from docs/plan/j_d_factors.py
 │       │   ├── factors.py
 │       │   └── summary.py           ← from run_jd_summary.py
@@ -104,35 +108,58 @@ DwarfJeansAnalysis/
   live inside `jeans_inference.py`; pulling them out lets new prior
   variants be added without touching the inference driver.
 
-- **`ingest/multi_epoch.py` + `ingest/combiners/`** (future, not yet
-  implemented) handle the per-epoch → per-star step that feeds Jeans
-  analysis. Adapters in `path_b_adapters/` produce per-epoch arrays
-  (one row per (star, epoch) measurement); the combiner stage
-  produces the per-star Jeans-ready schema:
+- **Ingest preserves provenance; combination is downstream.** Adapters
+  in `path_b_adapters/` write the catalog at whatever granularity the
+  upstream paper provides — per-star when the paper publishes
+  IVW-combined per-star velocities (Walker 2009 for Carina I), and
+  per-epoch when the paper publishes one row per spectrum (Li 2018,
+  Chiti 2023, etc.). The `_meta["catalog_granularity"]` field
+  declares which it is.
 
-  ```
-  star_id, v_bar_kms, sigma_vbar_kms, n_epoch, var_flag
-  ```
+  Per-epoch → per-star is **not** an ingest step. The σ_sys floor,
+  zero-point offsets, and χ² p-threshold are *analysis choices*
+  (which we will retune across runs), not provenance facts. Folding
+  them into the on-disk catalog would force a 39-galaxy re-ingest
+  every time we revisit them, and would erase the per-epoch
+  information needed for binary-aware σ-deconvolution and period
+  searches. Keeping the per-epoch granularity on disk is a feature.
+
+- **`ingest/multi_epoch.py` + `ingest/combiners/`** hold the
+  combination machinery, *invoked at analysis time* by
+  `jeans/preprocess.py` rather than by the ingest stage drivers.
 
   `multi_epoch.py` holds the dataset-agnostic primitives:
 
   - **IVW combine** with per-instrument zero-point offsets applied
-    *before* the weighted mean, and per-instrument systematic error
-    floor added in quadrature *after*:
+    *before* the weighted mean (caller responsibility), and the
+    instrument systematic error floor added in quadrature *after*:
     `v̄ = Σ vᵢ/σᵢ² / Σ 1/σᵢ²`,
     `σ_v̄ = (Σ 1/σᵢ²)^(−1/2) ⊕ σ_sys`.
   - **Variability flag** via `χ² = Σ (vᵢ − v̄)² / σᵢ²` against a
-    p-value threshold (e.g. `p < 0.01`); single-epoch stars are left
-    unflagged.
+    p-value threshold (e.g. `p < 0.01`); single-epoch stars are
+    left unflagged.
 
   `combiners/<dataset>.py` holds the per-dataset handler that knows
   the survey's zero-point offsets, error floor (e.g. 1.1 km/s for
   DEIMOS), variability threshold, and any dataset-specific quality
-  cuts (S/N, membership probability, sky-line proximity). Handlers
-  are organized **per dataset, not per dwarf**, since the combine
-  procedure is a property of the survey/instrument. Each handler
-  produces the same per-star schema, so downstream Jeans code is
-  dataset-agnostic.
+  cuts. Handlers are organized **per dataset, not per dwarf**, since
+  the combine procedure is a property of the survey/instrument. The
+  registry in `combiners/__init__.py` dispatches by
+  `_meta["source_paper_bibcode"]`; an unregistered bibcode falls
+  back to `combiners/default.py` (IVW + χ² with no offsets and zero
+  σ_sys floor — adequate when the published velocities are already
+  on a single zero-point and errors include the survey's systematic
+  budget).
+
+- **`jeans/preprocess.py`** is the orchestrator that turns a raw
+  catalog into Stage-1-ready arrays. It reads the catalog's
+  granularity flag, runs the appropriate combiner if needed, then
+  applies `select_jeans_stars`. It records both the `CombinePolicy`
+  and the `SelectionPolicy` in the run's audit dict so any inference
+  output is reproducible from the raw `.npz` plus the policy
+  records. Per-star catalogs (e.g. Walker 2009 Carina I) skip the
+  combiner step — the paper's combination is part of the
+  provenance; we don't re-do it.
 
 - **`docs/plan/` keeps its current role** as the living markdown
   spec set (`pipeline_overview.md`, `stage1.md`, `stage2.md`,
@@ -198,11 +225,15 @@ change with a layout change.
 Out-of-band feature work (not numbered above because it is new code,
 not migration):
 
-- **Multi-epoch combiner.** Implement `ingest/multi_epoch.py` (IVW
-  + χ² primitives) and per-dataset handlers under
-  `ingest/combiners/`. Required before Stage 1 inference can be run
-  on multi-epoch Path B galaxies; until then those galaxies have
-  only per-epoch arrays in `data/star_catalogs/`.
+- **Multi-epoch combiner (downstream).** `ingest/multi_epoch.py`
+  (IVW + χ² primitives) and `ingest/combiners/` (per-dataset
+  handlers + default fallback) are runtime tools called by
+  `jeans/preprocess.py`, not by the ingest drivers. Per-epoch `.npz`
+  files in `data/star_catalogs/` stay per-epoch; combination
+  happens at analysis time so σ_sys / zero-point / variability
+  thresholds remain tunable without re-ingest. Per-paper handlers
+  with paper-specific constants (DEIMOS σ_floor, M2FS offsets) are
+  added incrementally as catalogs go into Stage 1 production.
 
 ## Maintenance contract
 
