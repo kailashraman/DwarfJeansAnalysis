@@ -94,19 +94,23 @@ def test_per_epoch_runs_combiner_then_selection():
 
 
 def test_combine_policy_threaded_through():
+    """Threading test for CombinePolicy. With sigma_sys > 0, default.combine
+    routes through the strict-deconvolution path (combine_star_strict):
+    σ_stat² = σ_total² − σ_sys², IVW on σ_stat, re-add σ_sys post-combine."""
     npz = _per_epoch_npz(
         star_id=[0, 0, 0],
         V=[100.0, 100.0, 100.0],
-        sigma_eps=[1.0, 1.0, 1.0],
+        sigma_eps=[2.0, 2.0, 2.0],   # σ_total per epoch
         p=[1.0, 1.0, 1.0],
         R=[0.001, 0.001, 0.001],
     )
     reg = {"rhalf_major_pc": 100.0}
-    pol = CombinePolicy(sigma_sys_kms=2.0, p_threshold=0.05)
+    pol = CombinePolicy(sigma_sys_kms=1.5, p_threshold=0.05)
     arrays, audit = prepare_jeans_input(npz, reg, combine_policy=pol)
-    # σ_combined = √(1/3 + 4) = √4.333 ≈ 2.082
-    np.testing.assert_allclose(arrays["sigma_eps"], np.sqrt(1/3 + 4.0), rtol=1e-12)
-    assert audit["combine_policy"]["sigma_sys_kms"] == 2.0
+    # σ_stat² = 4 − 2.25 = 1.75; IVW gives σ_stat/√3 → σ_post = √(1.75/3 + 2.25)
+    expected = np.sqrt(1.75 / 3 + 2.25)
+    np.testing.assert_allclose(arrays["sigma_eps"], expected, rtol=1e-12)
+    assert audit["combine_policy"]["sigma_sys_kms"] == 1.5
     assert audit["combine_policy"]["p_threshold"] == 0.05
 
 

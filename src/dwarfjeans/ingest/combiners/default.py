@@ -17,7 +17,7 @@ from typing import Any
 
 import numpy as np
 
-from dwarfjeans.ingest.multi_epoch import combine_star
+from dwarfjeans.ingest.multi_epoch import combine_star, combine_star_strict
 
 
 PER_STAR_REQUIRED = ("star_id", "V", "sigma_eps", "p")
@@ -100,6 +100,16 @@ def combine(per_epoch: dict, registry_row: Any, policy) -> tuple[dict, dict]:
     # Group rows by unique star
     sigma_sys = float(getattr(policy, "sigma_sys_kms", 0.0))
     p_thresh = float(getattr(policy, "p_threshold", 0.01))
+    # Routing: sigma_sys > 0 opts the handler into the strict
+    # σ_sys-deconvolution path (see multi_epoch.combine_star_strict).
+    # Default (sigma_sys = 0) is the σ_sys-as-statistical convention.
+    # NB: this overloads sigma_sys_kms — there is intentionally no way
+    # to request "as-statistical convention with a post-combine
+    # quadrature add" through default.combine; that combination would
+    # double-count under our σ_sys-already-in-published-e_RVel
+    # premise. If a future caller legitimately needs it, add an
+    # explicit `sigma_sys_treatment` field to CombinePolicy.
+    use_strict = sigma_sys > 0.0
 
     for k in range(n_stars):
         rows = np.where(inverse == k)[0]
@@ -114,7 +124,12 @@ def combine(per_epoch: dict, registry_row: Any, policy) -> tuple[dict, dict]:
             )
         v = v[mask]
         sigma = sigma[mask]
-        out = combine_star(v, sigma, sigma_sys=sigma_sys, p_threshold=p_thresh)
+        if use_strict:
+            out = combine_star_strict(
+                v, sigma, sigma_sys=sigma_sys, p_threshold=p_thresh
+            )
+        else:
+            out = combine_star(v, sigma, sigma_sys=sigma_sys, p_threshold=p_thresh)
         V_out[k] = out["v_bar"]
         sigma_out[k] = out["sigma_vbar"]
         n_epoch_out[k] = out["n_epoch"]
@@ -150,6 +165,7 @@ def combine(per_epoch: dict, registry_row: Any, policy) -> tuple[dict, dict]:
         "median_n_epoch": int(np.median(n_epoch_out)),
         "max_n_epoch": int(n_epoch_out.max()),
         "sigma_sys_kms": sigma_sys,
+        "sigma_sys_treatment": "strict_deconvolution" if use_strict else "as_statistical",
         "p_threshold": p_thresh,
         "zero_point_offsets_kms": dict(offsets),
     }

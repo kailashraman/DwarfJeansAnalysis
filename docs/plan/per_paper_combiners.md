@@ -12,9 +12,11 @@ The ingest combiner treats every published per-epoch error as
 statistical and feeds it straight into the IVW. This is an
 **approximation**: in reality σ_sys is instrument-correlated and should
 not be averaged down by 1/√N. The strict treatment (deconvolve σ_sys,
-IVW the σ_stat, re-add σ_sys post-combine) is a future swap-in; the
-hooks (`CombinePolicy.sigma_sys_kms`, `multi_epoch.ivw_combine`'s
-`sigma_sys` argument) are already in place.
+IVW the σ_stat, re-add σ_sys post-combine) is now wired as an opt-in
+path: a per-paper handler activates it by setting
+`CombinePolicy.sigma_sys_kms` to the published σ_sys value, and
+`default.combine` routes through `multi_epoch.combine_star_strict`
+automatically.
 
 Consequence: combined σ_vbar is biased low by ~10–30% at typical N=2–5
 multi-epoch counts, χ² p-values biased high (under-flag variables).
@@ -103,10 +105,18 @@ later if needed.
    per_epoch and additively shifts V before the IVW; missing column or
    unknown instrument tags raise. Mutable-default
    `dict = None` replaced with a frozen `MappingProxyType` factory.
-5. **Framework: σ_sys treatment.** The "treat as statistical"
-   approximation is documented in `multi_epoch.py`. If a future
-   Stage-1 result is sensitive to it, swap in the deconvolution path.
-   Both options are wired; the swap is a 5-line edit in `default.combine`.
+5. **~~Framework: σ_sys treatment.~~ RESOLVED 2026-05-07** (path
+   wired; activation deferred). `multi_epoch.combine_star_strict` and
+   `ivw_combine_strict` now implement the textbook deconvolution
+   (σ_stat = √(σ_total² − σ_sys²), IVW σ_stat, re-add σ_sys
+   post-combine; χ² on σ_stat). `default.combine` routes through them
+   when `policy.sigma_sys_kms > 0`. No per-paper handler currently
+   opts in — every published σ_sys is "as-statistical" per the
+   convention, and Tuc V (the small-N case where the bias would
+   matter) has no paper-stated σ_sys to plug in. To activate for
+   Tuc V once a verified σ_sys becomes available (author contact /
+   MIKE pipeline doc), set `DEFAULT_POLICY = CombinePolicy(
+   sigma_sys_kms=σ_sys, ...)` in `combiners/hansen2024.py`.
 
 ## Verification protocol (QA-sweep #5)
 
