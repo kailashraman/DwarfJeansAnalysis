@@ -49,7 +49,7 @@ later if needed.
 | `2017ApJ...838....8L` | `eridanus_2` | IMACS | 1.2 (Oct'15) / 1.0 (Nov'15) | n/a (single epoch) | none (single-instrument) | §3.1 | https://ui.adsabs.harvard.edu/abs/2017ApJ...838....8L | verified |
 | `2018ApJ...857..145L` | `carina_2`, `carina_3` | IMACS + AAOmega/2dF + GIRAFFE+FLAMES | IMACS=1.0, AAT=0.5, VLT=0.9 (instrument-dependent) | 0.01 default; paper hand-flags 2 binaries + 2 RR Lyrae in Car II by Δv~25 km/s inspection | none (paper §3.1: "no significant zero-point shift") | §3.1, Table footnote (c) | https://ui.adsabs.harvard.edu/abs/2018ApJ...857..145L | verified |
 | `2022ApJ...939...41C` | `grus_1` | IMACS (single-instrument; Walker+2016 M2FS NOT ingested) | 1.1 | 0.01 default; paper makes ad hoc per-star calls (p=0.01 strong, p=0.04 marginal) | none applied; v_IMACS−v_M2FS = −2.6±0.8 km/s in §3.4.1 is a cross-paper check vs external Walker+2016 M2FS, not within Table 2. Adapter stamps `Inst="IMACS"` for forward-compat. | §3.1, §3.4.1, §3.5, §4.1 | https://ui.adsabs.harvard.edu/abs/2022ApJ...939...41C | verified |
-| `2023AJ....165...55C` | `tucana_2` | M2FS + IMACS + MIKE + MagE | 0.9 (new MIKE) / 1.2 (archival MIKE) | 0.01 default; paper uses Δv > 8 km/s rule of thumb | applied in published Table 1 (per-instrument offsets MIKE−M2FS=+2.5±0.7, MIKE−IMACS=+2.2, MIKE−MagE=+1.0 documented but Table 1 entries are final-averaged); **byte-verify before production Stage 1** | §3.1, Table 1 | https://ui.adsabs.harvard.edu/abs/2023AJ....165...55C | TODO (offset-application convention not byte-verified) |
+| `2023AJ....165...55C` | `tucana_2` | M2FS + IMACS + MIKE + MagE | 0.9 (new MIKE) / 1.2 (archival MIKE) | 0.01 default; paper uses Δv > 8 km/s rule of thumb | **applied here** (MIKE-ref): M2FS +2.5, IMACS +2.2, MagE +1.0 km/s. Byte-verified 2026-05-07: Table 6 velocities are raw per-instrument; stars.csv (Table 1) matches our MIKE-only IVW to ~0.1 km/s. | §3.1, Table 1 | https://ui.adsabs.harvard.edu/abs/2023AJ....165...55C | verified |
 | `2020ApJ...892..137S` | `tucana_4` | IMACS | 1.0 (post-Nov'15) / 1.2 (pre) | 0.01; paper §3.4 χ² test with same threshold | none (single-instrument) | §3.1, §3.4 | https://ui.adsabs.harvard.edu/abs/2020ApJ...892..137S | verified |
 | `2024ApJ...968...21H` | `tucana_5` | MIKE + IMACS | **not explicitly published** (Table 1 ±σ values may be template-fit stat-only) | 0.01 default; paper uses orbital fit (TheJoker) for Tuc V-1 binary | none published; §2.3 notes no MIKE−IMACS offset detected via Tuc V-2/3 agreement | §2, §2.3, §5.2.1, Table 1 | https://ui.adsabs.harvard.edu/abs/2024ApJ...968...21H | TODO (σ_sys not published; verify error model) |
 
@@ -70,14 +70,21 @@ later if needed.
    p_threshold=0.01, zero_point_offsets_kms={"IMACS": +2.6, "M2FS":
    0.0})` (CombinePolicy is frozen, so reassign — don't mutate). The
    framework hook (issue #4, resolved) takes care of the rest.
-2. **Chiti+2023 / Tuc II offset-application convention.** Researcher
-   §-search asserts Table 1 velocities are pre-averaged on a common
-   zero-point ("offsets documented but not pre-applied" — but the
-   averaging produces a common zero-point). We have NOT byte-verified
-   that Table 1's `v_helio` matches the expected post-shift values
-   per a chosen reference instrument. If Stage 1 on Tuc II shows ~1–2
-   km/s extra dispersion attributable to inter-instrument scatter,
-   verify here first.
+2. **~~Chiti+2023 / Tuc II offset-application convention.~~ RESOLVED
+   2026-05-07.** Byte-verify against the staged tucana_2.npz showed:
+   (a) Empirical inter-instrument means: MIKE−M2FS = +1.5 (n=5),
+   MIKE−IMACS = +1.6 (n=2), MIKE−MagE = +1.6 km/s after excluding
+   the TucII-309 binary outlier (n=5; +2.8 with all 6) — all in the
+   same direction as the paper's §3.1 quoted offsets (+2.5, +2.2,
+   +1.0) and within 1σ small-N scatter. The TucII-309 exclusion
+   matches the paper's §3.1 text. (b) `stars.csv` (the high-res
+   5-star sample) matches MIKE-only IVW from `table6.csv` to within
+   ~0.1 km/s, confirming Chiti+2023 do NOT pre-shift Table 6 onto a
+   common zero-point. Conclusion: Table 6 carries raw per-instrument
+   velocities. The chiti2023 handler now applies the §3.1 offsets
+   (MIKE-ref) via `CombinePolicy.zero_point_offsets_kms`. Effect:
+   individual v_bar shifts by up to +2.5 km/s, σ_los proxy across 19
+   stars drops 4.02 → 3.88 km/s (~3% reduction).
 3. **Hansen+2024 / Tuc V σ_sys.** Paper does not publish a per-epoch
    systematic floor. The Table 1 ±σ values look like χ²-template-fit
    stat errors only. Confirm whether the MIKE pipeline applies a
