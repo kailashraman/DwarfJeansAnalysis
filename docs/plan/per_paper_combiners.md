@@ -51,7 +51,7 @@ later if needed.
 | `2022ApJ...939...41C` | `grus_1` | IMACS (single-instrument; Walker+2016 M2FS NOT ingested) | 1.1 | 0.01 default; paper makes ad hoc per-star calls (p=0.01 strong, p=0.04 marginal) | none applied; v_IMACS−v_M2FS = −2.6±0.8 km/s in §3.4.1 is a cross-paper check vs external Walker+2016 M2FS, not within Table 2. Adapter stamps `Inst="IMACS"` for forward-compat. | §3.1, §3.4.1, §3.5, §4.1 | https://ui.adsabs.harvard.edu/abs/2022ApJ...939...41C | verified |
 | `2023AJ....165...55C` | `tucana_2` | M2FS + IMACS + MIKE + MagE | 0.9 (new MIKE) / 1.2 (archival MIKE) | 0.01 default; paper uses Δv > 8 km/s rule of thumb | **applied here** (MIKE-ref): M2FS +2.5, IMACS +2.2, MagE +1.0 km/s. Byte-verified 2026-05-07: Table 6 velocities are raw per-instrument; stars.csv (Table 1) matches our MIKE-only IVW to ~0.1 km/s. | §3.1, Table 1 | https://ui.adsabs.harvard.edu/abs/2023AJ....165...55C | verified |
 | `2020ApJ...892..137S` | `tucana_4` | IMACS | 1.0 (post-Nov'15) / 1.2 (pre) | 0.01; paper §3.4 χ² test with same threshold | none (single-instrument) | §3.1, §3.4 | https://ui.adsabs.harvard.edu/abs/2020ApJ...892..137S | verified |
-| `2024ApJ...968...21H` | `tucana_5` | MIKE + IMACS | **not explicitly published** (Table 1 ±σ values may be template-fit stat-only) | 0.01 default; paper uses orbital fit (TheJoker) for Tuc V-1 binary | none published; §2.3 notes no MIKE−IMACS offset detected via Tuc V-2/3 agreement | §2, §2.3, §5.2.1, Table 1 | https://ui.adsabs.harvard.edu/abs/2024ApJ...968...21H | TODO (σ_sys not published; verify error model) |
+| `2024ApJ...968...21H` | `tucana_5` | MIKE + IMACS | not published, but empirically sys-included (MIKE σ_eps min 0.6, mean 1.14 km/s; stat-only would be ~0.2–0.4) | 0.01 default; paper uses orbital fit (TheJoker) for Tuc V-1 binary | none published; §2.3 notes no MIKE−IMACS offset detected via Tuc V-2/3 agreement | §2, §2.3, §5.2.1, Table 1 | https://ui.adsabs.harvard.edu/abs/2024ApJ...968...21H | verified (caveat: empirical inference, not paper-stated) |
 
 ## Open issues (QA-sweep #5)
 
@@ -85,11 +85,18 @@ later if needed.
    (MIKE-ref) via `CombinePolicy.zero_point_offsets_kms`. Effect:
    individual v_bar shifts by up to +2.5 km/s, σ_los proxy across 19
    stars drops 4.02 → 3.88 km/s (~3% reduction).
-3. **Hansen+2024 / Tuc V σ_sys.** Paper does not publish a per-epoch
-   systematic floor. The Table 1 ±σ values look like χ²-template-fit
-   stat errors only. Confirm whether the MIKE pipeline applies a
-   systematic floor by default; if not, propose a value (likely 0.5–1.0
-   km/s typical of MIKE) and re-test.
+3. **~~Hansen+2024 / Tuc V σ_sys.~~ RESOLVED 2026-05-07** (empirical
+   inference, not paper §-quote). Per-epoch sigma_eps in tucana_5.npz:
+   MIKE (n=14) min 0.6, max 1.7, mean 1.14 km/s; IMACS (n=3) min 1.1,
+   max 1.7, mean 1.33 km/s. MIKE template-fit stat-only errors are
+   typically 0.2–0.4 km/s for high-S/N giants; the 0.6 km/s floor
+   and 1.0–1.2 km/s typical value are inconsistent with stat-only
+   and consistent with σ_sys ~0.5–1.0 km/s added in quadrature. We
+   therefore treat published ±σ as already sys-included (matches the
+   convention for Li+2017/2018, Chiti+2022/2023, Simon+2020) and keep
+   `CombinePolicy.sigma_sys_kms = 0`. Caveat: the inference is from
+   magnitudes alone; if a future contact with the authors yields a
+   contradictory answer, revisit.
 4. **~~Framework: zero-point hook.~~ RESOLVED 2026-05-07** (commit
    `62415e1`). `CombinePolicy.zero_point_offsets_kms` is now wired into
    `default.combine`: when non-empty, requires an `Inst` column on

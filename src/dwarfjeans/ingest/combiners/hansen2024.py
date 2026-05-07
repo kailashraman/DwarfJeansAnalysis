@@ -7,15 +7,23 @@ arXiv:         https://arxiv.org/abs/2403.13060
 Galaxy:        tucana_5
 Instruments:   MIKE (Magellan/Clay) — primary, multiple epochs per star
                IMACS (Magellan/Baade) — one additional epoch per star
-σ_sys floor:   NOT EXPLICITLY PUBLISHED. Paper §2 reports per-epoch
-                ``Vhel ± σ`` from χ² fits against an HD122563 template
-                (radial-velocity standard) — see Table 1. The ±σ values
-                listed (e.g. 0.6, 1.2, 1.6 km/s) appear to be template-
-                fit statistical uncertainties only; we have no §-quote
-                pinning whether a systematic floor was added.
-                Per framework convention, CombinePolicy.sigma_sys_kms=0.
-                If a Stage 1 run on Tuc V shows underestimated σ_vbar,
-                this is a candidate cause — flag for QA-sweep #5.
+σ_sys floor:   NOT EXPLICITLY PUBLISHED, but **inferred sys-included
+                from empirical magnitudes** (verified 2026-05-07).
+                Per-epoch sigma_eps in the staged tucana_5.npz (17
+                epochs / 3 stars):
+                    MIKE  (n=14): min 0.6, max 1.7, mean 1.14 km/s
+                    IMACS (n=3):  min 1.1, max 1.7, mean 1.33 km/s
+                MIKE template-fit stat-only errors are typically
+                ~0.2–0.4 km/s for high-S/N giants; the floor at 0.6
+                km/s and the 1.0–1.2 km/s typical value are
+                inconsistent with stat-only and consistent with the
+                published MIKE σ_sys range (~0.5–1.0 km/s) added in
+                quadrature with stat. We therefore treat Hansen+2024
+                ±σ as already sys-included and keep
+                CombinePolicy.sigma_sys_kms=0 (framework convention).
+                Caveat: this is an empirical inference, not a paper
+                statement; if a future deep-reviewer or contact with
+                the authors yields a contradictory answer, revisit.
 p_threshold:   0.01 (framework default). Paper does not use a formal
                 χ² threshold; binarity for Tuc V-1 is established by
                 a multi-epoch orbital fit (TheJoker rejection sampling,
@@ -33,10 +41,10 @@ Variability flagging in source: text-only. Tuc V-1 is the binary; this
                                  should match our recomputed var_flag.
 Membership convention: member-list only (3 stars, all confirmed
                        members). Adapter maps to p=1 verbatim.
-Velocity error includes systematics: AMBIGUOUS — published ±σ values
-                                       look like template-fit stat-only
-                                       errors. No quadrature-sum
-                                       statement found in §-search.
+Velocity error includes systematics: empirically YES (see σ_sys floor
+                                       row above for the magnitude
+                                       argument). No paper §-quote
+                                       confirms this directly.
 Notes: Smallest sample of the six (3 stars, 17 epochs). Tuc V-1's
        binarity is the clearest variability detection in our seven
        per-epoch catalogs. Earlier IMACS spectroscopy of Tuc V appeared
