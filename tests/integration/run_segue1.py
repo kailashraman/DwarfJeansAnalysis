@@ -57,7 +57,7 @@ PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
 #            Uses LVDB v1.0.5 nuisance priors (d, rhalf, ε) instead of PS18 overrides.
 SOURCE = "geha"  # 'simon' | 'pace' | 'geha'
 USE_P_WEIGHTS = False     # if False, replace post-cut p_i with 1.0 in the likelihood
-USE_JEFFREYS_PRIOR = False   # if False, flat log-uniform prior on (r_s, rho_s); if True, add Jeffreys correction
+PRIOR_NAME = "loguniform"    # one of {"uniform", "loguniform", "jeffreys"} from dwarfjeans.jeans.priors
 DYNESTY_NLIVE = 500   # nominal 500; raise for posterior stability
 DYNESTY_DLOGZ = 0.1   # nominal 0.1; tighten alongside nlive
 # When set to (mean, sigma), bypass the rhalf×√(1−ε) chain in the Jeans
@@ -419,8 +419,8 @@ def main():
         _suffix_parts.append("nop")
     if SOURCE in ("simon", "pace") and FIX_R_P_ARCMIN is not None:
         _suffix_parts.append("fixrp")
-    if not USE_JEFFREYS_PRIOR:
-        _suffix_parts.append("logunif")
+    if PRIOR_NAME != "jeffreys":
+        _suffix_parts.append("logunif" if PRIOR_NAME == "loguniform" else PRIOR_NAME)
     suffix = "_" + "_".join(_suffix_parts) if _suffix_parts else ""
 
     def out(stem: str, ext: str) -> Path:
@@ -555,7 +555,7 @@ def main():
         print_progress=False,
         marginalize_nuisances=True,
         nuisance_priors=nuisance_priors,
-        use_jeffreys_prior=USE_JEFFREYS_PRIOR,
+        prior_name=PRIOR_NAME,
         fix_r_p_arcmin=(fix_r_p is not None),
     )
     logp(f"  done in {time.time()-t_inf:.1f}s")
