@@ -39,7 +39,8 @@ SEEDS = list(range(N_REALIZATIONS))
 NLIVE = 300
 DLOGZ = 0.5
 SAMPLE = "unif"
-OUT_DIR = "mc_results"
+from pathlib import Path
+OUT_DIR = str(Path(__file__).resolve().parents[2] / "results" / "tests" / "ufd_population")
 TABLE_PATH = os.path.join(OUT_DIR, "ufd_pop_table.json")
 
 PARAM_KEYS = ("V", "log10_rs", "log10_rhos", "beta_tilde", "log10_rhos_rs3")

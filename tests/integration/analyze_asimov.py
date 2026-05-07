@@ -19,16 +19,20 @@ Two questions:
 """
 
 import json
+from pathlib import Path
 import numpy as np
 
 from dwarfjeans.jeans import solver as jeans
 from dwarfjeans.jd import factors as jd
 
+OUT_DIR = Path(__file__).resolve().parents[2] / "results" / "tests" / "ufd_population"
+OUT_DIR.mkdir(parents=True, exist_ok=True)
+
 
 # ---------------------------------------------------------------------------
 # Load
 # ---------------------------------------------------------------------------
-chain = np.load("mc_results/compact_ufd_asimov.npz", allow_pickle=True)
+chain = np.load(OUT_DIR / "compact_ufd_asimov.npz", allow_pickle=True)
 samples = chain["samples_eq"]        # (N, 4): V, log10_rs, log10_rhos, beta_tilde
 param_names = list(chain["param_names"])
 truth = dict(zip(chain["truth_keys"], chain["truth_vals"]))
@@ -49,7 +53,7 @@ log_M3_t = float(truth["log10_M_half_3d"])
 log_M2_t = float(truth["log10_M_half_2d"])
 
 # Geometry from JD summary
-with open("mc_results/ufd_asimov_jd.json") as f:
+with open(OUT_DIR / "ufd_asimov_jd.json") as f:
     jd_sum = json.load(f)
 d_kpc = float(jd_sum["d_kpc"])
 r_t = float(jd_sum["r_t_kpc"])
@@ -347,7 +351,7 @@ print("  (this isolates where the joint posterior peak is in J-space, "
 # ---------------------------------------------------------------------------
 # Done — also save chain-derived values for any plotting / further inspection
 # ---------------------------------------------------------------------------
-np.savez("mc_results/asimov_chain_diagnostics.npz",
+np.savez(OUT_DIR / "asimov_chain_diagnostics.npz",
          log_rs=log_rs, log_rhos=log_rhos,
          log_M3_chain=log_M3_chain,
          log_J_alphac=log_J_chain["alphac"],
@@ -361,7 +365,7 @@ np.savez("mc_results/asimov_chain_diagnostics.npz",
          truth_log_rs=log_rs_t,
          truth_log_rhos=log_rhos_t)
 print()
-print("saved chain-derived diagnostics to mc_results/asimov_chain_diagnostics.npz")
+print(f"saved chain-derived diagnostics to {OUT_DIR / 'asimov_chain_diagnostics.npz'}")
 
 
 # ---------------------------------------------------------------------------
@@ -425,5 +429,5 @@ else:
     ax.legend(fontsize=8, frameon=False)
 
     plt.tight_layout()
-    plt.savefig("mc_results/asimov_diagnostic.png", dpi=130)
-    print("saved triptych figure to mc_results/asimov_diagnostic.png")
+    plt.savefig(OUT_DIR / "asimov_diagnostic.png", dpi=130)
+    print(f"saved triptych figure to {OUT_DIR / 'asimov_diagnostic.png'}")

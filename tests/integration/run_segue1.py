@@ -26,7 +26,8 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 HERE = Path(__file__).resolve().parent
-REPO = HERE.parent
+REPO = HERE.parents[1]
+OUT_DIR = REPO / "results" / "tests" / "segue1"
 
 from dwarfjeans.jeans import solver as jeans
 from dwarfjeans.jeans import inference as jeans_inference
@@ -34,10 +35,10 @@ from dwarfjeans.jd import factors as jdf
 
 LVDB_URL = ("https://github.com/apace7/local_volume_database/"
             "releases/download/v1.0.5/comb_all.csv")
-LVDB_CACHE = HERE / "data" / "lvdb_v1.0.5_comb_all.csv"
-SEGUE1_KIN_CSV = HERE / "data" / "segue1_kinematics_simon2011.csv"
-PACE_DAT       = HERE / "data" / "Pace_Segue1_Bayes_0d8_binary.dat"
-GEHA_CSV       = HERE / "data" / "table3A_20260110.csv"
+LVDB_CACHE     = REPO / "data" / "lvdb_v1.0.5" / "comb_all.csv"
+SEGUE1_KIN_CSV = REPO / "data" / "segue1" / "segue1_kinematics_simon2011.csv"
+PACE_DAT       = REPO / "data" / "segue1" / "Pace_Segue1_Bayes_0d8_binary.dat"
+GEHA_CSV       = REPO / "data" / "geha2026" / "table3A_20260110.csv"
 P_CUT = 0.8
 P_CUT_GEHA = 0.5  # Geha+2026 §Sample Selection
 # Radial aperture used for the Geha star selection (2× this value).
@@ -408,7 +409,8 @@ def percentiles(arr: np.ndarray) -> dict:
 
 
 def main():
-    out_dir = HERE
+    out_dir = OUT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
     plot_dir = out_dir
     _suffix_parts = []
     if SOURCE != "simon":
