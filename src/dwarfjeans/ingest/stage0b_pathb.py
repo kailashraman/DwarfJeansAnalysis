@@ -116,6 +116,8 @@ def ingest_one(registry_row, *, build_utc: str, git_commit: str) -> Path:
         "bibkey": bibkey,
         "staged_dir": str(staged_dir.relative_to(REPO_ROOT)),
         "n_rows": int(n),
+        "R_unit": "kpc",
+        "rhalf_unit_in_registry": "rhalf_major_pc (semi-major axis, pc)",
         "lvdb_center_ra_deg": float(registry_row["ra_deg"]),
         "lvdb_center_dec_deg": float(registry_row["dec_deg"]),
         "lvdb_distance_kpc": float(registry_row["distance_kpc"]),

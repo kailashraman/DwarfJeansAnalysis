@@ -130,6 +130,8 @@ def ingest_one(geha_df: pd.DataFrame, registry_row, *, build_utc: str, git_commi
         "system_name_in_table3A": geha_galaxy,
         "n_rows": int(len(sub)),
         "catalog_granularity": "per_star",
+        "R_unit": "kpc",
+        "rhalf_unit_in_registry": "rhalf_major_pc (semi-major axis, pc)",
         "star_id_source_column": "row_index",
         "column_mapping": COLUMN_MAPPING,
         "lvdb_center_ra_deg": float(registry_row["ra_deg"]),
