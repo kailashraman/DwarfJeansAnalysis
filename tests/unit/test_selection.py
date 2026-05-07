@@ -37,6 +37,22 @@ def test_membership_cut_with_graded_p():
     np.testing.assert_array_equal(out["p"], np.array([0.9, 0.6]))
 
 
+def test_membership_cut_with_binary_p_drops_zeros():
+    """Catalogs whose `p` is a 0/1 hard flag with non-members retained
+    must apply the cut (drop p == 0). Regression for the bug where
+    binary p was misread as 'already hard-cut upstream' and the cut
+    silently no-op'd."""
+    cat = {
+        "R": np.array([0.001, 0.001, 0.001, 0.001]),
+        "p": np.array([1.0, 0.0, 1.0, 0.0]),
+    }
+    reg = _fake_registry(rhalf_major_pc=20.0)
+    out, rep = select_jeans_stars(cat, reg)
+    assert rep["membership_noop"] is False
+    assert rep["n_after_p"] == 2
+    np.testing.assert_array_equal(out["p"], np.array([1.0, 1.0]))
+
+
 def test_p_uniformly_one_is_noop():
     cat = {
         "R": np.array([0.001, 0.001, 0.001]),

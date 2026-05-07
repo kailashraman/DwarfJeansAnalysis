@@ -2,9 +2,11 @@
 
 Three cuts, applied in order:
 
-  1. Membership.  ``p > policy.p_min`` if the catalog has graded
-     membership probabilities. Catalogs whose ``p`` is uniformly 1.0
-     (already hard-cut upstream) or absent skip this cut.
+  1. Membership.  ``p > policy.p_min`` whenever any star has
+     ``p < 1.0`` — covers both graded probabilities and 0/1 hard
+     flags where the catalog retains non-members tagged ``p == 0``.
+     Catalogs whose ``p`` is uniformly 1.0 (already hard-cut
+     upstream) or absent skip this cut.
   2. Radial.      ``R < policy.R_over_rhalf_max · r_½`` where ``r_½``
      is the **semi-major axis** half-light radius taken from the
      registry's ``rhalf_major_pc``. ``R`` is the projected radius in
@@ -64,15 +66,22 @@ def _as_array_dict(catalog) -> dict[str, np.ndarray]:
     return dict(catalog)
 
 
-def _has_graded_membership(p: np.ndarray) -> bool:
-    """True iff ``p`` carries information beyond a hard 0/1 cut."""
+def _membership_carries_info(p: np.ndarray) -> bool:
+    """True iff ``p`` carries usable membership information.
+
+    The cut is a no-op only when every star already has ``p == 1.0`` —
+    i.e., the catalog has been hard-cut upstream and only members
+    remain. Any other case (graded probabilities, or 0/1 hard flags
+    where non-members are retained tagged ``p == 0``) means the cut
+    must be applied: graded catalogs filter on ``p > policy.p_min``,
+    and 0/1 catalogs drop ``p == 0`` for any sensible ``p_min < 1``.
+    """
     if p is None or len(p) == 0:
         return False
     finite = p[np.isfinite(p)]
     if finite.size == 0:
         return False
-    # Strictly between 0 and 1 means a graded probability is present.
-    return bool(np.any((finite > 0.0) & (finite < 1.0)))
+    return bool(np.any(finite < 1.0))
 
 
 def _normalize_variability(catalog: Mapping[str, np.ndarray]) -> np.ndarray | None:
@@ -147,7 +156,7 @@ def select_jeans_stars(
     membership_noop = True
 
     p_arr = np.asarray(cat["p"], dtype=float) if "p" in cat else None
-    if p_arr is not None and _has_graded_membership(p_arr):
+    if p_arr is not None and _membership_carries_info(p_arr):
         keep &= p_arr > policy.p_min
         n_after_p = int(keep.sum())
         cuts_applied.append(f"p > {policy.p_min}")
