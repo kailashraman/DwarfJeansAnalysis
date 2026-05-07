@@ -2,13 +2,13 @@
 
 Groups input per-epoch arrays by ``star_id`` (same convention used by
 ``staging.per_star_indices``), runs IVW + χ² per group, and emits the
-canonical per-star schema. No zero-point offsets are applied; the
-caller's ``CombinePolicy`` carries the σ_sys floor and the variability
-p-threshold.
+canonical per-star schema. The caller's ``CombinePolicy`` carries the
+σ_sys floor, the variability p-threshold, and (if non-empty) a
+per-instrument zero-point offset table applied before the IVW.
 
-Dataset-specific behavior (per-instrument offsets, custom σ_sys, etc.)
-goes in a per-paper module that calls ``combine_grouped`` after
-applying its own preprocessing.
+Dataset-specific behavior beyond per-instrument offsets (binary-aware
+σ-deconvolution, etc.) goes in a per-paper module that preprocesses the
+per_epoch dict and then calls ``combine``.
 """
 
 from __future__ import annotations
@@ -62,6 +62,33 @@ def combine(per_epoch: dict, registry_row: Any, policy) -> tuple[dict, dict]:
     )
     n_stars = unique_ids.size
 
+    # Apply per-instrument zero-point offsets *before* the IVW. The
+    # policy's offsets dict is the only authoritative source — silent
+    # zero-offset fallback on missing tags is the bug this guard exists
+    # to prevent, so we raise rather than .get(tag, 0.0).
+    V_in = np.asarray(per_epoch["V"], dtype=float).copy()
+    # None / empty mapping → no offsets applied (pre-patch back-compat).
+    offsets = getattr(policy, "zero_point_offsets_kms", None) or {}
+    if offsets:
+        if "Inst" not in per_epoch:
+            raise KeyError(
+                "policy.zero_point_offsets_kms is non-empty but per_epoch "
+                "lacks an 'Inst' column; per-instrument offsets cannot be "
+                "applied. Either drop the offsets from the policy or "
+                "extend the adapter to emit Inst per epoch."
+            )
+        inst = np.asarray(per_epoch["Inst"])
+        unknown = set(np.unique(inst).tolist()) - set(offsets.keys())
+        if unknown:
+            raise KeyError(
+                f"policy.zero_point_offsets_kms missing entries for "
+                f"instruments {sorted(unknown)!r}; refusing to apply a "
+                f"silent zero offset. Add them explicitly (use 0.0 for "
+                f"the reference instrument)."
+            )
+        shifts = np.array([offsets[t] for t in inst], dtype=float)
+        V_in = V_in + shifts
+
     # Output buffers
     V_out = np.empty(n_stars, dtype=float)
     sigma_out = np.empty(n_stars, dtype=float)
@@ -76,7 +103,7 @@ def combine(per_epoch: dict, registry_row: Any, policy) -> tuple[dict, dict]:
 
     for k in range(n_stars):
         rows = np.where(inverse == k)[0]
-        v = np.asarray(per_epoch["V"], dtype=float)[rows]
+        v = V_in[rows]
         sigma = np.asarray(per_epoch["sigma_eps"], dtype=float)[rows]
         # Drop rows with non-finite v / sigma (defensive: shouldn't happen
         # post-adapter, but guard anyway)
@@ -124,5 +151,6 @@ def combine(per_epoch: dict, registry_row: Any, policy) -> tuple[dict, dict]:
         "max_n_epoch": int(n_epoch_out.max()),
         "sigma_sys_kms": sigma_sys,
         "p_threshold": p_thresh,
+        "zero_point_offsets_kms": dict(offsets),
     }
     return per_star, diagnostics

@@ -27,7 +27,12 @@ from . import default as _default
 CombineFn = Callable[[dict, Any, "CombinePolicy"], tuple[dict, dict]]
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from types import MappingProxyType
+from typing import Mapping
+
+
+_EMPTY_OFFSETS: Mapping[str, float] = MappingProxyType({})
 
 
 @dataclass(frozen=True)
@@ -47,11 +52,25 @@ class CombinePolicy:
        set ``sigma_sys_kms`` here explicitly to the published value.
        See ``docs/plan/per_paper_combiners.md`` for the per-paper
        review table.
+
+    .. note::
+       ``zero_point_offsets_kms`` maps instrument tag (the value of the
+       per-epoch ``Inst`` column) → additive shift in km/s applied to
+       ``V`` *before* the IVW. The reference instrument has offset 0.
+       When non-empty, ``default.combine`` requires the per_epoch dict
+       to carry an ``Inst`` column and raises otherwise. Unknown
+       instrument tags raise — silent zero-offset fallback is the bug
+       this hook exists to prevent. Sign convention follows the
+       paper's published shift: e.g. Chiti+2022 §3.4.1 reports
+       v_IMACS − v_M2FS = −2.6 km/s, so to bring IMACS onto the M2FS
+       zero-point pass ``{"IMACS": +2.6, "M2FS": 0.0}``.
     """
 
-    sigma_sys_kms: float = 0.0     # added in quadrature *after* the IVW
-    p_threshold: float = 0.01      # variability χ² p-value threshold
-    zero_point_offsets_kms: dict = None  # per-instrument additive offsets — NOT applied by default.combine yet (open issue #4 in docs/plan/per_paper_combiners.md)
+    sigma_sys_kms: float = 0.0
+    p_threshold: float = 0.01
+    zero_point_offsets_kms: Mapping[str, float] = field(
+        default_factory=lambda: _EMPTY_OFFSETS
+    )
 
 
 # Per-paper handlers. Each module wraps default.combine and exposes a
