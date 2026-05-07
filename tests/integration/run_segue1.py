@@ -31,6 +31,8 @@ OUT_DIR = REPO / "results" / "tests" / "segue1"
 
 from dwarfjeans.jeans import solver as jeans
 from dwarfjeans.jeans import inference as jeans_inference
+from dwarfjeans.jeans.preprocess import prepare_jeans_input
+from dwarfjeans.jeans.selection import SelectionPolicy
 from dwarfjeans.jd import factors as jdf
 
 LVDB_URL = ("https://github.com/apace7/local_volume_database/"
@@ -190,41 +192,47 @@ def load_stars_pace(ra_center_deg: float, dec_center_deg: float) -> pd.DataFrame
     return keep
 
 
-def load_stars_geha(ra_center_deg: float, dec_center_deg: float,
-                    rhalf_major_arcmin: float) -> pd.DataFrame:
+def load_stars_geha(d_kpc: float, rhalf_major_pc: float) -> tuple[pd.DataFrame, dict]:
     """
-    Load Geha+2026 table3A for Segue 1 (Galaxy == 'Seg1').
-    Selection per Geha+2026 §Sample Selection:
-      - Pmem > 0.5
-      - within 2 × LVDB v1.0.5 semi-major half-light radius
-      - remove velocity-variable stars (Var == 1.0)
-    Radii computed via the same flat-sky formula as load_stars_pace.
+    Route the Segue 1 Geha-staged catalog through the analysis-time
+    preprocessing pipeline (jeans.preprocess.prepare_jeans_input):
+      - per-star granularity → no combiner
+      - SelectionPolicy(p_min=P_CUT_GEHA, R_over_rhalf_max=2.0,
+        drop_variable=True) reproduces the Geha+2026 §Sample Selection
+        recipe (Pmem > 0.5, R < 2·r_½ on the semi-major axis,
+        remove Var==1).
+
+    Returns the per-star DataFrame in the legacy schema downstream
+    callers expect, plus the audit dict from prepare_jeans_input so the
+    selection report can be logged and dumped.
     """
-    df = pd.read_csv(GEHA_CSV)
-    df = df[df["Galaxy"] == "Seg1"].copy()
-    df = df.dropna(subset=["RA", "DEC", "v", "verr", "Pmem", "Var"])
-
-    cos_d = np.cos(np.radians(dec_center_deg))
-    dRA  = (df["RA"].values  - ra_center_deg)  * cos_d
-    dDec =  df["DEC"].values - dec_center_deg
-    rad_arcmin = np.sqrt(dRA ** 2 + dDec ** 2) * 60.0
-
-    df = df.assign(Rad_arcmin=rad_arcmin)
-    df = df[df["Pmem"] > P_CUT_GEHA]
-    df = df[df["Rad_arcmin"] <= 2.0 * rhalf_major_arcmin]
-    df = df[df["Var"] != 1.0]
-    df = df.reset_index(drop=True)
-
-    return pd.DataFrame({
-        "Vel":        df["v"].values,
-        "e_Vel":      df["verr"].values,
-        "Bpr":        df["Pmem"].values,
-        "Rad_arcmin": df["Rad_arcmin"].values,
-        "Rad":        df["Rad_arcmin"].values,
-        "_RA":        df["RA"].values,
-        "_DE":        df["DEC"].values,
-        "n_epochs":   np.ones(len(df), dtype=int),
+    catalog_path = REPO / "data" / "star_catalogs" / "segue_1.npz"
+    cat = np.load(catalog_path, allow_pickle=True)
+    registry_row = {"rhalf_major_pc": rhalf_major_pc}
+    arrays, audit = prepare_jeans_input(
+        cat, registry_row,
+        selection_policy=SelectionPolicy(
+            p_min=P_CUT_GEHA,
+            R_over_rhalf_max=2.0,
+            drop_variable=True,
+        ),
+    )
+    R_kpc = np.asarray(arrays["R"], dtype=float)
+    Rad_arcmin = R_kpc / d_kpc / ARCMIN_TO_RAD
+    df = pd.DataFrame({
+        "Vel":        np.asarray(arrays["V"], dtype=float),
+        "e_Vel":      np.asarray(arrays["sigma_eps"], dtype=float),
+        "Bpr":        np.asarray(arrays["p"], dtype=float),
+        "Rad_arcmin": Rad_arcmin,
+        "Rad":        Rad_arcmin,
+        "_RA":        np.asarray(arrays.get("RA_star", np.full(R_kpc.size, np.nan)),
+                                  dtype=float),
+        "_DE":        np.asarray(arrays.get("Dec_star", np.full(R_kpc.size, np.nan)),
+                                  dtype=float),
+        "n_epochs":   np.ones(len(R_kpc), dtype=int),
+        "R_kpc":      R_kpc,
     })
+    return df, audit
 
 
 def lvdb_nuisance_priors(row: pd.Series) -> dict:
@@ -260,7 +268,10 @@ def lvdb_nuisance_priors(row: pd.Series) -> dict:
 def load_stars(d_kpc: float, source: str,
                 ra_center_deg: float | None = None,
                 dec_center_deg: float | None = None,
-                lvdb_rhalf_arcmin: float | None = None) -> pd.DataFrame:
+                lvdb_rhalf_arcmin: float | None = None,
+                rhalf_major_pc: float | None = None,
+                ) -> tuple[pd.DataFrame, dict | None]:
+    audit: dict | None = None
     if source == "simon":
         keep = load_stars_simon()
     elif source == "pace":
@@ -268,18 +279,19 @@ def load_stars(d_kpc: float, source: str,
             raise ValueError("source='pace' requires ra/dec center")
         keep = load_stars_pace(ra_center_deg, dec_center_deg)
     elif source == "geha":
-        if ra_center_deg is None or dec_center_deg is None or lvdb_rhalf_arcmin is None:
-            raise ValueError("source='geha' requires ra/dec center and lvdb_rhalf_arcmin")
-        # lvdb_rhalf_arcmin is the LVDB v1.0.5 semi-major axis (GEHA_RHALF_CUT_ARCMIN); used directly, no √(1−ε) factor.
-        keep = load_stars_geha(ra_center_deg, dec_center_deg, lvdb_rhalf_arcmin)
+        if rhalf_major_pc is None:
+            raise ValueError("source='geha' requires rhalf_major_pc")
+        keep, audit = load_stars_geha(d_kpc, rhalf_major_pc)
     else:
         raise ValueError(f"unknown source {source!r}")
-    R_kpc = d_kpc * keep["Rad_arcmin"].values * ARCMIN_TO_RAD
+    if "R_kpc" not in keep.columns:
+        R_kpc = d_kpc * keep["Rad_arcmin"].values * ARCMIN_TO_RAD
+        keep["R_kpc"] = R_kpc
     # The grid integrator in jeans.sigma_los uses u_min = 1e-4 * R, which
     # blows up at exactly R=0. Floor at a small positive value (1e-5 kpc
     # ≈ 1.5e-3 arcmin at d=23 kpc — far below per-star astrometric error).
-    keep["R_kpc"] = np.clip(R_kpc, 1e-5, None)
-    return keep
+    keep["R_kpc"] = np.clip(keep["R_kpc"].values, 1e-5, None)
+    return keep, audit
 
 
 def constant_sigma_inference(V_obs, sigma_eps, p, V_center,
@@ -466,18 +478,29 @@ def main():
     # Geha radial aperture: LVDB v1.0.5 semi-major rhalf (GEHA_RHALF_CUT_ARCMIN = 3.62') → 47 stars.
     # Alternatives: LVDB circularized 2.96' → 41 stars; Martin+2008 r_h 4.31' → 53 stars.
     _geha_cut_arcmin = GEHA_RHALF_CUT_ARCMIN
-    stars = load_stars(g["d_kpc"], SOURCE,
+    # Convert LVDB semi-major axis (arcmin) to pc using the runtime LVDB d_kpc
+    # so the radial cut here matches the historical bespoke selection
+    # (Rad_arcmin ≤ 2 × rhalf_major_arcmin) bit-for-bit.
+    _rhalf_major_pc = g["d_kpc"] * _geha_cut_arcmin * ARCMIN_TO_RAD * 1000.0
+    stars, geha_audit = load_stars(g["d_kpc"], SOURCE,
                         ra_center_deg=g["ra_deg"], dec_center_deg=g["dec_deg"],
-                        lvdb_rhalf_arcmin=_geha_cut_arcmin)
+                        lvdb_rhalf_arcmin=_geha_cut_arcmin,
+                        rhalf_major_pc=_rhalf_major_pc)
     src_name = (SEGUE1_KIN_CSV.name if SOURCE == "simon"
-                else GEHA_CSV.name if SOURCE == "geha"
+                else "data/star_catalogs/segue_1.npz" if SOURCE == "geha"
                 else PACE_DAT.name)
     logp(f"\n=== Per-star data ({src_name}) ===")
     logp(f"  source: {SOURCE!r}")
     _pmem_cut = P_CUT_GEHA if SOURCE == "geha" else P_CUT
-    _cut_desc = (f"Pmem>{_pmem_cut}, within 2×{_geha_cut_arcmin:.2f}′ (LVDB semi-major rhalf), Var≠1"
+    _cut_desc = (f"Pmem>{_pmem_cut}, R<2×rhalf_major_pc={_rhalf_major_pc:.2f}pc "
+                 f"(={_geha_cut_arcmin:.2f}′ at d={g['d_kpc']:.2f} kpc), drop Var==1"
                  if SOURCE == "geha" else f"Bpr > {_pmem_cut}")
     logp(f"  {_cut_desc}: N = {len(stars)}")
+    if geha_audit is not None:
+        sel = geha_audit["selection"]
+        logp(f"  selection report: n_input={sel['n_input']} -> "
+             f"n_after_p={sel['n_after_p']} -> n_after_R={sel['n_after_R']} -> "
+             f"n_after_var={sel['n_after_var']} -> n_final={sel['n_final']}")
     logp(f"  R range (kpc): [{stars['R_kpc'].min():.4f}, {stars['R_kpc'].max():.4f}]")
     logp(f"  V mean/std (km/s): {stars['Vel'].mean():.2f} / {stars['Vel'].std():.2f}")
     logp(f"  e_Vel median (km/s): {stars['e_Vel'].median():.2f}")
@@ -870,6 +893,12 @@ def main():
     fig.tight_layout()
     fig.savefig(out("sigma_los_walker", "png"), dpi=140)
     plt.close(fig)
+
+    if geha_audit is not None:
+        import json as _json
+        out("selection_audit", "json").write_text(
+            _json.dumps(geha_audit, indent=2, default=str) + "\n"
+        )
 
     logp(f"\nTotal wall time: {time.time()-t0:.1f}s")
     out("run", "log").write_text("\n".join(log) + "\n")
