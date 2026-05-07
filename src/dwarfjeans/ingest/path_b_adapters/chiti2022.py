@@ -6,6 +6,19 @@ have consistent radial velocity but no [Fe/H] (paper Note ^c).
 
 Encoding: M -> p=1, NM/CM -> p=0; original MEM flag preserved in
 `member_flag`.
+
+Instrument provenance: Table 2 contains ONLY the new Magellan/IMACS
+observations from Chiti+2022 (3 campaigns: 2015, 2019, 2021;
+MJDs 57229.33, 58762.03, 59471.02). The IMACS−M2FS = −2.6 km/s offset
+discussed in §3.4.1 is a cross-paper calibration against EXTERNAL
+M2FS velocities from Walker+2016 — those M2FS data are NOT in this
+table and are not ingested by this adapter. Every emitted row is
+therefore tagged `Inst="IMACS"`; the framework's
+`CombinePolicy.zero_point_offsets_kms` hook is unused for Grus I as
+long as we only ingest Chiti+2022. (If a future commit merges
+Walker+2016 M2FS observations into the Grus I per-epoch table, the
+IMACS rows already carry the right tag and the offset would be wired
+in `combiners/chiti2022.py`.)
 """
 
 from __future__ import annotations
@@ -24,6 +37,7 @@ COLUMN_MAPPING = {
     "Decl.": "Dec_star",
     "v": "V (+ sigma_eps from `+or-` split)",
     "MEM": "p (M->1; NM/CM->0)",
+    "(constant)": "Inst='IMACS' (Table 2 is IMACS-only; see docstring)",
 }
 
 _V_RE = re.compile(r"^([-+]?\d+\.?\d*)\s*\+or-\s*(\d+\.?\d*)$")
@@ -114,6 +128,11 @@ def load(staged_dir: Path, registry_row) -> tuple[dict, dict]:
         "Name_source_id": np.array([r["name"] for r in rows], dtype=str),
         "MJD": np.array([r["mjd"] for r in rows], dtype=float),
         "member_flag": np.array([r["mem"] for r in rows], dtype=str),
+        # Single-instrument provenance: Table 2 is IMACS-only (see
+        # module docstring). Stamped explicitly so downstream policy
+        # hooks (zero_point_offsets_kms) are usable should Walker+2016
+        # M2FS data ever be merged in.
+        "Inst": np.array(["IMACS"] * n, dtype=str),
     }
     meta_extra = {
         "vizier_catalog": None,

@@ -48,23 +48,28 @@ later if needed.
 |---|---|---|---|---|---|---|---|---|
 | `2017ApJ...838....8L` | `eridanus_2` | IMACS | 1.2 (Oct'15) / 1.0 (Nov'15) | n/a (single epoch) | none (single-instrument) | §3.1 | https://ui.adsabs.harvard.edu/abs/2017ApJ...838....8L | verified |
 | `2018ApJ...857..145L` | `carina_2`, `carina_3` | IMACS + AAOmega/2dF + GIRAFFE+FLAMES | IMACS=1.0, AAT=0.5, VLT=0.9 (instrument-dependent) | 0.01 default; paper hand-flags 2 binaries + 2 RR Lyrae in Car II by Δv~25 km/s inspection | none (paper §3.1: "no significant zero-point shift") | §3.1, Table footnote (c) | https://ui.adsabs.harvard.edu/abs/2018ApJ...857..145L | verified |
-| `2022ApJ...939...41C` | `grus_1` | IMACS + M2FS | 1.1 | 0.01 default; paper makes ad hoc per-star calls (p=0.01 strong, p=0.04 marginal) | **TODO not applied**: v_IMACS−v_M2FS = −2.6±0.8 km/s real shift; adapter doesn't carry an instrument tag column. Re-stage grus_1 with instrument labels, then wire offset application here. | §3.1, §3.4.1, §3.5, §4.1 | https://ui.adsabs.harvard.edu/abs/2022ApJ...939...41C | TODO (zero-point unapplied) |
+| `2022ApJ...939...41C` | `grus_1` | IMACS (single-instrument; Walker+2016 M2FS NOT ingested) | 1.1 | 0.01 default; paper makes ad hoc per-star calls (p=0.01 strong, p=0.04 marginal) | none applied; v_IMACS−v_M2FS = −2.6±0.8 km/s in §3.4.1 is a cross-paper check vs external Walker+2016 M2FS, not within Table 2. Adapter stamps `Inst="IMACS"` for forward-compat. | §3.1, §3.4.1, §3.5, §4.1 | https://ui.adsabs.harvard.edu/abs/2022ApJ...939...41C | verified |
 | `2023AJ....165...55C` | `tucana_2` | M2FS + IMACS + MIKE + MagE | 0.9 (new MIKE) / 1.2 (archival MIKE) | 0.01 default; paper uses Δv > 8 km/s rule of thumb | applied in published Table 1 (per-instrument offsets MIKE−M2FS=+2.5±0.7, MIKE−IMACS=+2.2, MIKE−MagE=+1.0 documented but Table 1 entries are final-averaged); **byte-verify before production Stage 1** | §3.1, Table 1 | https://ui.adsabs.harvard.edu/abs/2023AJ....165...55C | TODO (offset-application convention not byte-verified) |
 | `2020ApJ...892..137S` | `tucana_4` | IMACS | 1.0 (post-Nov'15) / 1.2 (pre) | 0.01; paper §3.4 χ² test with same threshold | none (single-instrument) | §3.1, §3.4 | https://ui.adsabs.harvard.edu/abs/2020ApJ...892..137S | verified |
 | `2024ApJ...968...21H` | `tucana_5` | MIKE + IMACS | **not explicitly published** (Table 1 ±σ values may be template-fit stat-only) | 0.01 default; paper uses orbital fit (TheJoker) for Tuc V-1 binary | none published; §2.3 notes no MIKE−IMACS offset detected via Tuc V-2/3 agreement | §2, §2.3, §5.2.1, Table 1 | https://ui.adsabs.harvard.edu/abs/2024ApJ...968...21H | TODO (σ_sys not published; verify error model) |
 
 ## Open issues (QA-sweep #5)
 
-1. **Chiti+2022 / Grus I zero-point.** Real, statistically significant
-   IMACS−M2FS = −2.6 km/s shift documented in §3.4.1. Adapter doesn't
-   carry an instrument tag column today. Two-step fix: (a) add
-   `instrument` column to the chiti2022 adapter and re-stage grus_1.npz;
-   (b) update `combiners/chiti2022.py` to apply the shift before
-   delegating to `default.combine`. Until done, σ_los inferred for
-   Grus I will absorb ~2.6 km/s of inter-instrument scatter as extra
-   dispersion. **Gate: treat Grus I σ_los as upper-bound only; do not
-   include in any precision-σ table or population fit until step (b)
-   lands.**
+1. **~~Chiti+2022 / Grus I zero-point.~~ RESOLVED 2026-05-07.** The
+   IMACS−M2FS = −2.6 km/s shift in §3.4.1 is a **cross-paper**
+   calibration check: Chiti+2022 IMACS vs *external* Walker+2016 M2FS.
+   Walker+2016 M2FS data are not in Chiti+2022 Table 2 and are not
+   ingested by our chiti2022 path-B adapter. Within our pipeline, the
+   Grus I per-epoch table is single-instrument (IMACS-only across 3
+   campaigns: 2015, 2019, 2021), so no within-table offset applies and
+   no σ_los inflation from inter-instrument scatter is incurred.
+   Adapter stamps every row `Inst="IMACS"` for provenance and
+   forward-compat: should a future commit merge Walker+2016 into the
+   Grus I per-epoch table, replace the `DEFAULT_POLICY` constructor in
+   `combiners/chiti2022.py` with `CombinePolicy(sigma_sys_kms=0.0,
+   p_threshold=0.01, zero_point_offsets_kms={"IMACS": +2.6, "M2FS":
+   0.0})` (CombinePolicy is frozen, so reassign — don't mutate). The
+   framework hook (issue #4, resolved) takes care of the rest.
 2. **Chiti+2023 / Tuc II offset-application convention.** Researcher
    §-search asserts Table 1 velocities are pre-averaged on a common
    zero-point ("offsets documented but not pre-applied" — but the
@@ -78,10 +83,12 @@ later if needed.
    stat errors only. Confirm whether the MIKE pipeline applies a
    systematic floor by default; if not, propose a value (likely 0.5–1.0
    km/s typical of MIKE) and re-test.
-4. **Framework: zero-point hook.** `CombinePolicy.zero_point_offsets_kms`
-   is documented but `default.combine` does not apply it (deep-reviewer
-   S5). Either wire it (preferred) or raise when populated. Should be
-   addressed before issue #1 above is implemented.
+4. **~~Framework: zero-point hook.~~ RESOLVED 2026-05-07** (commit
+   `62415e1`). `CombinePolicy.zero_point_offsets_kms` is now wired into
+   `default.combine`: when non-empty, requires an `Inst` column on
+   per_epoch and additively shifts V before the IVW; missing column or
+   unknown instrument tags raise. Mutable-default
+   `dict = None` replaced with a frozen `MappingProxyType` factory.
 5. **Framework: σ_sys treatment.** The "treat as statistical"
    approximation is documented in `multi_epoch.py`. If a future
    Stage-1 result is sensitive to it, swap in the deconvolution path.
