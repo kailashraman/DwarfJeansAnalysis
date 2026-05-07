@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dwarfjeans"
+version = "0.0.0"
+description = "Spherical-Jeans modeling pipeline for dwarf-galaxy stellar kinematics."
+requires-python = ">=3.10"
+authors = [{ name = "Kailash Raman", email = "kailash.raman@berkeley.edu" }]
+license = { text = "MIT" }
+dependencies = [
+    "numpy",
+    "scipy",
+    "astropy",
+    "dynesty",
+    "matplotlib",
+    "pandas",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
