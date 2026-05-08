@@ -271,8 +271,8 @@ def Sigma_sigma_los2_grid(
     r_s: float,
     rho_s: float,
     r_p: float,
-    n_inner: int = 4096,
-    n_outer: int = 1024,
+    n_inner: int = 2048,
+    n_outer: int = 512,
 ) -> np.ndarray:
     """
     Vectorized tabulated evaluation of Σ(R) σ_los²(R).
@@ -335,8 +335,8 @@ def Sigma_sigma_los2_grid_pair(
     r_s: float,
     rho_s: float,
     r_p: float,
-    n_inner: int = 4096,
-    n_outer: int = 1024,
+    n_inner: int = 2048,
+    n_outer: int = 512,
 ) -> tuple[np.ndarray, np.ndarray]:
     """
     Tabulated evaluation of the projection integrals 𝒫(R) and 𝒬(R) for the
