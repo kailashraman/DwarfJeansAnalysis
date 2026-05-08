@@ -396,6 +396,7 @@ def run(lvdb_key: str,
         **{f"log10_J_{tag}": v for tag, v in log10_J.items()},
         **{f"log10_D_{tag}": v for tag, v in log10_D.items()},
         r_t_kpc=r_t_kpc,
+        idx_jd=idx_jd, idx_sig=idx_sig, idx_prof=idx_prof,
     )
 
     # Summary CSV — one quantity per row, q16/q50/q84
