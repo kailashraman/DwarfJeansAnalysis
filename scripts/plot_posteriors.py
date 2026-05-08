@@ -1,11 +1,9 @@
-"""Posterior diagnostic plots for a single dwarf-galaxy production run.
+"""Posterior diagnostic plots for production runs.
 
-Reads ``posterior_samples.npz`` from a production run directory and writes
-three PNGs alongside it:
+Writes three PNGs per galaxy into ``plots/<lvdb_key>/`` (relative to repo
+root), refreshed from the latest production run on each invocation. The
+``plots/`` directory always reflects the most recent results.
 
-  * ``sigma_los_walker.png`` — Walker+2006 constant-σ marginal posterior
-    (recomputed on-the-fly from the same per-star catalog the production
-    run consumed via ``constant_sigma_inference``).
   * ``jeans_corner.png`` — corner plot of the four Stage-1 Jeans-model
     parameters: $\\bar V$, $\\log_{10} r_s$, $\\log_{10} \\rho_s$,
     $\\tilde\\beta$ (sampled variable, not the unbounded $\\beta$).
@@ -20,11 +18,13 @@ three PNGs alongside it:
 
 Usage:
     python scripts/plot_posteriors.py --lvdb-key willman_1
+    python scripts/plot_posteriors.py --all
     python scripts/plot_posteriors.py --lvdb-key willman_1 \\
         --run-dir results/production/_slurm_22439950/_runs/willman_1/jeffreys/<ts>
 
-If ``--run-dir`` is omitted, the latest run under
-``results/production/**/<lvdb_key>/<prior>/<ts>/`` is used.
+If ``--run-dir`` is omitted the latest run is auto-discovered. ``--all``
+iterates every staged catalog and writes plots for any galaxy that has
+at least one completed posterior.
 """
 from __future__ import annotations
 
@@ -37,13 +37,6 @@ import numpy as np
 
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
-
-from dwarfjeans.jeans.constant_sigma import constant_sigma_inference
-from dwarfjeans.jeans.preprocess import prepare_jeans_input
-from dwarfjeans.jeans.selection import SelectionPolicy
-
-sys.path.insert(0, str(HERE))
-from run_production import _read_registry_row  # noqa: E402
 
 
 def _latest_run(lvdb_key: str, prior: str) -> Path:
@@ -63,61 +56,8 @@ def _latest_run(lvdb_key: str, prior: str) -> Path:
     return candidates[-1]
 
 
-def _walker_posterior(audit: dict) -> dict:
-    """Replay prepare_jeans_input with the run's selection policy and
-    return the constant_sigma_inference result dict."""
-    lvdb_key = audit["lvdb_key"]
-    sel = audit["selection_policy"]
-    catalog = np.load(REPO / "data" / "star_catalogs" / f"{lvdb_key}.npz",
-                      allow_pickle=True)
-    registry_row = _read_registry_row(lvdb_key)
-    arrays, _ = prepare_jeans_input(
-        catalog,
-        registry_row,
-        selection_policy=SelectionPolicy(
-            p_min=float(sel["p_min"]),
-            R_over_rhalf_max=float(sel["R_over_rhalf_max"]),
-            drop_variable=bool(sel["drop_variable"]),
-        ),
-    )
-    V = arrays["V"]
-    sigma_eps = arrays["sigma_eps"]
-    p = arrays["p"]
-    V_center = float(registry_row.get("vlos_systemic_kms", np.median(V)))
-    if np.isnan(V_center):
-        V_center = float(np.median(V))
-    return constant_sigma_inference(V, sigma_eps, p, V_center=V_center)
-
-
 def _q(arr, qs=(0.16, 0.5, 0.84)):
     return np.quantile(arr, qs)
-
-
-def plot_sigma_walker(walker: dict, lvdb_key: str, out_path: Path) -> Path:
-    import matplotlib
-    matplotlib.use("Agg")
-    import matplotlib.pyplot as plt
-
-    sigma = walker["sigma_grid"]
-    pdf = walker["marg_sigma"]
-    s = walker["sigma_int"]
-    q16, q50, q84 = s["q16"], s["median"], s["q84"]
-
-    fig, ax = plt.subplots(figsize=(6, 4.2))
-    ax.plot(sigma, pdf, color="C0", lw=1.6)
-    ax.axvline(q50, color="C0", ls="--", lw=0.9, label=f"median = {q50:.2f}")
-    ax.axvspan(q16, q84, alpha=0.18, color="C0",
-               label=f"68% CI = [{q16:.2f}, {q84:.2f}]")
-    ax.set_xlim(max(0.0, q16 - 2), q84 + 3)
-    ax.set_xlabel("σ_los Walker  [km/s]")
-    ax.set_ylabel("posterior PDF")
-    ax.set_title(f"{lvdb_key} — Walker σ_los = "
-                 f"{q50:.2f} +{q84 - q50:.2f}/−{q50 - q16:.2f} km/s")
-    ax.legend(loc="upper right", fontsize=9)
-    fig.tight_layout()
-    fig.savefig(out_path, dpi=130)
-    plt.close(fig)
-    return out_path
 
 
 def plot_jeans_corner(npz, lvdb_key: str, out_path: Path) -> Path:
@@ -280,37 +220,61 @@ def plot_m_J_corner(npz, lvdb_key: str, out_path: Path) -> Path:
     return out_path
 
 
-def make_plots(run_dir: Path) -> list[Path]:
+PLOTS_DIR = REPO / "plots"
+
+
+def make_plots(run_dir: Path, out_dir: Path) -> list[Path]:
     npz = np.load(run_dir / "posterior_samples.npz")
     audit = json.loads((run_dir / "audit.json").read_text())
     lvdb_key = audit["lvdb_key"]
 
-    walker = _walker_posterior(audit)
+    out_dir.mkdir(parents=True, exist_ok=True)
     out = []
-    out.append(plot_sigma_walker(walker, lvdb_key,
-                                  run_dir / "sigma_los_walker.png"))
-    out.append(plot_jeans_corner(npz, lvdb_key,
-                                  run_dir / "jeans_corner.png"))
-    out.append(plot_jd_mhalf(npz, lvdb_key,
-                              run_dir / "jd_mhalf.png"))
-    out.append(plot_m_J_corner(npz, lvdb_key,
-                                run_dir / "m_J_corner.png"))
+    out.append(plot_jeans_corner(npz, lvdb_key, out_dir / "jeans_corner.png"))
+    out.append(plot_jd_mhalf(npz, lvdb_key,    out_dir / "jd_mhalf.png"))
+    out.append(plot_m_J_corner(npz, lvdb_key,  out_dir / "m_J_corner.png"))
     return out
+
+
+def _staged_keys() -> list[str]:
+    return sorted(p.stem for p in (REPO / "data" / "star_catalogs").glob("*.npz"))
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
-    p.add_argument("--lvdb-key", required=True)
+    p.add_argument("--lvdb-key", help="Single galaxy. Mutually exclusive with --all.")
+    p.add_argument("--all", action="store_true",
+                   help="Iterate every staged catalog with a completed posterior.")
     p.add_argument("--prior", default="jeffreys",
                    choices=("uniform", "loguniform", "jeffreys"))
     p.add_argument("--run-dir", default=None,
-                   help="Override the auto-discovered latest run directory")
+                   help="Override the auto-discovered latest run dir "
+                        "(only valid with --lvdb-key)")
     args = p.parse_args()
 
-    run_dir = (Path(args.run_dir).resolve()
-               if args.run_dir else _latest_run(args.lvdb_key, args.prior))
-    for p in make_plots(run_dir):
-        print(p)
+    if args.all == bool(args.lvdb_key):
+        p.error("specify exactly one of --lvdb-key or --all")
+    if args.run_dir and not args.lvdb_key:
+        p.error("--run-dir requires --lvdb-key")
+
+    if args.lvdb_key:
+        keys = [args.lvdb_key]
+    else:
+        keys = _staged_keys()
+
+    n_done = 0
+    for key in keys:
+        try:
+            run_dir = (Path(args.run_dir).resolve()
+                       if args.run_dir else _latest_run(key, args.prior))
+        except FileNotFoundError as e:
+            print(f"  skip  {key}: {e}")
+            continue
+        out_dir = PLOTS_DIR / key
+        for p in make_plots(run_dir, out_dir):
+            print(p)
+        n_done += 1
+    print(f"plots refreshed for {n_done}/{len(keys)} galaxies in {PLOTS_DIR}/")
     return 0
 
 
