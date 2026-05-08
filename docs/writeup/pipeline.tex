@@ -22,13 +22,29 @@
 \maketitle
 
 \begin{abstract}
-\todo{One-paragraph description of the spherical-Jeans modeling
-pipeline for dwarf-galaxy stellar kinematics: inputs (per-star
-line-of-sight velocities), the assumed model (NFW halo + Plummer
-tracer + constant anisotropy), the inference target (halo $(r_s,
-\rho_s)$ posteriors and downstream $J$/$D$ factors), and the
-calibration strategy (Asimov + Monte Carlo recovery on synthetic
-mocks).}
+We present a spherical Jeans modelling pipeline for Milky Way satellite
+dwarf galaxies.  Per-star line-of-sight velocities are ingested via two
+paths: a monolithic Geha et~al.\ (2026) catalog (Path~A) and a
+collection of per-paper adapters that stage data from individual
+published tables (Path~B), together covering 39 galaxies in a
+registry-driven schema stored in \code{data/registry/galaxies.ecsv}.
+The physical model couples an NFW dark-matter halo (scale radius
+$r_s$, scale density $\rho_s$) with a Plummer stellar tracer and a
+constant velocity anisotropy $\beta$, solved via the projected
+spherical Jeans equation.  Inference proceeds with \textsc{dynesty}
+nested sampling over seven parameters --- $\bar V$, $\log_{10}\rho_s$,
+$\log_{10} r_s$, a symmetrized anisotropy $\tilde\beta$, and three
+Gaussian nuisances marginalising over distance, ellipticity, and
+projected half-light radius --- under a user-selectable prior on
+$(\ln\rho_s,\ln r_s)$: uniform, log-uniform, or conditional Jeffreys.
+Posterior samples are propagated to $\sigma_\mathrm{los}(R_{1/2,\mathrm{2D}})$,
+$M(r_{1/2})$, and tidally-truncated NFW $J$- and $D$-factors at four
+reporting angles ($0.1^\circ$, $0.2^\circ$, $0.5^\circ$, and $\alpha_c$
+or $\alpha_c/2$ respectively).  Calibration uses a single deterministic
+Asimov realisation and a 15-realisation Monte Carlo mock-recovery study
+on synthetic UFD galaxies, following the gold-standard convention of
+generating synthetic input at known truth and reporting bias and
+dispersion across realisations.
 \end{abstract}
 
 \noindent\emph{This document describes the pipeline as implemented
@@ -42,116 +58,1072 @@ does not duplicate that content.}
 \section{Stage 0a: Galaxy registry}
 \label{sec:stage0a}
 
-\todo{Describe the LVDB v1.0.5 ingest, the
-\code{src/dwarfjeans/ingest/config/study\_sample.yaml} filter, the
-hand-curated \code{spatial\_model\_overrides.yaml} (LVDB v1.0.5 has
-no native \code{spatial\_model} column), and the resulting
-\code{data/registry/galaxies.ecsv} schema. Cite
-\code{docs/plan/data\_sources.md} for the column-by-column
-provenance.}
+\subsection{Data source and study sample}
+
+The galaxy registry is built by \code{src/dwarfjeans/ingest/stage0a\_registry.py}
+from the Local Volume Database (LVDB) pinned to version~1.0.5 (Zenodo DOI
+\href{https://doi.org/10.5281/zenodo.15476348}{10.5281/zenodo.15476348}).
+The combined catalog is staged on disk at
+\code{data/lvdb\_v1.0.5/comb\_all.csv}; the build script verifies a
+SHA-256 checksum against \code{data/lvdb\_v1.0.5/checksums.sha256}
+and aborts on mismatch.  No network access occurs at run time.
+
+The 39-galaxy study sample is enumerated in
+\code{src/dwarfjeans/ingest/config/study\_sample.yaml}.  Each entry
+carries four fields: \code{lvdb\_key} (the LVDB \code{key} string used
+to select the row from \code{comb\_all.csv}), \code{study\_name}
+(the human-readable label used in plots and tables), \code{path}
+(\code{A} for Geha et~al.\ 2026 DEIMOS data or \code{B} for the LVDB
+\code{ref\_vlos} paper; used by Stage~0b), and \code{geha\_galaxy}
+(Path~A only: the abbreviation matching the \code{Galaxy} column of
+\code{data/geha2026/table3A\_20260110.csv}).  The study sample
+contains 22 Path~A galaxies and 17 Path~B galaxies.
+
+After loading \code{comb\_all.csv}, the build script applies three
+mandatory filters.  First, every study-sample \code{lvdb\_key} must
+resolve to exactly one row in \code{comb\_all.csv}; an unmatched key
+is a hard error.  Second, all 39 rows must satisfy
+\code{confirmed\_dwarf}~$= 1$.  Third, each row must have non-null
+values for \code{rhalf}, \code{distance\_modulus}, and
+\code{apparent\_magnitude\_v}.  Host-chain resolution verifies that
+every galaxy traces transitively to the Milky Way; the immediate host
+is read from the LVDB \code{host} column and the chain is followed
+through the full \code{comb\_all.csv} so that subhalo hosts such as
+\code{lmc} $\to$ \code{mw} resolve correctly.  The resolved chain is
+stored as a \code{->}-delimited string (e.g.\ \code{lmc->mw} for the
+four Carina-region LMC satellites).
+
+\subsection{Coordinate and structural transformations}
+
+Distance in kpc is derived from the distance modulus $\mu$ as
+\begin{equation}
+  d \;[\kpc] = 10^{(\mu - 10)/5}.
+  \label{eq:dist}
+\end{equation}
+The LVDB \code{rhalf} column gives the 2D major-axis half-light
+radius $R_{1/2,\mathrm{maj}}$ in arcminutes; it is converted to
+physical units as
+\begin{equation}
+  R_{1/2,\mathrm{maj}} \;[\mathrm{pc}]
+  = \theta\,[\mathrm{arcmin}]\times \frac{\pi}{180\times 60}
+    \times d\,[\kpc]\times 1000.
+  \label{eq:rhalf_major}
+\end{equation}
+The azimuthally averaged (sphericalised) 2D half-light radius, which
+is the quantity entering the Jeans likelihood as $r_{1/2}$ in
+P\&S~2018 eq.~8, is
+\begin{equation}
+  r_{1/2} \;[\mathrm{pc}]
+  = R_{1/2,\mathrm{maj}}\,\sqrt{1-\varepsilon},
+  \label{eq:rhalf_sph}
+\end{equation}
+where $\varepsilon = 1 - b/a$ is the LVDB ellipticity.  The LVDB
+pre-derived columns \code{rhalf\_physical} and
+\code{rhalf\_sph\_physical} are never consumed as inputs; they serve
+only as cross-checks against equations~\eqref{eq:rhalf_major}--\eqref{eq:rhalf_sph}
+to tolerances of 3\% (major-axis) and 7\% (sphericalised).  The wider
+sphericalised tolerance reflects Jensen's inequality: the LVDB values
+are MC medians over the joint $(\code{rhalf}, \varepsilon, d)$ error
+distributions, which the concave $\sqrt{1-\varepsilon}$ factor
+systematically lowers relative to our deterministic central value.
+Empirically the worst observed offsets are $1.6\%$ for the major-axis
+check (Tucana~V) and $5.5\%$ for the sphericalised check (Leo~V); a
+failure on either check aborts the build.
+
+\subsection{Ellipticity missing-data convention}
+
+When a galaxy has no measured ellipticity in LVDB~v1.0.5
+(\code{ellipticity} null), the registry records
+\code{ellipticity\_missing = True} and the deterministic computation
+uses $\varepsilon = 0$ in equation~\eqref{eq:rhalf_sph}; this is the
+correct central value under the uniform prior $U(0, 0.5)$ that
+Stage~2 substitutes for the missing measurement.  The
+\code{ellipticity\_ul} column preserves any upper-limit value
+published by LVDB (e.g.\ Crater~II has \code{ellipticity\_ul} $=0.10$)
+for diagnostics; it does not enter any Stage~0a computation.
+
+\subsection{Spatial model and Plummer scale radius}
+
+LVDB~v1.0.5 does not provide a per-galaxy photometric profile flag.
+The spatial model is read from a hand-curated override file,
+\code{src/dwarfjeans/ingest/config/spatial\_model\_overrides.yaml},
+which specifies a default (currently \code{plummer}, matching the
+P\&S~2018 convention for ultra-faint dwarfs) and a per-galaxy
+\code{overrides} dict; the overrides dict is currently empty so all
+39 galaxies use the Plummer model.  For \code{spatial\_model = "plummer"},
+the Plummer scale radius equals the sphericalised half-light radius:
+$r_p = r_{1/2}$.  An override to \code{"exponential"} would require
+the conversion $r_p = 1.68\,r_\mathrm{exp}$ (P\&S~2018 \S3 footnote~4)
+and is currently guarded by \code{NotImplementedError} because LVDB
+does not expose a per-galaxy $r_\mathrm{exp}$ value.
+
+\subsection{Output schema}
+
+The registry is written to \code{data/registry/galaxies.ecsv} as an
+Astropy ECSV~v1.0 file with units in column metadata.  The 39 rows
+are ordered to match \code{study\_sample.yaml}.  A human-readable
+build log is written in parallel to
+\code{data/registry/build\_log.txt}.  Columns group by purpose as
+follows; column-by-column provenance is in
+\code{docs/plan/data\_sources.md}.
+
+\begin{itemize}
+  \item \textbf{Identification}: \code{lvdb\_key}, \code{study\_name},
+        \code{path} (A/B), \code{geha\_galaxy} (Path~A label),
+        \code{host}, \code{host\_chain}.
+  \item \textbf{Sky position}: \code{ra\_deg}, \code{dec\_deg} [deg].
+  \item \textbf{Structural inputs}: \code{rhalf\_arcmin} (with $\pm$
+        columns), \code{ellipticity} (with $\pm$ columns and
+        \code{ellipticity\_ul}), \code{ellipticity\_missing} flag,
+        \code{spatial\_model}.
+  \item \textbf{Derived radii}: \code{rhalf\_major\_pc}
+        (eq.~\ref{eq:rhalf_major}), \code{r\_half\_2d\_pc}
+        (eq.~\ref{eq:rhalf_sph}), \code{plummer\_radius\_pc}
+        ($= r_{1/2}$ under the current default).
+  \item \textbf{Distance}: \code{distance\_modulus} (with $\pm$
+        columns), \code{distance\_kpc} (eq.~\ref{eq:dist}).
+  \item \textbf{Kinematics}: \code{vlos\_systemic\_kms} (with $\pm$
+        columns), \code{vlos\_sigma\_kms},
+        \code{vlos\_sigma\_unresolved} flag.  The LVDB
+        $\sigma_\mathrm{los}$ value is metadata only; it does not
+        enter the Jeans likelihood.
+  \item \textbf{Photometry / provenance}: \code{M\_V}, \code{ref\_vlos},
+        \code{ref\_structure} (NASA ADS bibcodes for the LVDB
+        kinematic and structural references).
+\end{itemize}
 
 % ===================================================================
 \section{Stage 0b: Per-galaxy stellar kinematic ingest}
 \label{sec:stage0b}
 
-\subsection{Path A: Geha et al. 2026}
-\todo{Describe the Geha 2026 \code{table3A} ingest: \code{Pmem}
-threshold, $r_h$ aperture, velocity-variability cut, output
-schema.}
+\subsection{Path A: Geha+2026 ingest}
+\label{sec:stage0b-patha}
+
+The 22 Path~A galaxies are ingested from the homogeneous Keck/DEIMOS
+spectroscopic census of Geha et~al.\ (2026, Papers~I/II).  The driver
+is \code{src/dwarfjeans/ingest/stage0b\_geha.py}; it reads the
+pre-staged master table \code{data/geha2026/table3A\_20260110.csv},
+filters per-galaxy slices by the \code{Galaxy} column (matched to the
+registry field \code{geha\_galaxy}), and writes one
+\code{data/star\_catalogs/<lvdb\_key>.npz} archive per galaxy.
+
+\paragraph{Output schema.}
+Every Path~A archive carries the canonical columns required by the
+downstream Jeans inference: \code{V} and \code{sigma\_eps}
+(heliocentric line-of-sight velocity and 1$\sigma$ error in $\kms$,
+mapped from \code{v} and \code{verr}); \code{p} (membership
+probability, copied verbatim from \code{Pmem}; NaN entries receive
+$p_i = 1$ by the framework's missing-probability default); \code{R}
+(projected physical radius in kpc, computed via
+\code{staging.projected\_radius\_kpc}); \code{star\_id} (zero-based
+contiguous integer per galaxy, with per-star uniqueness verified);
+and \code{RA\_star}, \code{Dec\_star}.  Auxiliary columns retained
+verbatim include \code{FeH}, \code{FeH\_err}, \code{Var}, \code{r\_mag},
+\code{gr}, \code{nmask}, \code{t\_exp}, \code{SN}, \code{CaT},
+\code{CaTerr}.  Stage~0b is raw-data-only: membership thresholding
+and aperture cuts are deferred to a downstream selection stage.
 
 \subsection{Path B: per-paper adapters}
-\todo{Describe the Path B sweep: 17 galaxies / 15 papers, adapter
-contract (\code{load(staged\_dir, registry\_row) -> (arrays,
-meta\_extra)}), per-epoch vs. per-star contracts, the binary-aware
-aggregation deferral (Carina I, Carina II, Leo VI, Tuc V).}
+\label{sec:stage0b-pathb}
 
-\subsection{Multi-epoch combination and variability flagging}
-\todo{Describe the per-epoch $\to$ per-star step (future
-\code{ingest/multi\_epoch.py} + per-dataset handlers in
-\code{ingest/combiners/}).
-Inverse-variance combine with per-instrument zero-point offsets
-applied before the weighted mean and an instrument systematic error
-floor (e.g.\ \SI{1.1}{\kms} for DEIMOS) added in quadrature after:
-\[
-\bar{v} = \frac{\sum_i v_i / \sigma_i^2}{\sum_i 1 / \sigma_i^2},
-\qquad
-\sigma_{\bar{v}} = \left(\sum_i 1/\sigma_i^2\right)^{-1/2}
-\oplus \sigma_\text{sys}.
-\]
-Variability flag via $\chi^2 = \sum_i (v_i - \bar{v})^2 / \sigma_i^2$
-against a $p$-value threshold (e.g.\ $p < 0.01$); single-epoch stars
-remain unflagged.}
+The remaining 17 galaxies are ingested from 15 individual publications
+via the per-paper adapter system in
+\code{src/dwarfjeans/ingest/stage0b\_pathb.py} dispatching to modules
+under \code{src/dwarfjeans/ingest/path\_b\_adapters/}.
+
+\paragraph{Adapter contract.}
+Each adapter exposes a single function
+\begin{quote}
+\code{load(staged\_dir, registry\_row) -> (arrays, meta\_extra)}
+\end{quote}
+where \code{staged\_dir} points to the checksum-verified raw-data
+directory and \code{registry\_row} carries the LVDB metadata for the
+target galaxy.  The driver requires six array keys (\code{V},
+\code{sigma\_eps}, \code{p}, \code{star\_id}, \code{RA\_star},
+\code{Dec\_star}), all of identical length, plus a \code{meta\_extra}
+dict that is merged into the archive's \code{\_meta} JSON blob.
+Adapters with \code{catalog\_granularity = "per\_star"} must emit
+unique \code{star\_id} values; per-epoch adapters are permitted to
+repeat a \code{star\_id} across rows (one per observation).  Dispatch
+is by bibkey \code{<lastname><year>} derived from the LVDB
+\code{ref\_vlos} field; unknown adapters and unknown instrument tags
+raise rather than falling back silently.
+
+\paragraph{Papers and galaxies covered.}
+Table~\ref{tab:pathb-adapters} lists the 15 adapter modules (covering
+17 galaxies) currently in the Path~B ingest.
+
+\begin{table}[h]
+\centering
+\caption{Path~B adapter modules.  ``Granularity'' denotes whether the
+  adapter's output is per-star (one row per star, pre-combined
+  velocity) or per-epoch (one row per observation, fed through the
+  multi-epoch combiner).}
+\label{tab:pathb-adapters}
+\begin{tabular}{lll}
+\hline
+Adapter module & Galaxy / galaxies (LVDB key) & Granularity \\
+\hline
+\code{bruce2023}   & \code{aquarius\_2}                            & per-star  \\
+\code{chiti2022}   & \code{grus\_1}                                & per-epoch \\
+\code{chiti2023}   & \code{tucana\_2}                              & per-epoch \\
+\code{hansen2024}  & \code{tucana\_5}                              & per-epoch \\
+\code{heiger2024}  & \code{centaurus\_1}                           & per-star  \\
+\code{ji2021}      & \code{antlia\_2}, \code{crater\_2}            & per-star  \\
+\code{kirby2015}   & \code{pisces\_2}                              & per-star  \\
+\code{koposov2015} & \code{horologium\_1}                          & per-star  \\
+\code{koposov2018} & \code{hydrus\_1}                              & per-star  \\
+\code{li2017}      & \code{eridanus\_2}                            & per-epoch \\
+\code{li2018}      & \code{carina\_2}, \code{carina\_3}            & per-epoch \\
+\code{simon2020}   & \code{tucana\_4}                              & per-epoch \\
+\code{tan2025}     & \code{leo\_6}                                 & per-star  \\
+\code{walker2009}  & \code{carina\_1}                              & per-star  \\
+\code{walker2015}  & \code{reticulum\_2}                           & per-star  \\
+\hline
+\end{tabular}
+\end{table}
+
+Per-star adapters emit pre-combined velocities directly; per-epoch
+adapters emit one row per spectrograph exposure, which the multi-epoch
+combiner (Section~\ref{sec:stage0b-multiepoch}) reduces to per-star
+rows.  Several per-epoch sources include stars flagged as binary
+candidates by the source authors (e.g.\ Tuc~V-1 in Hansen+2024,
+TucII-309 / TucII-078 in Chiti+2023); these flags are carried as
+auxiliary columns but no rows are dropped at ingest.  Binary-aware
+sample selection is deferred.
+
+\subsection{Multi-epoch combination}
+\label{sec:stage0b-multiepoch}
+
+Per-epoch catalogs are reduced to per-star arrays in
+\code{src/dwarfjeans/ingest/multi\_epoch.py}; the dispatched combiner
+in \code{src/dwarfjeans/ingest/combiners/default.py} groups rows by
+\code{star\_id} and applies inverse-variance weighting (IVW) under a
+per-paper \code{CombinePolicy} (\code{combiners/\_\_init\_\_.py},
+frozen dataclass).  Dispatch is keyed by
+\code{source\_paper\_bibcode} stamped into each adapter's
+\code{meta\_extra}; per-paper handlers currently cover Li+2017
+(Eri~II), Li+2018 (Car~II/III), Chiti+2022 (Gru~I), Chiti+2023 (Tuc~II),
+Simon+2020 (Tuc~IV), and Hansen+2024 (Tuc~V).
+
+\paragraph{Default IVW (the ``$\sigma_\mathrm{sys}$-as-statistical'' path).}
+Under the default convention, the published per-epoch error
+$\sigma_{\varepsilon,i}$ is fed directly into the IVW.  For a star
+with $N$ epochs,
+\begin{equation}
+  \bar v
+  = \frac{\sum_{i=1}^{N} v_i / \sigma_{\varepsilon,i}^2}
+         {\sum_{i=1}^{N} 1/\sigma_{\varepsilon,i}^2},
+  \qquad
+  \sigma_{\bar v}
+  = \sqrt{\frac{1}{\sum_{i=1}^{N} 1/\sigma_{\varepsilon,i}^2}
+          + \sigma_\mathrm{sys}^2},
+  \label{eq:ivw}
+\end{equation}
+with $\sigma_\mathrm{sys} = 0$ for every per-paper handler under the
+current convention.
+
+\paragraph{Bias from the default convention.}
+Every UFD spectroscopy paper in the current ingest reports per-epoch
+errors that already include a systematic floor in quadrature,
+$\sigma_\varepsilon^2 = \sigma_\mathrm{stat}^2 + \sigma_\mathrm{sys}^2$.
+Feeding $\sigma_\varepsilon$ into eq.~\eqref{eq:ivw} treats
+$\sigma_\mathrm{sys}$ as if it were statistical, so the IVW averages
+it down by $1/\sqrt N$ along with $\sigma_\mathrm{stat}$.  The
+combined uncertainty is therefore biased low by approximately
+$\sigma_\mathrm{stat}/\sqrt{\sigma_\mathrm{stat}^2 + \sigma_\mathrm{sys}^2}$
+--- a $\sim 10$--$30\%$ underestimate at typical $N=2$--$5$ when
+$\sigma_\mathrm{sys} \sim \sigma_\mathrm{stat}$.  The variability
+$\chi^2$ $p$-values are correspondingly biased high.  The bias is
+below the chain-noise floor for current $\sigma_\mathrm{los}\sim$
+few-$\kms$ inferences but is non-negligible for galaxies with
+$\le 3$ surviving members (e.g.\ Tuc~V); see the
+\code{multi\_epoch.py} module docstring and
+\code{docs/plan/per\_paper\_combiners.md}.
+
+\paragraph{Strict deconvolution (opt-in).}
+Setting \code{CombinePolicy.sigma\_sys\_kms} to a positive value
+routes the handler through \code{combine\_star\_strict} /
+\code{ivw\_combine\_strict} in \code{multi\_epoch.py}.  Per-epoch
+statistical components are recovered as
+$\sigma_{\mathrm{stat},i} = \sqrt{\sigma_{\varepsilon,i}^2 - \sigma_\mathrm{sys}^2}$,
+the IVW operates on $\sigma_{\mathrm{stat},i}$, and
+$\sigma_\mathrm{sys}$ is re-added in quadrature post-combine:
+\begin{equation}
+  \bar v_\mathrm{strict}
+  = \frac{\sum_{i=1}^{N} v_i / \sigma_{\mathrm{stat},i}^2}
+         {\sum_{i=1}^{N} 1/\sigma_{\mathrm{stat},i}^2},
+  \qquad
+  \sigma_{\bar v,\,\mathrm{strict}}
+  = \sqrt{\frac{1}{\sum_{i=1}^{N} 1/\sigma_{\mathrm{stat},i}^2}
+          + \sigma_\mathrm{sys}^2}.
+  \label{eq:ivw-strict}
+\end{equation}
+This is the textbook treatment of a fully correlated instrument
+systematic; no per-paper handler currently activates it.
+
+\subsection{Per-instrument zero-point offsets}
+\label{sec:stage0b-zeropoint}
+
+\code{CombinePolicy.zero\_point\_offsets\_kms} maps an instrument tag
+(read from the per-epoch \code{Inst} column) to an additive shift
+applied to $V$ before the IVW:
+\begin{equation}
+  v_i' = v_i + \delta_\mathrm{zp}(\code{Inst}_i).
+  \label{eq:zeropoint}
+\end{equation}
+A non-empty offset table requires an \code{Inst} column; a missing
+column or unknown tag raises (silent zero-offset fallback is
+explicitly forbidden).  The reference instrument is defined by
+assigning offset zero.  Chiti~et~al.\ (2023; Tucana~II) is the only
+handler currently using non-zero offsets.  With MIKE as reference,
+the \code{chiti2023} policy applies
+$\delta_\mathrm{zp} = \{$MIKE$=0$, M2FS$=+2.5$, IMACS$=+2.2$, MagE$=+1.0\}\,\kms$
+per the inter-instrument offsets reported in that paper's \S3.1
+(byte-verified against the staged per-epoch table; see
+\code{docs/plan/per\_paper\_combiners.md}).  Application shifts
+individual $\bar v$ values by up to $+2.5\,\kms$ and reduces the
+proxy $\sigma_\mathrm{los}$ across the 19 Tuc~II member stars from
+$4.02$ to $3.88\,\kms$ ($\approx 3\%$).
+
+\subsection{Variability flagging}
+\label{sec:stage0b-varflag}
+
+Stars with $N\ge 2$ epochs are tested for velocity variability:
+\begin{equation}
+  \chi^2 = \sum_{i=1}^{N} \frac{(v_i - \bar v)^2}{\sigma_i^2},
+  \qquad \mathrm{dof} = N - 1,
+  \label{eq:chi2var}
+\end{equation}
+with $\sigma_i = \sigma_{\varepsilon,i}$ under the default path and
+$\sigma_i = \sigma_{\mathrm{stat},i}$ under the strict path.  The
+upper-tail $p$-value is compared against
+\code{CombinePolicy.p\_threshold} (framework default $0.01$): if
+$p < p_\mathrm{threshold}$, the star receives \code{var\_flag = True}.
+Single-epoch stars are returned with $\chi^2 = p = \mathrm{NaN}$ and
+\code{var\_flag = False}; no test is performed.  The framework
+default of $0.01$ matches Simon+2020 \S3.4 explicitly and is
+consistent with the Li+2018 / Chiti+2023 hand-flag rules of thumb on
+inter-epoch $\Delta v$.
+
+\subsection{Per-paper choices summary}
+\label{sec:stage0b-perpaper}
+
+The canonical table of per-paper combiner settings is maintained in
+\code{docs/plan/per\_paper\_combiners.md}.  All seven per-paper
+handlers currently set
+\code{CombinePolicy.sigma\_sys\_kms = 0.0} --- not because the source
+papers omit a systematic floor, but precisely because every paper in
+the per-epoch set (Li+2017, Li+2018, Chiti+2022, Chiti+2023,
+Simon+2020, Hansen+2024) reports a per-instrument
+$\sigma_\mathrm{sys}$ in the range $0.5$--$1.2\,\kms$ that is
+\emph{already} added in quadrature into the published $e_\mathrm{RVel}$
+column.  Setting \code{sigma\_sys\_kms > 0} would double-count.  All
+handlers retain \code{p\_threshold = 0.01}; only \code{chiti2023}
+populates a non-empty \code{zero\_point\_offsets\_kms} mapping.
 
 % ===================================================================
 \section{Stage 1: Spherical Jeans inference}
 \label{sec:stage1}
 
 \subsection{Model}
-\todo{NFW halo, Plummer tracer, constant velocity-anisotropy $\beta$.
-State the Jeans equation in the form actually solved in
-\code{src/dwarfjeans/jeans/solver.py} (Pace \& Strigari 2018
-eqs.~3--7); give the projection integral that produces $\sigma_\text{los}(R)$.}
+\label{sec:stage1-model}
+
+The pipeline models each dwarf as a spherically symmetric system in
+dynamical equilibrium, with an NFW dark-matter halo, a Plummer stellar
+tracer, and constant velocity anisotropy.
+
+\paragraph{NFW halo.}
+The dark-matter density profile is
+\begin{equation}
+  \rho_\mathrm{DM}(r) = \frac{\rho_s}{(r/r_s)(1+r/r_s)^2},
+  \label{eq:nfw-rho}
+\end{equation}
+with $\rho_s$ in $\Msun\,\kpc^{-3}$ and $r_s$ in kpc.  The enclosed
+mass follows analytically:
+\begin{equation}
+  M(r) = 4\pi\,\rho_s\,r_s^3\;g(r/r_s),
+  \qquad
+  g(x) = \ln(1+x) - \frac{x}{1+x},
+  \label{eq:nfw-mass}
+\end{equation}
+implemented in \code{src/dwarfjeans/jeans/solver.py} (\code{nfw\_M},
+\code{nfw\_g}).  For numerical stability $g(x)$ is evaluated via a
+Taylor series for $x < 10^{-3}$.  No tidal-radius truncation is
+applied at this stage; the integration upper limit is set to
+$100\max(r_s, r_p)$, well into the Plummer $r^{-5}$ tail.
+
+\paragraph{Plummer tracer.}
+The 3D stellar number density and projected surface density are
+\begin{equation}
+  \nu(r) = \frac{3}{4\pi r_p^3}\left(1 + \frac{r^2}{r_p^2}\right)^{-5/2},
+  \qquad
+  \Sigma(R) = \frac{1}{\pi r_p^2}\left(1 + \frac{R^2}{r_p^2}\right)^{-2},
+  \label{eq:plummer}
+\end{equation}
+where $r_p$ is the 3D Plummer scale (\code{plummer\_nu},
+\code{plummer\_Sigma} in \code{solver.py}).  For the Plummer profile
+the projected half-light radius equals $r_p$.  In 7-parameter
+nuisance mode, the physical Plummer scale is derived per draw as
+\begin{equation}
+  r_p = d \cdot \vartheta_{1/2}\cdot\frac{\pi}{180\times 60}\,\sqrt{1-\varepsilon}.
+  \label{eq:rp_nuisance}
+\end{equation}
+
+\paragraph{Anisotropy.}
+Velocity anisotropy is parametrised by the constant
+$\beta \equiv 1 - \sigma_\theta^2/\sigma_r^2$, sampled through the
+symmetrised variable
+\begin{equation}
+  \tilde\beta \in [-0.95,\,1),
+  \qquad
+  \beta = \frac{2\tilde\beta}{1 + \tilde\beta},
+  \label{eq:beta-tilde}
+\end{equation}
+which maps the physical range $\beta\in(-\infty,1)$ onto a bounded
+interval that is numerically convenient for nested sampling
+(\code{beta\_tilde\_to\_beta} in \code{src/dwarfjeans/jeans/inference.py}).
+The tangential edge $\tilde\beta = -0.95$ corresponds to
+$\beta\approx -38$.
+
+\paragraph{Jeans equation.}
+The spherical Jeans equation for constant $\beta$,
+\begin{equation*}
+  \frac{1}{\nu}\frac{d(\nu\sigma_r^2)}{dr} + \frac{2\beta\,\sigma_r^2}{r}
+  = -\frac{G M(r)}{r^2},
+\end{equation*}
+admits the integrating factor $r^{2\beta}$ and yields the
+closed-form integral solution (Pace \& Strigari 2018, eqs.~3--7;
+hereafter P\&S~2018):
+\begin{equation}
+  \nu(r)\,\sigma_r^2(r)
+  = r^{-2\beta}
+    \int_r^{\infty} s^{2\beta}\,\nu(s)\,\frac{G\,M(s)}{s^2}\,ds.
+  \label{eq:jeans-J1}
+\end{equation}
+This is integral J1 of the module docstring.  Production evaluation
+uses a log-spaced grid in $s$ with reverse cumulative log-sum-exp
+(\code{nu\_sigma\_r2\_grid} in \code{solver.py}) to avoid float64
+overflow at the extreme tangential edge where $2\beta \approx -76$.
+
+\paragraph{Projection integral.}
+The line-of-sight velocity dispersion at projected radius $R$ is
+obtained from eq.~\eqref{eq:jeans-J1} via the constant-$\beta$
+projection kernel (P\&S~2018 eq.~4):
+\begin{equation}
+  \Sigma(R)\,\sigma_\mathrm{los}^2(R)
+  = 2\int_R^{\infty}
+      \left(1 - \beta\,\frac{R^2}{r^2}\right)
+      \frac{\nu(r)\,\sigma_r^2(r)\,r}{\sqrt{r^2 - R^2}}\,dr.
+  \label{eq:projection-P1}
+\end{equation}
+The square-root singularity at $r = R$ is regularised by the
+substitution $r^2 = R^2 + u^2$, giving a smooth integrand on
+$u \in [0,\infty)$ that is integrated by a per-$R$ log-spaced
+trapezoidal rule with an explicit $u=0$ endpoint
+(\code{Sigma\_sigma\_los2\_grid} in \code{solver.py}).
+The public interface returns
+$\sigma_\mathrm{los}(R) = \sqrt{\Sigma\sigma_\mathrm{los}^2 / \Sigma}$
+(\code{sigma\_los}).
 
 \subsection{Likelihood}
-\todo{Per-star Gaussian likelihood with membership weights and
-systematic error floor; pseudo-likelihood sum
-$\ln\mathcal{L} = \sum_i p_i \ln \mathcal{L}_i$ (see
-\code{docs/plan/jeffreys\_jeans\_derivation.md}).}
+\label{sec:stage1-likelihood}
+
+\paragraph{Per-star Gaussian.}
+Each star $i$ has a measured line-of-sight velocity $V_i$, a combined
+measurement uncertainty $\sigma_{\varepsilon,i}$ (which already
+incorporates the instrument systematic floor from Stage~0b), a
+projected radius $R_i$, and a membership probability $p_i$.  The
+total per-star variance is
+\begin{equation}
+  s_i^2 \equiv \sigma_\mathrm{los}^2(R_i;\,\rho_s, r_s, \beta, r_p)
+              + \sigma_{\varepsilon,i}^2,
+  \label{eq:stot}
+\end{equation}
+and the per-star log-Gaussian is
+\begin{equation}
+  \ln\mathcal{L}_i
+  = -\tfrac{1}{2}\ln\!\bigl(2\pi s_i^2\bigr)
+    - \frac{(V_i - \bar V)^2}{2\,s_i^2}.
+  \label{eq:per-star-lnlike}
+\end{equation}
+No additional intrinsic scatter term is added here; the systematic
+floor is already in $\sigma_{\varepsilon,i}$.
+
+\paragraph{Membership-weighted pseudo-likelihood.}
+Membership enters as an exponent on each per-star density (Walker
+et~al.\ 2006 convention).  The total log-likelihood summed over $N$
+stars is
+\begin{equation}
+  \ln\mathcal{L}
+  = \sum_{i=1}^{N} p_i\,\ln\mathcal{L}_i
+  = \sum_{i=1}^{N} p_i
+    \left[-\tfrac{1}{2}\ln(2\pi s_i^2)
+          -\frac{(V_i - \bar V)^2}{2\,s_i^2}\right],
+  \label{eq:lnlike}
+\end{equation}
+implemented as \code{ll = float(np.sum(p * ln\_li))} in
+\code{inference.make\_loglike} and
+\code{inference.make\_loglike\_with\_nuisances}.  Stars with $p_i = 1$
+(post-membership-cut samples) reduce eq.~\eqref{eq:lnlike} to an
+ordinary unweighted sum; the general $p_i$-weighted form is used for
+catalogs that retain probabilistic membership.  Stars below the
+membership threshold $p_\mathrm{min}$ are excluded by
+\code{prepare\_jeans\_input} before inference begins.  The Fisher
+information of this pseudo-likelihood, used by the Jeffreys prior
+(Section~\ref{sec:stage1-priors}), is derived in
+\code{docs/plan/jeffreys\_jeans\_derivation.md}.
+
+\paragraph{Free parameters.}
+The default 7-D inference vector
+(\code{marginalize\_nuisances=True}, the production setting) is
+\begin{equation*}
+  \theta = \bigl(\bar V,\;\log_{10} r_s,\;\log_{10}\rho_s,\;\tilde\beta,\;
+                 d,\;\varepsilon,\;\vartheta_{1/2}\bigr),
+\end{equation*}
+where $\vartheta_{1/2}$ is the angular half-light radius (arcmin).
+The nuisances $(d,\varepsilon,\vartheta_{1/2})$ enter the likelihood
+not only through $r_p$ (eq.~\ref{eq:rp_nuisance}) but also through the
+physical projected radius of each star,
+\begin{equation}
+  R_i = d \cdot \Theta_i \cdot \frac{\pi}{180\times 60}\;[\kpc],
+  \label{eq:R-physical}
+\end{equation}
+where $\Theta_i$ is the angular separation from the galaxy centre.
+A larger distance pushes stars to larger physical radii and samples a
+different part of the dispersion profile.  The hard constraint
+$r_s > r_p$ is enforced per draw inside the likelihood; violators
+return $\ln\mathcal{L} = -10^{300}$ and are rejected by the sampler.
+The fixed-geometry mode (\code{marginalize\_nuisances=False}) holds
+the three nuisances at registry values and reduces $\theta$ to the
+4-D vector $(\bar V,\log_{10} r_s,\log_{10}\rho_s,\tilde\beta)$.
 
 \subsection{Priors}
-\todo{Prior choices currently implemented in
-\code{src/dwarfjeans/jeans/inference.py} (and to be extracted into
-\code{src/dwarfjeans/jeans/priors.py}, migration step 4b): log-flat
-uniform vs.\ conditional Jeffreys on $(r_s, \rho_s)$. Include the
-Jeffreys log-determinant correction
-$\tfrac{1}{2}\ln D$ as in
-\code{docs/plan/jeffreys\_jeans\_derivation.md}.}
+\label{sec:stage1-priors}
+
+All prior bounds and family choices are in
+\code{src/dwarfjeans/jeans/priors.py}.
+
+\paragraph{Halo base prior.}
+Three base families for $(\ln\rho_s,\ln r_s)$ are registered under
+the key \code{prior\_name}:
+\begin{description}
+  \item[\code{uniform}] linear-uniform on the physical values
+    $(r_s,\rho_s)$ with $r_s\in[10^{-2},10]\,\kpc$ and
+    $\rho_s\in[10^{4},10^{14}]\,\Msun\,\kpc^{-3}$.  The chain still
+    records $(\log_{10} r_s,\log_{10}\rho_s)$.
+  \item[\code{loguniform}] uniform on $(\log_{10} r_s,\log_{10}\rho_s)$
+    over the same bounds: $\pi(\ln\rho_s,\ln r_s)=\mathrm{const}$.
+  \item[\code{jeffreys}] the loguniform base transform plus the
+    Jeffreys log-determinant correction $\tfrac{1}{2}\ln D$ added
+    to the log-posterior on every likelihood evaluation.
+\end{description}
+The production default is \code{jeffreys}
+(\code{scripts/run\_production.py}).
+
+\paragraph{Jeffreys log-determinant.}
+The dispersion $\sigma_\mathrm{los}^2(R_i)$ is linear in $\rho_s$ at
+fixed $(r_s,\beta)$; its $\ln r_s$-derivative satisfies
+$\partial\sigma_\mathrm{los}^2/\partial\ln r_s = \sigma_\mathrm{los}^2 \, T_i$
+with auxiliary shape factor $T_i = 3 - \mathcal{Q}(R_i)/\mathcal{P}(R_i)$
+(jeffreys derivation Steps~2--3).  With per-star weights
+$\tilde w_i = A_i^2/(A_i + \sigma_{\varepsilon,i}^2)^2$ and
+$A_i = \sigma_\mathrm{los}^2(R_i)$, and membership-weighted sum
+$S_0 = \sum_i p_i \tilde w_i$, the $2\times 2$ Fisher matrix in
+$(\ln\rho_s,\ln r_s)$ has determinant
+\begin{equation}
+  D = S_0 \sum_i p_i\,\tilde w_i\,(T_i - \bar T)^2,
+  \qquad
+  \bar T = \frac{\sum_i p_i\,\tilde w_i\,T_i}{S_0},
+  \label{eq:jeffreys-D}
+\end{equation}
+in the variance form (algebraically equivalent to $S_0 S_2 - S_1^2$
+but free of catastrophic cancellation).  The Jeffreys correction is
+$\tfrac{1}{2}\ln D$.  When $D \le 0$ or non-finite (all stars at the
+same $R_i/r_s$, so $r_s$ is unidentifiable), the correction returns
+$-\infty$ and the draw is rejected.  The correction requires $T_i$,
+obtained by calling \code{jeans.sigma\_los\_with\_T} instead of
+\code{jeans.sigma\_los}; this approximately doubles the cost of each
+likelihood evaluation.
+
+\paragraph{Anisotropy and systemic priors.}
+$\tilde\beta$ is flat on $[-0.95,\,1)$ (eq.~\ref{eq:beta-tilde}); the
+open upper bound avoids the radial-orbit singularity at $\beta=1$.
+$\bar V$ is flat on $[V_\mathrm{centre} - 10,\,V_\mathrm{centre} + 10]\,\kms$,
+where $V_\mathrm{centre}$ is the registry \code{vlos\_systemic\_kms}.
+
+\paragraph{Nuisance priors (7-D mode).}
+When \code{marginalize\_nuisances=True}, three additional parameters
+are sampled with independent Gaussian priors derived directly from
+the registry:
+\begin{align}
+  d &\sim \mathcal{N}(\mu_d,\,\sigma_d), \label{eq:prior-d}\\
+  \varepsilon &\sim \mathcal{N}(\mu_\varepsilon,\,\sigma_\varepsilon)
+              \text{ truncated to } [0,1), \label{eq:prior-eps}\\
+  \vartheta_{1/2} &\sim \mathcal{N}(\mu_{\vartheta},\,\sigma_{\vartheta}),
+              \label{eq:prior-rhalf}
+\end{align}
+with $\sigma_d = (\ln 10/5)\,d\,\sigma_\mu$ from the registry
+distance modulus and its uncertainty
+(\code{run\_production.\_registry\_nuisance\_priors}).  For
+ellipticity-missing galaxies, $\sigma_\varepsilon$ is set to half
+the registry upper limit.
 
 \subsection{Sampler}
-\todo{\code{dynesty} static nested sampling; default \code{nlive},
-stopping criterion, post-processing (equal-weight resampling).}
+\label{sec:stage1-sampler}
+
+\paragraph{Algorithm.}
+Static nested sampling with \textsc{dynesty} (Speagle 2020); bounding
+method \code{multi}, proposal method \code{rwalk}.  Production
+defaults: $N_\mathrm{live}=500$ and stopping criterion
+$\Delta\ln\mathcal{Z}<0.1$.  The random state is seeded via
+\code{np.random.default\_rng(rseed)} with default \code{rseed=0}.
+
+\paragraph{Post-processing.}
+After \code{sampler.run\_nested}, normalised log-weights are
+$\log w_k = \log\mathrm{wt}_k - \ln\mathcal{Z}$, and
+\code{dynesty.utils.resample\_equal} produces an equal-weight chain
+\code{samples\_eq} from which all downstream quantities are derived.
+The driver returns the raw and equal-weight samples, log-weights,
+$\ln\mathcal{Z}$ and its uncertainty, and the parameter-name tuple.
+
+\paragraph{Derived chains.}
+The production driver
+\code{scripts/run\_production.py} pushes \code{samples\_eq} through:
+per-sample $r_p$ and the radii
+$R_{1/2,\mathrm{2D}} = r_p$ and $r_{1/2,\mathrm{3D}} = 1.30477\,r_p$;
+NFW enclosed masses $M(R_{1/2,\mathrm{2D}})$ and
+$M(r_{1/2,\mathrm{3D}})$ via \code{jeans.nfw\_M};
+$\sigma_\mathrm{los}$ at $R_{1/2,\mathrm{2D}}$ (thinned to 2000 draws);
+and $J/D$ chains at four angles each (thinned to 500 draws,
+Section~\ref{sec:stage3:chain}).  Outputs land in
+\code{results/production/<lvdb\_key>/<prior>/<timestamp>/} as
+\code{posterior\_samples.npz}, a per-quantity $16/50/84$-percentile
+\code{summary.csv}, and an \code{audit.json} recording registry
+inputs, selection policy, and dynesty configuration.
 
 % ===================================================================
 \section{Stage 2: Population Monte Carlo calibration}
 \label{sec:stage2}
 
-\todo{Mock-pipeline calibration per the gold-standard rule
-(\code{CLAUDE.md}). Generate $N_\text{real}$ synthetic UFDs at fixed
-truth (NFW + Plummer + $\beta$), run end-to-end inference per
-realization, report bias and dispersion in
-$M(r_{1/2})$ and downstream $J$/$D$.
-Asimov check: single $N_\star \to \infty$ realization to isolate
-prior/projection bias from sampling noise. Implementation:
-\code{tests/integration/run\_ufd\_population.py},
-\code{tests/integration/analyze\_asimov.py}; specs in
-\code{docs/plan/stage2.md} and \code{docs/plan/README\_mc\_test.md}.
-Open item: rerun under Jeffreys prior (TODO in
-\code{docs/plan/stage2.md}, migration step 4b prerequisite).}
+\subsection{Motivation}
+
+Before applying the Jeans inference to real kinematic data, the full
+chain --- mock generation, Jeans projection, likelihood, sampler,
+posterior summarisation --- is validated end-to-end on synthetic
+catalogs at known truth.  Unit tests verify the mathematics of
+individual components; the population MC verifies that the complete
+chain is unbiased and well-calibrated on realistic inputs.
+
+\subsection{Mock galaxy generator}
+\label{sec:stage2:mock}
+
+The mock generator is implemented in
+\code{src/dwarfjeans/mocks/galaxy.py}.  Each realisation produces a
+per-star catalog $(R_i, V_i, \sigma_{\varepsilon,i}, p_i)$ matching
+the schema of the real kinematic data; the truth model is an NFW halo
+$(r_s,\rho_s)$ with a Plummer tracer of scale $r_p$ and constant
+anisotropy $\beta$.
+
+\paragraph{Projected radii.}
+Stars are drawn from the 2D Plummer surface density
+$\Sigma(R)\propto(1+R^2/r_p^2)^{-2}$ via inverse-CDF sampling; the
+CDF $F(<R) = R^2/(R^2+r_p^2)$ inverts analytically:
+\begin{equation}
+  R_i = r_p\sqrt{\frac{u_i}{1-u_i}},\qquad u_i\sim\mathrm{Uniform}(0,1).
+\end{equation}
+Draws with $R_i > 5\,r_p$ are rejected and redrawn, matching the
+membership-cut footprint of real spectroscopic surveys.
+
+\paragraph{Line-of-sight velocities.}
+For each $R_i$, $\sigma_\mathrm{los}(R_i)$ is evaluated at truth and
+\begin{equation}
+  V_i \sim \mathcal{N}\!\bigl(V_\mathrm{sys},\,
+    \sigma_\mathrm{los}^2(R_i)+\sigma_{\varepsilon,i}^2\bigr).
+\end{equation}
+Membership probabilities are set to $p_i = 1$ (post-membership-cut).
+
+\subsection{Asimov realisation}
+\label{sec:stage2:asimov}
+
+A single Asimov realisation
+(\code{src/dwarfjeans/mocks/galaxy.make\_asimov\_galaxy}; driver
+\code{tests/integration/run\_ufd\_population.py --asimov}) isolates
+prior and projection bias from sampling noise.  Star positions are
+placed at the equal-probability stratified midpoints of the
+truncated Plummer CDF on $R\in[0,5\,r_p]$:
+\begin{equation}
+  u_i = \frac{i - \tfrac12}{N},\quad
+  R_i = r_p\sqrt{\frac{u_i\,F_\mathrm{max}}{1 - u_i\,F_\mathrm{max}}},
+  \qquad i=1,\ldots,N,
+\end{equation}
+where $F_\mathrm{max} = (5r_p)^2/[(5r_p)^2 + r_p^2]$.  The Asimov
+likelihood replaces the squared velocity residual by its
+expectation $\sigma_\mathrm{tot,truth}^2(R_i)$ under the truth model,
+so the MLE sits exactly at truth.  $V_\mathrm{sys}$ does not enter
+the Asimov likelihood and its posterior equals the prior; it is
+flagged \code{prior\_only} and excluded from $z$-score diagnostics.
+
+\subsection{Population MC test}
+\label{sec:stage2:mc}
+
+Implemented in \code{tests/integration/run\_ufd\_population.py}.
+Fifteen independent realisations are generated at the same truth:
+\begin{center}
+\begin{tabular}{ll}
+$r_s = 0.3\,\kpc$ & $\rho_s = 3\times 10^{8}\,\Msun\,\kpc^{-3}$ \\
+$r_p = 0.05\,\kpc$ & $\beta = 0$ \\
+$N_\star = 30$ & $\sigma_\varepsilon = 2\,\kms$
+\end{tabular}
+\end{center}
+Each realisation uses a distinct random seed.  Inference uses
+\code{nlive}=300, \code{dlogz}=0.5, log-uniform prior, and uniform
+sampling (\code{sample="unif"}) for speed --- distinct from the
+production driver, which uses \code{sample="rwalk"} with the same
+\code{multi}-ellipsoidal bounds.  Calibration
+diagnostics are computed for each parameter
+$\theta\in\{\bar V,\,\log_{10} r_s,\,\log_{10}\rho_s,\,\tilde\beta,\,
+\log_{10}(\rho_s r_s^3)\}$:
+\begin{itemize}
+  \item asymmetric $z$-score
+        $z = (\mathrm{median}-\theta_\mathrm{truth})/\sigma_\pm$,
+  \item 68\% and 95\% credible-interval coverage,
+  \item Kolmogorov--Smirnov $p$-value of $\{z\}$ against
+        $\mathcal{N}(0,1)$,
+  \item mean $z$, std$(z)$, and median bias.
+\end{itemize}
+
+\paragraph{Calibration results.}
+The well-constrained derived quantity is $M(r_{1/2,\mathrm{3D}})$:
+mean posterior width $\langle\sigma\rangle\approx 0.15$~dex, median
+bias $<0.01$~dex, $\mathrm{std}(z)\approx 1.1$, and KS $p\approx 0.7$.
+No realisation has $|z|>2.3$ on any halo or mass quantity.  The
+individual halo parameters $\log_{10} r_s$, $\log_{10}\rho_s$, and
+$\log_{10}(\rho_s r_s^3)$ have $1\sigma$ widths of $\sim 0.9$, $1.2$,
+and $1.5$~dex respectively; in the small-$x$ NFW regime relevant for
+this UFD configuration ($r_{1/2}/r_s\approx 0.2$), the enclosed mass
+scales as $M\propto\rho_s r_s r^2$, so $\rho_s r_s^3$ is not the
+well-constrained combination.
+
+\paragraph{Prior note.}
+The 15-realisation MC was run with log-flat priors;
+\code{run\_ufd\_population.py} pins
+\code{prior\_name="loguniform"} for reproducibility.  The
+conditional Jeffreys prior introduced for the production analysis
+has not yet been validated through this MC; the Jeffreys-prior
+rerun is pending (\code{docs/plan/stage2.md}).
 
 % ===================================================================
 \section{Stage 3: $J$- and $D$-factor extraction}
 \label{sec:stage3}
 
-\todo{Tidally-truncated NFW $J$ and $D$ integrals as implemented in
-\code{src/dwarfjeans/jd/factors.py}; chain push and four reporting
-angles; Asimov-bias decomposition (MAP vs.\ median vs.\ truth on
-$\log_{10} J(\alpha_c)$, small-$x$ analytic check, bias decomposition
-by 1D projection). Specs in \code{docs/plan/stage3.md}.}
+\subsection{Integral definitions}
+\label{sec:stage3:integrals}
+
+The $J$- and $D$-factors quantify the line-of-sight integral of
+$\rho^2$ and $\rho$, respectively, over a solid angle
+$\Delta\Omega(\theta_\mathrm{max})$ centred on the target
+(\code{src/dwarfjeans/jd/factors.py}):
+\begin{align}
+  J(\theta_\mathrm{max}) &= \int_{\Delta\Omega}\int_\mathrm{l.o.s.}
+    \rho^2\!\bigl(r(\ell,\Omega)\bigr)\,d\ell\,d\Omega, \\
+  D(\theta_\mathrm{max}) &= \int_{\Delta\Omega}\int_\mathrm{l.o.s.}
+    \rho\!\bigl(r(\ell,\Omega)\bigr)\,d\ell\,d\Omega.
+\end{align}
+In the small-angle approximation (valid for $\theta_\mathrm{max}\lesssim 1^\circ$),
+$R = d\,\theta$ and $d\Omega \approx R\,dR/d^2$, giving
+\begin{align}
+  J(\theta_\mathrm{max}) &= \frac{2\pi}{d^2}
+    \int_0^{R_\mathrm{max}} R\,I_2(R;\,r_t)\,dR, \\
+  D(\theta_\mathrm{max}) &= \frac{2\pi}{d^2}
+    \int_0^{R_\mathrm{max}} R\,I_1(R;\,r_t)\,dR,
+\end{align}
+where $R_\mathrm{max} = \min(d\,\theta_\mathrm{max},\,r_t)$ and the
+line-of-sight column at impact parameter $R$ for an NFW halo with
+hard tidal truncation at $r_t$ is
+\begin{equation}
+  I_n(R;\,r_t) = 2\int_R^{r_t}
+    \frac{\rho^n(r)\,r}{\sqrt{r^2-R^2}}\,dr,\qquad n=1,2.
+\end{equation}
+The integrable $1/\sqrt{r^2-R^2}$ singularity is removed by
+$r^2 = R^2 + u^2$, giving a smooth integrand on
+$u\in[0,u_\mathrm{max}(R)]$ with $u_\mathrm{max}(R)=\sqrt{r_t^2-R^2}$.
+Internally the pipeline works in $(\Msun,\kpc)$ and converts to
+P\&S~2018 reporting units ($\mathrm{GeV}^2/\mathrm{cm}^5$ for $J$,
+$\mathrm{GeV}/\mathrm{cm}^2$ for $D$) at output.
+
+\subsection{Numerical implementation}
+\label{sec:stage3:numerics}
+
+The $u$-grid is log-spaced from $10^{-6}\,r_s$ to $u_\mathrm{max}(R)$
+with an explicit $u=0$ endpoint prepended (where the integrand is
+largest); trapezoidal quadrature is applied.  The outer $R$-grid is
+log-spaced from $10^{-6}\,r_s$ to $R_\mathrm{max}$ with the on-axis
+point $R=0$ excluded from the log grid (where $I_n(0)$ hits
+$\rho(0)=\infty$ for an NFW); the integrand $R\cdot I_n(R)$ is zero
+at $R=0$, so an explicit $(R=0,\mathrm{integrand}=0)$ endpoint is
+prepended.  Production defaults from \code{J\_D\_factors} are $n_R=128$,
+$n_u=512$, calibrated against \code{scipy.integrate.quad} to better
+than $10^{-3}$ relative error over the MW-dwarf parameter range.
+\code{summarize\_jd} (used by population-MC summarisation) defaults
+to $n_R=64$, $n_u=128$ and thins the chain to 500 samples;
+\code{analyze\_asimov.py} runs at $n_R=96$, $n_u=256$.
+
+\subsection{Tidal angle and reporting angles}
+\label{sec:stage3:angles}
+
+The characteristic integration angle for $J$ follows the
+Wolf~et~al.\ (2010) critical-angle convention:
+\begin{equation}
+  \alpha_c = \frac{2\,r_{1/2,\mathrm{3D}}}{d},
+\end{equation}
+computed via \code{alpha\_c\_radians} in \code{factors.py}.  Each
+chain is evaluated at four angles:
+\begin{align}
+  J&:\quad \theta_\mathrm{max} \in \{0.1^\circ,\,0.2^\circ,\,0.5^\circ,\,\alpha_c\},\\
+  D&:\quad \theta_\mathrm{max} \in \{0.1^\circ,\,0.2^\circ,\,0.5^\circ,\,\alpha_c/2\}.
+\end{align}
+The $\alpha_c/2$ choice for the $D$ natural angle reflects the
+shallower projected $\rho$ profile relative to $\rho^2$.  In
+nuisance-marginalised mode $\alpha_c$ becomes a per-draw quantity;
+the fixed angles vary only through the sampled $d$.
+
+\subsection{Chain push}
+\label{sec:stage3:chain}
+
+The Stage~1 equal-weight chain
+$(\bar V^{(k)},\,\log_{10} r_s^{(k)},\,\log_{10}\rho_s^{(k)},\,\tilde\beta^{(k)})$
+is processed sample-by-sample in \code{scripts/run\_production.py}
+via per-draw, per-angle calls to \code{J\_D\_factors}
+(\code{factors.py}).  Per draw: $(r_s,\rho_s)$ are extracted; $d$
+comes from the nuisance chain (production) or is held at truth (MC
+validation); the tidal radius $r_t$ is hard-coded to $1\,\kpc$ in
+the production driver, since the input chain carries no host-orbit
+information from which to derive a Springel~et~al.\ 2008 tidal
+radius. \code{J\_D\_factors} returns $(J^{(k)}, D^{(k)})$ in internal
+units.  The chains are summarised per galaxy as median +
+$q_{16}/q_{84}$ + 1D-KDE MAP.
+
+\subsection{MC recovery}
+\label{sec:stage3:mc}
+
+The 15 mocks of Section~\ref{sec:stage2:mc} are pushed through $J/D$
+with $d=30\,\kpc$ and $r_t=1\,\kpc$ held at truth (synthetic data
+carry no host-orbit information for a Springel~et~al.\ 2008 $r_t$).
+\textbf{$D$-factor recovery is clean} at all four angles: median bias
+$\le 0.03$~dex, std$(z)\le 1.15$, $\max|z|\approx 2.1$, KS $p\in[0.37,0.79]$,
+mean $1\sigma$ posterior widths $0.15$--$0.36$~dex.
+\textbf{$J$-factor recovery} is unbiased at the $\sim 0.1$~dex level
+with std$(z)\le 1.18$, $\max|z|\approx 2.3$, and a small
+population-level high-side median bias of $+0.08$ to $+0.12$~dex.
+The bias is a property of chain-median estimation on a curved
+posterior ridge, not a procedure error; this is demonstrated below.
+
+\subsection{Asimov-bias decomposition}
+\label{sec:stage3:asimov}
+
+The Asimov chain (1803 equal-weight samples;
+\code{tests/integration/analyze\_asimov.py}) isolates the origin of
+the $J$-factor median offset.
+
+\paragraph{(a) MAP vs.\ median vs.\ truth.}
+Pushing through $J(\alpha_c)$:
+\begin{center}
+\begin{tabular}{lc}
+\hline
+Estimator & Offset from truth (dex) \\
+\hline
+1D-KDE MAP of $\log_{10} J(\alpha_c)$ & $+0.024$ \\
+Chain median of $\log_{10} J(\alpha_c)$ & $+0.162$ \\
+Chain mean of $\log_{10} J(\alpha_c)$ & $+0.212$ \\
+\hline
+\end{tabular}
+\end{center}
+The posterior peak (MAP) sits within $0.02$--$0.13$~dex of truth at
+all four angles; the offset lives entirely in the median of a
+positively skewed transformation distribution.
+
+\paragraph{(b) Small-$x$ analytic check.}
+In the small-$x$ NFW limit, $J\propto\rho_s^2 r_s^3$.  The chain
+median of $2\log_{10}\rho_s + 3\log_{10} r_s$ is $+0.42$~dex,
+against an actual $J(0.1^\circ)$ bias of $+0.13$~dex.  Per-sample
+regression of $\Delta\log_{10} J$ on the small-$x$ prediction gives
+slopes $0.29$--$0.53$ (not unity) and $r^2 = 0.08$--$0.52$ across
+the four angles --- the log-linear small-$x$ attribution does not
+hold over the full chain support.
+
+\paragraph{(c) 1D-projection decomposition at $\alpha_c$.}
+\begin{center}
+\begin{tabular}{lc}
+\hline
+Projection & Median bias (dex) \\
+\hline
+$\log r_s$ only ($\log\rho_s = \mathrm{truth}$) & $+0.46$ \\
+$\log\rho_s$ only ($\log r_s = \mathrm{truth}$) & $-0.32$ \\
+Sum & $+0.14$ \\
+Full joint chain & $+0.16$ \\
+Non-additive remainder & $+0.02$ \\
+\hline
+\end{tabular}
+\end{center}
+The full bias is a small residual between two large opposite-sign
+1D-projection offsets.  The non-additivity is negligible
+($0.02/0.16$~dex), indicating that the chain ridge is approximately
+log-linearly aligned with the $J$ surface.  The $J/D$ bias ratio
+across angles is $2.0$--$2.6$, consistent with $\rho^2$ vs.\ linear
+$\rho$ kernels both experiencing the same posterior-curvature skew.
+The pipeline publishes median + $q_{16}/q_{84}$ + 1D-KDE MAP for
+every $\log_{10} J(\theta)$ and $\log_{10} D(\theta)$, so the
+median--MAP gap is visible to downstream consumers without any
+correction applied.
 
 % ===================================================================
 \section{Tests}
 \label{sec:tests}
 
-\subsection{Unit tests (\code{tests/unit/})}
-\todo{\code{test\_jeans.py} and \code{test\_jeans\_vs\_quad.py} —
-solver-level checks against analytic limits and quadrature
-cross-checks.}
+\subsection{Unit tests}
+\label{sec:unit}
 
-\subsection{Integration tests (\code{tests/integration/})}
-\todo{Whole-pipeline tests:
-\code{run\_segue1.py} (Segue 1 testbed; reproduces P\&S 2018),
-\code{run\_ufd\_population.py} (15-realization MC recovery),
-\code{analyze\_asimov.py} (Asimov bias decomposition).}
+Unit tests reside in \code{tests/unit/} and are run with
+\textsc{pytest}.  Each file targets one module or contract.
+
+\paragraph{\code{tests/unit/test\_jeans.py}} verifies the Jeans
+solver across four categories: (1) the NFW auxiliary $g(x)$ via the
+small-$x$ Taylor series and the stable-regime $\ln(1+x)$ form;
+(2) a $\tilde\beta$ prior-edge smoke test producing finite, positive
+$\sigma_\mathrm{los}$ with zero \code{RuntimeWarning}s across
+$\tilde\beta\in\{-0.95,-0.5,0,+0.5,+0.95\}$, including the
+tangential extreme $\beta\approx -38$; (3) physical sanity ---
+doubling $\rho_s$ multiplies $\sigma_\mathrm{los}$ by $\sqrt 2$ to
+$10^{-3}$ and $\sigma_\mathrm{los}(r_p)$ falls within a factor of
+three of the Wolf~et~al.\ (2010) estimator; (4) a 100-star
+likelihood call completes in under 50~ms on a single core.
+
+\paragraph{\code{tests/unit/test\_jeans\_vs\_quad.py}} cross-checks
+the production log-grid integrator against \code{scipy.integrate.quad}
+(treated as ground truth, $\sim 10^4\times$ slower).  Inner Jeans
+integrands and line-of-sight projections are compared across eight
+parameter combinations spanning the UFD and classical regimes at
+isotropic, radial, and tangential $\beta$.  Tolerances $10^{-3}$
+(inner) / $10^{-2}$ (projection).  Run on demand before merging
+changes to integration tolerances or grid sizes.
+
+\paragraph{\code{tests/unit/test\_multi\_epoch.py}} verifies the
+multi-epoch primitives.  IVW combination is checked against the
+textbook formula and against a closed-form expectation for
+$\sigma_\mathrm{sys}>0$ added in quadrature post-combine.  The
+$\chi^2$ test is checked at zero scatter (no flag), at a $5\sigma$
+outlier (flag), and for single-epoch input ($\chi^2,p=\mathrm{NaN}$,
+no flag).  The strict-deconvolution path is verified to equal the
+as-statistical path when $\sigma_\mathrm{sys}=0$, to return a
+strictly larger $\sigma_{\bar v}$ at fixed published total error,
+to raise \code{ValueError} when the implied $\sigma_\mathrm{stat}$
+would be imaginary, and (single-epoch) to return
+$\sigma_{\bar v}=\sigma_\mathrm{total}$ exactly.  Strict $\chi^2$
+uses $\sigma_\mathrm{stat}$ rather than $\sigma_\mathrm{total}$,
+producing a larger statistic.
+
+\paragraph{\code{tests/unit/test\_default\_combiner.py}} verifies the
+zero-point offset hook.  Empty offsets reproduce the no-shift IVW.
+With offsets, velocities are shifted additively before IVW and the
+output recovers the common-zero-point $\bar v$.  The combiner raises
+\code{KeyError} on missing \code{Inst} column, raises on unknown
+instrument tag, and does not mutate the caller's input array.
+
+\paragraph{\code{tests/unit/test\_combiner\_dispatch.py}} checks the
+per-paper combiner registry.  Each of the six per-epoch bibcodes
+(Li+2017/2018, Chiti+2022/2023, Simon+2020, Hansen+2024) dispatches
+to a dedicated handler.  An unknown bibcode falls back to the
+default combiner with $\sigma_\mathrm{sys}=0$ and
+$p_\mathrm{threshold}=0.01$.
+
+\paragraph{\code{tests/unit/test\_preprocess.py}} exercises
+\code{prepare\_jeans\_input}.  Per-star catalogs bypass the
+combiner; per-epoch catalogs invoke the registered handler followed
+by selection.  A two-star, two-epoch example verifies that a
+variable star is dropped by the variability cut.  Policies are
+threaded through and appear in the audit dict.  Missing
+\code{source\_paper\_bibcode} on a per-epoch catalog and unknown
+\code{catalog\_granularity} both raise \code{ValueError}.  A
+parametrised smoke test runs every per-epoch catalog through the
+full pipeline.
+
+\paragraph{\code{tests/unit/test\_priors.py}} checks the prior
+registry.  Exactly the three keys \code{uniform},
+\code{loguniform}, \code{jeffreys} are registered; an unknown key
+raises.  The log-uniform transform is checked byte-for-byte over
+1000 unit-cube draws.  The Jeffreys log-correction returns
+$-\infty$ when all $T_i$ are equal (degenerate Fisher determinant)
+and a finite value otherwise; the \code{needs\_T} flag is checked,
+and the correction returns exactly zero for the uniform and
+log-uniform priors.
+
+\paragraph{\code{tests/unit/test\_selection.py}} verifies
+\code{select\_jeans\_stars}.  Membership, radial, and variability
+cuts are exercised in isolation and in combination, including a
+regression for a bug where uniform $p\in\{0,1\}$ membership was
+mistaken for a pre-applied cut.  Disabling the variability cut
+retains all stars.  Missing \code{R}, invalid $r_{1/2}$, and
+per-epoch input each raise.  An \code{NpzFile} compatibility test
+verifies that \code{np.load} output is accepted directly.
+
+\subsection{Integration tests}
+\label{sec:integration}
+
+\subsubsection{Segue~1 end-to-end test}
+\label{sec:segue1}
+
+\code{tests/integration/run\_segue1.py} runs the complete pipeline on
+Segue~1 and compares the output to published results.  Three per-star
+data sources are toggled by the \code{SOURCE} variable: the
+Simon~et~al.\ (2011) VizieR catalog with $B_\mathrm{pr}>0.8$
+(\code{simon}); the Pace pre-combined Bayes file with $p\ge 0.8$
+(\code{pace}); and the Geha~et~al.\ (2026) catalog staged through
+the production \code{prepare\_jeans\_input} pipeline with
+$p_\mathrm{mem}>0.5$, $R<2\,r_{1/2,\mathrm{maj}}$, and variable
+stars removed (\code{geha}).  For \code{simon} / \code{pace},
+nuisance priors follow P\&S~2018: $d=23\pm 2\,\kpc$,
+$r_{1/2,\mathrm{2D}}=21\pm 5\,\mathrm{pc}$
+($r_h=4.31\pm 1.03\,\mathrm{arcmin}$ with $\varepsilon=0.47\pm 0.11$).
+For \code{geha}, nuisance priors are taken from LVDB~v1.0.5.  The
+reference is $\sigma_\mathrm{los}=3.1^{+0.9}_{-0.8}\,\kms$ from
+P\&S~2018 Table~A1.  All three paths run 7-D dynesty inference and
+produce posterior samples, a summary CSV, and diagnostic plots in
+\code{results/tests/segue1/}.
+
+\subsubsection{UFD population MC recovery}
+\label{sec:ufd_population}
+
+\code{tests/integration/run\_ufd\_population.py} performs the
+15-realisation MC of Section~\ref{sec:stage2:mc}.  All realisations
+share the same injected truth; realisations differ only in the random
+seed for stellar positions and velocity scatter.  Each realisation
+runs dynesty (\code{nlive}=300, \code{dlogz}=0.5, log-uniform prior)
+or reloads a cached chain from
+\code{results/tests/ufd\_population/}.  Population diagnostics for
+five parameters
+($\bar V$, $\log_{10} r_s$, $\log_{10}\rho_s$, $\tilde\beta$,
+$\log_{10}(\rho_s r_s^3)$) are written to
+\code{results/tests/ufd\_population/ufd\_pop\_diagnostics.json}.
+A single Asimov realisation is run via the \code{--asimov} flag.
+
+\subsubsection{Asimov bias decomposition}
+\label{sec:asimov}
+
+\code{tests/integration/analyze\_asimov.py} loads the chain produced
+by \code{--asimov} and performs six diagnostics: (1)
+$M(r_{1/2,\mathrm{3D}})$ recovery (median, mean, 1D-KDE peak vs.\
+truth, plus skewness and excess kurtosis); (2) full-chain push
+through $J$ and $D$ at four angles each; (3) small-$x$ analytic
+test on the $2\log_{10}\rho_s + 3\log_{10} r_s$ proxy; (4)
+per-sample $\Delta\log_{10} J$ regression on the small-$x$ prediction
+(slope and $R^2$); (5) marginal-projection decomposition at
+$\alpha_c$ holding one channel at truth and pushing the other; (6)
+prior-edge fraction within $\{0.05,0.10,0.20\}$ of the
+$\log_{10} r_s$ prior boundaries.  Outputs are saved to
+\code{results/tests/ufd\_population/asimov\_chain\_diagnostics.npz};
+the headline numbers in Section~\ref{sec:stage3:asimov} come from
+this run.
 
 % ===================================================================
 \section*{Acknowledgements}
