@@ -20,6 +20,9 @@ Guidance for Claude Code (claude.ai/code) when working with code in this reposit
 - For multi-step work, state a brief plan with verification checks.
 - Loop until verified — don't declare success without checking.
 
+### Shared compute
+Never submit jobs to SLURM or any cluster scheduler. Prepare the script, surface its parameters, and stop. The user runs it.
+
 ## Working style and routing
  
 Default to the main session for small edits, tight back-and-forth, and final judgment. Delegate to subagents when output would be verbose, work is parallelizable, or a task is self-contained.
@@ -79,6 +82,8 @@ Delegate mock runs: **worker** to set up and execute, **test-runner** for the ru
 Maintain a running `.tex` source and compiled PDF in the repo describing the pipeline and tests **as implemented**. Update whenever the pipeline changes.
  
 After non-trivial pipeline or test changes, run an adversarial review (use **deep-reviewer**) to verify the `.tex` faithfully reproduces what the code does — every equation, transformation, default, threshold, and test spec. Prose-vs-code drift is a high-stakes failure mode. Fix the prose (or the code, if the code is wrong) before declaring done.
+
+Cite functions and modules by name (`\code{nfw_M}`, `solver.py`); never cite line numbers or line ranges. Line numbers rot on every refactor.
  
 ## Plan folder
  
