@@ -44,9 +44,15 @@ cd /global/scratch/projects/pc_heptheory/kraman/DwarfJeansAnalysis
 # lvdb_keys into --array indices and resubmit.
 # -----------------------------------------------------------------------------
 if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+    # Optional --pool N override (defaults to #SBATCH --cpus-per-task above).
+    POOL_OVERRIDE=
+    if [[ "${1:-}" == "--pool" ]]; then
+        POOL_OVERRIDE="$2"
+        shift 2
+    fi
     if [[ $# -eq 0 ]]; then
         echo "ERROR: invoke either as 'sbatch $0' for the full sweep, or as" >&2
-        echo "       'bash $0 KEY [KEY ...]' to submit only those galaxies." >&2
+        echo "       'bash $0 [--pool N] KEY [KEY ...]' to submit only those galaxies." >&2
         exit 1
     fi
     mapfile -t ALL_KEYS < <(ls data/star_catalogs/*.npz | xargs -n1 basename | sed 's/.npz$//' | sort)
@@ -64,8 +70,14 @@ if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
         fi
     done
     array_arg=$(IFS=,; echo "${INDICES[*]}")
-    echo "Submitting subset: keys=$* -> --array=$array_arg"
-    exec sbatch --array="$array_arg" "$0"
+    sbatch_args=(--array="$array_arg")
+    if [[ -n "$POOL_OVERRIDE" ]]; then
+        sbatch_args+=(--cpus-per-task="$POOL_OVERRIDE")
+        echo "Submitting subset: keys=$* -> --array=$array_arg --cpus-per-task=$POOL_OVERRIDE"
+    else
+        echo "Submitting subset: keys=$* -> --array=$array_arg"
+    fi
+    exec sbatch "${sbatch_args[@]}" "$0"
 fi
 
 # -----------------------------------------------------------------------------
