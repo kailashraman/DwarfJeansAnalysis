@@ -82,7 +82,7 @@ The first validation check, and the only one required to launch Stage 2, is repr
 
 Pass criteria for Segue 1:
 
-- Median σ_los matches P&S Table A1 (3.7⁺¹·⁴₋₁.₁ km/s, 71 stars after cut) within 5%.
+- Median σ_los matches P&S 2018 Table A1 reference (3.1 +0.9/−0.8 km/s for Segue 1) within 5%.
 - 16/84 percentile half-widths match P&S's reported asymmetric error bars within 15%.
 - Posterior shape qualitatively matches P&S: distinct peak, small zero-tail (classification = "small zero-tail" or "resolved").
 

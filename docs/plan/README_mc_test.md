@@ -84,12 +84,12 @@ compare *both* median and MAP to truth.
 
 ### MC test scripts
 
-- `mock_galaxy.py` — generates per-star (R, V, σ_ε, p) catalogs from a
+- `src/dwarfjeans/mocks/galaxy.py` — generates per-star (R, V, σ_ε, p) catalogs from a
   Plummer surface density + Jeans-evaluated σ_los. Stores both 2D-projected
-  and 3D-half-mass radii in the truth dict. Now also exposes
+  and 3D-half-mass radii in the truth dict. Exposes
   `make_asimov_galaxy()` (deterministic stratified-CDF R, truth-evaluated
   σ_los, V placeholder) and `plummer_R_stratified()` for reuse.
-- `jeans_inference.py` — likelihood, prior_transform, dynesty wrapper.
+- `src/dwarfjeans/jeans/inference.py` — likelihood, prior_transform, dynesty wrapper.
   Standard `make_loglike` plus `make_loglike_asimov` (substitutes
   `(V_i − V_sys)² → σ_tot,truth²(R_i)`). `run_inference(..., asimov=True)`
   routes to the Asimov likelihood. Two summary functions:
@@ -97,19 +97,17 @@ compare *both* median and MAP to truth.
       log ρ_s, β̃, log(ρ_s·r_s³), log M(r_½, 2D), log M(r_½, 3D). When
       `asimov=True`, V is flagged `prior_only` and its z-score is `nan`.
     - `summarize_jd(samples_eq, truth, d_kpc, r_t_kpc)` → log J / log D
-      at the four reporting angles each (Stage 3). Imports `j_d_factors`
+      at the four reporting angles each (Stage 3). Imports `dwarfjeans.jd.factors`
       lazily.
-- `j_d_factors.py` — Stage-3 J/D integrals for an NFW halo with hard
-  truncation at r_t. Small-angle approximation (R = d·θ). Self-test in
-  `__main__`. Includes Msun/kpc → GeV/cm unit conversion factors.
-- `run_ufd_population.py` — runs 15 UFD seeds, prints running table with
-  TRUTH row, computes population diagnostics. `--asimov` flag runs the
-  single Asimov realization instead.
-- `run_jd_summary.py` — reads cached chains, calls `summarize_jd` for
-  each, prints running table + diagnostics, writes JSON outputs.
-  `--asimov` flag uses the Asimov chain instead of the 15 MC chains.
-  CLI knobs `--thin-to`, `--n-R`, `--n-u` for J/D resolution.
-- `analyze_asimov.py` — Asimov J-bias source diagnostic. Reads
+- `src/dwarfjeans/jd/factors.py` — Stage-3 J/D integrals for an NFW halo with hard
+  truncation at r_t. Small-angle approximation (R = d·θ).
+  Includes Msun/kpc → GeV/cm unit conversion factors.
+- `tests/integration/run_ufd_population.py` — runs 15 UFD seeds, computes inline
+  J/D push via `summarize_jd`, prints running table with TRUTH row, computes
+  population diagnostics. `--asimov` flag runs the single Asimov realization
+  instead. (The original standalone `run_jd_summary.py` was not migrated; J/D
+  is now computed inline here.)
+- `tests/integration/analyze_asimov.py` — Asimov J-bias source diagnostic. Reads
   `compact_ufd_asimov.npz`, pushes the full chain through J/D at the
   four reporting angles, computes the chain-MAP-vs-median-vs-truth
   decomposition for `log J`, the small-x analytic test, the
@@ -143,17 +141,14 @@ compare *both* median and MAP to truth.
 ## How to reproduce / continue
 
 ```bash
-# Stage 2 halo + M(r_½) recovery (validated):
-python run_ufd_population.py
+# Stage 2 halo + M(r_½) recovery + inline Stage 3 J/D push:
+python tests/integration/run_ufd_population.py
 
-# Stage 3 J/D recovery (validated, sped-up):
-python run_jd_summary.py        # ~30 s for 15 seeds at thin_to=200, n_R=48, n_u=96
-                                 # (calibrated against the original thin_to=500,
-                                 # n_R=64, n_u=128 settings, ~4 min wall)
+# Asimov dev-loop check (single deterministic realization):
+python tests/integration/run_ufd_population.py --asimov  # produces compact_ufd_asimov.npz
 
-# Asimov dev-loop checks (single deterministic realization, ~30 s total):
-python run_ufd_population.py --asimov   # produces compact_ufd_asimov.npz
-python run_jd_summary.py --asimov       # uses the Asimov chain, 8 J/D angles
+# Asimov J-bias source decomposition:
+python tests/integration/analyze_asimov.py
 ```
 
 Sequential because the test box has 1 CPU. On a multi-core node the MC
@@ -171,6 +166,6 @@ test". Specific to the J/D extension:
   or 3D position, so neither is meaningful here.
 - **`r_t = 1 kpc` is the unresolved-σ_los default.** Our UFD mocks are
   resolved (σ_los ≈ 6.5 km/s) and a real galaxy at this scale would get a
-  Springel-computed r_t. The choice is documented in `run_jd_summary.py`.
+  Springel-computed r_t. The choice is documented in `tests/integration/run_ufd_population.py` and `src/dwarfjeans/jd/factors.py`.
 - **Small-angle approximation.** All reported angles are below 1°; small-
   angle gives <0.1% error at θ = 1°, well below posterior widths.

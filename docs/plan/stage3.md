@@ -8,7 +8,7 @@ This document is the canonical Stage 3 reference. The high-level role in the pip
 
 ## Inputs / outputs
 
-**Per-galaxy input.** The Stage 2 posterior chain over `(V, log r_s, log ρ_s, β̃)` plus joint posterior draws of the nuisances `(d, r_p, ε, μ_α cosδ, μ_δ)`. Production runs marginalize over `d` (and over `r_t` via the Springel et al. 2008 host-mass formula); the validation runs in `mc_test/` hold both at truth.
+**Per-galaxy input.** The Stage 2 posterior chain over `(V, log r_s, log ρ_s, β̃)` plus joint posterior draws of the nuisances `(d, r_p, ε, μ_α cosδ, μ_δ)`. Production runs marginalize over `d` (and over `r_t` via the Springel et al. 2008 host-mass formula); the validation runs in `tests/integration/` hold both at truth.
 
 **Per-galaxy output.** Equal-weight posterior chains for `log₁₀ J(θ_max)` and `log₁₀ D(θ_max)` at four θ_max values each:
 
@@ -60,7 +60,7 @@ For NFW `ρ(r) = ρ_s / [(r/r_s)(1 + r/r_s)²]` both integrands are smooth on `u
 
 **Default knobs and their cost.** `n_R = 128, n_u = 512` is the validated production setting, calibrated against `scipy.integrate.quad` to better than ~10⁻³ relative error over the parameter range relevant for MW dwarfs. A single `(J, D)` evaluation across all four reporting angles takes a few ms; a 4000-sample chain pushes through in a few seconds.
 
-The MC-sweep speedup `(thin_to=200, n_R=48, n_u=96)` documented in the [Decisions Log](./pipeline_overview.md#decisions-log) is calibrated against `(500, 64, 128)` and agrees on population diagnostics to within 15-realization MC noise. CLI knobs `--thin-to`, `--n-R`, `--n-u` in `run_jd_summary.py` toggle between speed and stricter resolution.
+`tests/integration/analyze_asimov.py` runs the J/D push at `(n_R=96, n_u=256)`; `summarize_jd` defaults to `(n_R=64, n_u=128, thin_to=500)`. The production driver `scripts/run_production.py` calls `J_D_factors` directly per chain draw at the validated production setting `(n_R=128, n_u=512)`.
 
 ---
 
@@ -81,9 +81,12 @@ Per posterior draw, `r_t` is computed from Springel et al. 2008 eq. 12 using the
 End-to-end statistical validation: 15 mock UFD realizations at fixed truth (`r_s = 0.3 kpc`, `ρ_s = 3 × 10⁸ M⊙ kpc⁻³`, `r_p = 0.05 kpc`, `β = 0`, `N_stars = 30`, `σ_ε = 2 km/s`), with `d = 30 kpc` and `r_t = 1 kpc` held fixed at truth (synthetic data have no host distance or 3D position to drive a Springel+08 r_t computation). Each `(r_s, ρ_s)` draw is pushed through the small-angle line-of-sight integrals at the four J angles and the four D angles. `α_c = 2 r_½,3D / d ≈ 0.249°` at truth. Run as:
 
 ```
-python run_jd_summary.py        # 15-MC J/D push, ~30 s wall at the sped-up settings
-python run_jd_summary.py --asimov   # Asimov J/D push, ~3 s
+python tests/integration/run_ufd_population.py   # 15-MC + inline J/D push
+python tests/integration/run_ufd_population.py --asimov  # single Asimov realization
+python tests/integration/analyze_asimov.py       # Asimov J/D bias decomposition
 ```
+
+(The original standalone `run_jd_summary.py` was not migrated; J/D is now computed inline by `run_ufd_population.py` via `summarize_jd`, and the Asimov decomposition lives in `analyze_asimov.py`.)
 
 **D-factor recovery is clean** at all four angles: median bias ≤ 0.03 dex, std(z) ≤ 1.15, max `|z|` ≈ 2.1, KS p ∈ [0.37, 0.79], with mean 1σ widths 0.15–0.36 dex.
 
