@@ -1,6 +1,6 @@
 """Posterior diagnostic plots for production runs.
 
-Writes three PNGs per galaxy into ``plots/<lvdb_key>/`` (relative to repo
+Writes four PNGs per galaxy into ``plots/<lvdb_key>/`` (relative to repo
 root), refreshed from the latest production run on each invocation. The
 ``plots/`` directory always reflects the most recent results.
 
@@ -15,6 +15,9 @@ root), refreshed from the latest production run on each invocation. The
     align M with the thinned J chain; for older runs without
     ``idx_jd``, J(0.5°) is recomputed on a deterministic subsample so
     the (M, J) pairs are aligned by construction.
+  * ``sigma_los_walker.png`` — Walker+2006 constant-σ marginal
+    posterior (recomputed on-the-fly from the same per-star catalog
+    the production run consumed via ``constant_sigma_inference``).
 
 Usage:
     python scripts/plot_posteriors.py --lvdb-key willman_1
@@ -38,6 +41,13 @@ import numpy as np
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 
+from dwarfjeans.jeans.constant_sigma import constant_sigma_inference
+from dwarfjeans.jeans.preprocess import prepare_jeans_input
+from dwarfjeans.jeans.selection import SelectionPolicy
+
+sys.path.insert(0, str(HERE))
+from run_production import _read_registry_row  # noqa: E402
+
 
 def _latest_run(lvdb_key: str, prior: str) -> Path:
     candidates = sorted(
@@ -56,8 +66,61 @@ def _latest_run(lvdb_key: str, prior: str) -> Path:
     return candidates[-1]
 
 
+def _walker_posterior(audit: dict) -> dict:
+    """Replay prepare_jeans_input with the run's selection policy and
+    return the constant_sigma_inference result dict."""
+    lvdb_key = audit["lvdb_key"]
+    sel = audit["selection_policy"]
+    catalog = np.load(REPO / "data" / "star_catalogs" / f"{lvdb_key}.npz",
+                      allow_pickle=True)
+    registry_row = _read_registry_row(lvdb_key)
+    arrays, _ = prepare_jeans_input(
+        catalog,
+        registry_row,
+        selection_policy=SelectionPolicy(
+            p_min=float(sel["p_min"]),
+            R_over_rhalf_max=float(sel["R_over_rhalf_max"]),
+            drop_variable=bool(sel["drop_variable"]),
+        ),
+    )
+    V = arrays["V"]
+    sigma_eps = arrays["sigma_eps"]
+    p = arrays["p"]
+    V_center = float(registry_row.get("vlos_systemic_kms", np.median(V)))
+    if np.isnan(V_center):
+        V_center = float(np.median(V))
+    return constant_sigma_inference(V, sigma_eps, p, V_center=V_center)
+
+
 def _q(arr, qs=(0.16, 0.5, 0.84)):
     return np.quantile(arr, qs)
+
+
+def plot_sigma_walker(walker: dict, lvdb_key: str, out_path: Path) -> Path:
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+
+    sigma = walker["sigma_grid"]
+    pdf = walker["marg_sigma"]
+    s = walker["sigma_int"]
+    q16, q50, q84 = s["q16"], s["median"], s["q84"]
+
+    fig, ax = plt.subplots(figsize=(6, 4.2))
+    ax.plot(sigma, pdf, color="C0", lw=1.6)
+    ax.axvline(q50, color="C0", ls="--", lw=0.9, label=f"median = {q50:.2f}")
+    ax.axvspan(q16, q84, alpha=0.18, color="C0",
+               label=f"68% CI = [{q16:.2f}, {q84:.2f}]")
+    ax.set_xlim(max(0.0, q16 - 2), q84 + 3)
+    ax.set_xlabel("σ_los Walker  [km/s]")
+    ax.set_ylabel("posterior PDF")
+    ax.set_title(f"{lvdb_key} — Walker σ_los = "
+                 f"{q50:.2f} +{q84 - q50:.2f}/−{q50 - q16:.2f} km/s")
+    ax.legend(loc="upper right", fontsize=9)
+    fig.tight_layout()
+    fig.savefig(out_path, dpi=130)
+    plt.close(fig)
+    return out_path
 
 
 def plot_jeans_corner(npz, lvdb_key: str, out_path: Path) -> Path:
@@ -233,6 +296,8 @@ def make_plots(run_dir: Path, out_dir: Path) -> list[Path]:
     out.append(plot_jeans_corner(npz, lvdb_key, out_dir / "jeans_corner.png"))
     out.append(plot_jd_mhalf(npz, lvdb_key,    out_dir / "jd_mhalf.png"))
     out.append(plot_m_J_corner(npz, lvdb_key,  out_dir / "m_J_corner.png"))
+    out.append(plot_sigma_walker(_walker_posterior(audit), lvdb_key,
+                                  out_dir / "sigma_los_walker.png"))
     return out
 
 
