@@ -226,6 +226,7 @@ def run_inference(
     nuisance_priors: dict | None = None,
     prior_name: str = "jeffreys",
     fix_r_p_arcmin: bool = False,
+    npool: int = 1,
 ) -> dict:
     """
     Run dynesty on the mock galaxy. Returns a dict with:
@@ -297,18 +298,35 @@ def run_inference(
         ndim = 4
         param_names = ("V", "log10_rs", "log10_rhos", "beta_tilde")
 
-    sampler = dynesty.NestedSampler(
-        loglike,
-        prior_transform,
-        ndim=ndim,
-        nlive=nlive,
-        bound=bound,
-        sample=sample,
-        rstate=np.random.default_rng(rseed),
-    )
-    sampler.run_nested(dlogz=dlogz, print_progress=print_progress)
+    pool = None
+    queue_size = None
+    if npool > 1:
+        # Use `multiprocess` (dill-backed) instead of stdlib `multiprocessing`
+        # because the prior_transform is a local closure inside
+        # `make_*_prior_transform_with_nuisances` and stdlib pickle can't
+        # serialize closures across worker processes.
+        import multiprocess as mp
+        pool = mp.Pool(npool)
+        queue_size = npool
 
-    res = sampler.results
+    try:
+        sampler = dynesty.NestedSampler(
+            loglike,
+            prior_transform,
+            ndim=ndim,
+            nlive=nlive,
+            bound=bound,
+            sample=sample,
+            rstate=np.random.default_rng(rseed),
+            pool=pool,
+            queue_size=queue_size,
+        )
+        sampler.run_nested(dlogz=dlogz, print_progress=print_progress)
+        res = sampler.results
+    finally:
+        if pool is not None:
+            pool.close()
+            pool.join()
     samples = res["samples"]
     logwt = res["logwt"] - res["logz"][-1]  # normalize log weights
     weights = np.exp(logwt)

@@ -142,6 +142,7 @@ def run(lvdb_key: str,
         thin_jd: int = 500,
         thin_profile: int = 300,
         output_base: Path | None = None,
+        npool: int = 1,
         ) -> Path:
     """Run the full pipeline for one galaxy. Returns the output dir."""
     if output_base is None:
@@ -270,7 +271,7 @@ def run(lvdb_key: str,
 
     # ----- Inference -----
     logp(f"\n=== dynesty (7D, prior={prior_name}, nlive={nlive}, "
-         f"dlogz={dlogz}) ===")
+         f"dlogz={dlogz}, npool={npool}) ===")
     t_inf = time.time()
     result = jeans_inference.run_inference(
         galaxy,
@@ -282,6 +283,7 @@ def run(lvdb_key: str,
         marginalize_nuisances=True,
         nuisance_priors=nuisance_priors,
         prior_name=prior_name,
+        npool=npool,
     )
     dt_inf = time.time() - t_inf
     logp(f"  done in {dt_inf:.1f}s")
@@ -499,6 +501,11 @@ def _cli() -> argparse.Namespace:
                    help="Posterior thin for J/D integrals")
     p.add_argument("--output-base", default=None,
                    help="Override results/production")
+    p.add_argument("--npool", type=int, default=1,
+                   help="Multiprocessing pool size for dynesty likelihood "
+                        "evaluations (default 1 = serial). Set to match "
+                        "--cpus-per-task on SLURM. Pool order is non-deterministic, "
+                        "so posterior medians shift at the ~1%% level vs --npool 1.")
     return p.parse_args()
 
 
@@ -518,5 +525,6 @@ if __name__ == "__main__":
         thin_profile=args.thin_profile,
         thin_jd=args.thin_jd,
         output_base=Path(args.output_base) if args.output_base else None,
+        npool=args.npool,
     )
     print(out)

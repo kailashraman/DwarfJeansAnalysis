@@ -6,9 +6,10 @@
 #SBATCH --qos=lr_normal
 #SBATCH --array=0-38
 #SBATCH --ntasks=1
-#SBATCH --cpus-per-task=1
-#SBATCH --mem=4G
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=8G
 #SBATCH --mail-type=NONE
+#SBATCH --exclude=n0150.lr7
 #SBATCH --output=/global/scratch/projects/pc_heptheory/kraman/DwarfJeansAnalysis/logs/slurm-%A_%a.out
 
 # Production driver: one array task per staged catalog in
@@ -28,6 +29,12 @@
 #       memory) as the full sweep.
 #
 # Adjust --array=0-38 if the catalog count changes (currently 39).
+#
+# Each task allocates --cpus-per-task=8 and the per-task body passes
+# --npool=$SLURM_CPUS_PER_TASK to dynesty so the pool size auto-syncs
+# with the SLURM allocation. Sized for the slowest classical (Draco-class):
+# pool=8 expected to give ~4-4.5× wall reduction on those, ~3× on UFDs.
+# Total array demand: 39 × 8 = 312 cores; lr7 should schedule in parallel.
 
 set -euo pipefail
 cd /global/scratch/projects/pc_heptheory/kraman/DwarfJeansAnalysis
@@ -64,13 +71,21 @@ fi
 # -----------------------------------------------------------------------------
 # Per-task body — runs inside each SLURM array task.
 # -----------------------------------------------------------------------------
+# Sourcing ~/.bashrc and conda init both trip `set -eu`:
+#   -u: /etc/bashrc references $PS1 (unset in batch shell)
+#   -e: ~/.bashrc runs `test -f X` for optional group bashrcs that may not
+#       exist; the test's exit-1 propagates and kills the script.
+# Disable both around the conda init, then re-enable.
+set +eu
 source ~/.bashrc
 conda deactivate 2>/dev/null || true
 conda activate DwarfJeans
+set -eu
 
 mapfile -t KEYS < <(ls data/star_catalogs/*.npz | xargs -n1 basename | sed 's/.npz$//' | sort)
 KEY="${KEYS[$SLURM_ARRAY_TASK_ID]}"
-echo "Task $SLURM_ARRAY_TASK_ID: lvdb_key=$KEY"
+NPOOL="${SLURM_CPUS_PER_TASK:-1}"
+echo "Task $SLURM_ARRAY_TASK_ID: lvdb_key=$KEY  npool=$NPOOL"
 
 OUT_BASE="results/production/_slurm_${SLURM_ARRAY_JOB_ID}/_runs"
 mkdir -p "$OUT_BASE"
@@ -80,4 +95,5 @@ python scripts/run_production.py \
     --prior jeffreys \
     --nlive 500 \
     --dlogz 0.1 \
+    --npool "$NPOOL" \
     --output-base "$OUT_BASE"
