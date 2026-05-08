@@ -433,6 +433,52 @@ column.  Setting \code{sigma\_sys\_kms > 0} would double-count.  All
 handlers retain \code{p\_threshold = 0.01}; only \code{chiti2023}
 populates a non-empty \code{zero\_point\_offsets\_kms} mapping.
 
+\subsection{Star selection}
+\label{sec:stage0b-selection}
+
+Per-star catalogs from Stages~0b are reduced to the kinematic sample
+fed to Stage~1 by \code{select\_jeans\_stars} in
+\code{src/dwarfjeans/jeans/selection.py}, called automatically by
+\code{prepare\_jeans\_input}.  Three cuts are applied in order:
+
+\begin{enumerate}
+  \item \textbf{Membership}: $p_i > p_\mathrm{min}$ (default
+        $p_\mathrm{min} = 0.5$).  For Path~A, $p_i$ is the binary
+        \code{Pmem-novar} from Paper~I (1 = member with velocity
+        variables already removed, 0 otherwise).  For Path~B,
+        $p_i$ is the per-paper adapter's published value.  Catalogs
+        whose $p$ is uniformly~1 (already hard-cut upstream) skip
+        the cut.
+  \item \textbf{Radial}:
+        $R_i < r_\mathrm{cut} \equiv 2 \, r_{1/2,\mathrm{maj}}\,
+        \sqrt{1 - \varepsilon}\, \cdot 4/3$, the sphericalised 3D
+        Plummer half-mass radius scaled by 2.  This convention is
+        empirically tuned to reproduce Paper~II Table~A1 N\* across
+        the Path~A sample (17/22 galaxies within $\pm 2$ stars; the
+        five outliers — Leo~I, Leo~II, Sextans, Ursa~Minor, Hercules
+        — differ by $\le 26$ stars and trace to \code{Pmem-novar}
+        snapshot drift, not to the cut definition).  For galaxies
+        with no published ellipticity (\code{ellipticity\_missing =
+        True}), $\varepsilon = 0$ is used and the missing-flag is
+        recorded in the audit.  The constant $4/3$ is the
+        conventional round approximation to the Plummer 3D/2D ratio
+        and is kept distinct from the exact $1.30477$ used by the
+        derived $M_{1/2,\mathrm{3D}}$ chain (Section~\ref{sec:stage3});
+        the $\sim$2.2\% discrepancy reflects the empirical, not
+        analytical, basis of the cut.
+  \item \textbf{Variability}: drop velocity-variable stars
+        (\code{var\_flag = True} or \code{Var = 1.0}).  For Path~A
+        the variability removal is already folded into
+        \code{Pmem-novar} upstream, so this cut is a no-op
+        (defensive belt-and-braces).
+\end{enumerate}
+
+The selection report (audited per-galaxy in \code{audit.json}) records
+\code{n\_input}, \code{n\_after\_p}, \code{n\_after\_R},
+\code{n\_after\_var}, \code{n\_final}, \code{rhalf\_major\_pc},
+\code{ellipticity}, \code{ellipticity\_missing},
+\code{rhalf\_sph\_3d\_pc}, and \code{R\_max\_kpc}.
+
 % ===================================================================
 \section{Stage 1: Spherical Jeans inference}
 \label{sec:stage1}

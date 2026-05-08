@@ -190,7 +190,7 @@ def run(lvdb_key: str,
     cat = np.load(catalog_path, allow_pickle=True)
     arrays, audit = prepare_jeans_input(
         cat,
-        {"rhalf_major_pc": rhalf_major_pc},
+        row,
         selection_policy=SelectionPolicy(
             p_min=p_min,
             R_over_rhalf_max=rmax_over_rhalf,
