@@ -84,7 +84,31 @@ def test_jeans_projection():
     print("  PASS")
 
 
+def test_jeans_projection_default_grid():
+    # Production code calls Sigma_sigma_los2_grid with no explicit n_inner/n_outer,
+    # so its accuracy floor depends on whatever the default args happen to be.
+    # Without this check, halving the defaults would silently degrade absolute
+    # accuracy with no CI signal. Gate at 5e-3 — half the gold-standard 1e-2 —
+    # so any future default change that erodes accuracy below ~0.5% trips here.
+    print("\n[Quad-check 3] Sigma_sigma_los2_grid (default args) vs Sigma_sigma_los2_quad")
+    print(f"  {'label':<20} {'max rel err':>12} {'R at max err':>14}")
+    worst_err_overall = 0.0
+    for label, r_s, rho_s, r_p, beta in PARAM_GRID:
+        R_test = np.geomspace(0.01 * r_p, 5.0 * r_p, 5)
+        ref = jeans.Sigma_sigma_los2_quad(R_test, beta, r_s, rho_s, r_p)
+        fast = jeans.Sigma_sigma_los2_grid(R_test, beta, r_s, rho_s, r_p)
+        rel_err = np.abs(fast - ref) / np.abs(ref)
+        i_worst = np.argmax(rel_err)
+        max_err = rel_err[i_worst]
+        worst_err_overall = max(worst_err_overall, max_err)
+        print(f"  {label:<20} {max_err:>12.3e} {R_test[i_worst]:>14.3e}")
+    print(f"  worst rel err overall: {worst_err_overall:.3e}")
+    assert worst_err_overall < 5e-3, "default-grid projection disagrees with quad"
+    print("  PASS")
+
+
 if __name__ == "__main__":
     test_jeans_inner()
     test_jeans_projection()
+    test_jeans_projection_default_grid()
     print("\nAll quad cross-checks passed.")

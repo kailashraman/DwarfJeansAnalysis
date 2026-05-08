@@ -306,23 +306,20 @@ def Sigma_sigma_los2_grid(
     r_tab = np.exp(log_r_tab)
     nsr2_tab = nu_sigma_r2_grid(r_tab, beta, r_s, rho_s, r_p, n_grid=n_inner, s_inf=s_inf)
 
-    # Step 2: log-spaced u-grid per R, vectorized.
-    # The grid has to be R-dependent because the integrand's characteristic
-    # u-scale is ~R (at small u) blending into ~r_p, ~r_s further out.
+    # Step 2: log-spaced u-grid per R, fully vectorized over R.
+    # Per-R u-grid: u in [0, u_max], logarithmically spaced for u > 0
+    # plus an explicit 0 at the start. u_min depends on R (=1e-4·R) so the
+    # u-grid is a 2D (n_R, n_outer) array.
     u_max = 100.0 * max(r_s, r_p)
-    out = np.empty_like(R)
-    # Per-R u-grid: u in [0, u_max], logarithmically spaced for u > 0,
-    # plus an explicit 0 at the start.
-    for i, Ri in enumerate(R):
-        u_min = 1e-4 * Ri
-        log_u = np.linspace(np.log(u_min), np.log(u_max), n_outer - 1)
-        u = np.concatenate([[0.0], np.exp(log_u)])
-        r_of_u = np.sqrt(Ri ** 2 + u ** 2)
-        nsr2_at = np.interp(np.log(np.clip(r_of_u, s_min, s_inf)),
-                             log_r_tab, nsr2_tab)
-        integrand = (1.0 - beta * Ri ** 2 / r_of_u ** 2) * nsr2_at
-        out[i] = 2.0 * np.trapezoid(integrand, u)
-    return out
+    log_u_min = np.log(1e-4 * R)[:, None]                          # (n_R, 1)
+    frac = np.linspace(0.0, 1.0, n_outer - 1)[None, :]              # (1, n_outer-1)
+    log_u = log_u_min + frac * (np.log(u_max) - log_u_min)          # (n_R, n_outer-1)
+    u = np.concatenate([np.zeros((R.size, 1)), np.exp(log_u)], axis=1)  # (n_R, n_outer)
+    r_of_u = np.sqrt(R[:, None] ** 2 + u ** 2)                      # (n_R, n_outer)
+    log_r_of_u = np.log(np.clip(r_of_u, s_min, s_inf))
+    nsr2_at = np.interp(log_r_of_u.ravel(), log_r_tab, nsr2_tab).reshape(r_of_u.shape)
+    integrand = (1.0 - beta * R[:, None] ** 2 / r_of_u ** 2) * nsr2_at
+    return 2.0 * np.trapezoid(integrand, u, axis=1)
 
 
 # ----------------------------------------------------------------------------
@@ -402,22 +399,21 @@ def Sigma_sigma_los2_grid_pair(
     nsr2_g_tab = np.exp(log_I_g - 2.0 * beta * log_s)
     nsr2_h_tab = np.exp(log_I_h - 2.0 * beta * log_s)
 
-    # Shared per-R u-grid; two interps + two trapezoids per R.
+    # Shared per-R u-grid, fully vectorized over R; two interps + two trapezoids.
     log_r_tab = log_s
     u_max = 100.0 * max(r_s, r_p)
-    P_arr = np.empty_like(R)
-    Q_arr = np.empty_like(R)
-    for i, Ri in enumerate(R):
-        u_min = 1e-4 * Ri
-        log_u = np.linspace(np.log(u_min), np.log(u_max), n_outer - 1)
-        u = np.concatenate([[0.0], np.exp(log_u)])
-        r_of_u = np.sqrt(Ri ** 2 + u ** 2)
-        log_r_of_u = np.log(np.clip(r_of_u, s_min, s_inf))
-        nsr2_g_at = np.interp(log_r_of_u, log_r_tab, nsr2_g_tab)
-        nsr2_h_at = np.interp(log_r_of_u, log_r_tab, nsr2_h_tab)
-        kernel = 1.0 - beta * Ri ** 2 / r_of_u ** 2
-        P_arr[i] = 2.0 * np.trapezoid(kernel * nsr2_g_at, u)
-        Q_arr[i] = 2.0 * np.trapezoid(kernel * nsr2_h_at, u)
+    log_u_min = np.log(1e-4 * R)[:, None]                          # (n_R, 1)
+    frac = np.linspace(0.0, 1.0, n_outer - 1)[None, :]              # (1, n_outer-1)
+    log_u = log_u_min + frac * (np.log(u_max) - log_u_min)          # (n_R, n_outer-1)
+    u = np.concatenate([np.zeros((R.size, 1)), np.exp(log_u)], axis=1)
+    r_of_u = np.sqrt(R[:, None] ** 2 + u ** 2)
+    log_r_of_u = np.log(np.clip(r_of_u, s_min, s_inf))
+    flat = log_r_of_u.ravel()
+    nsr2_g_at = np.interp(flat, log_r_tab, nsr2_g_tab).reshape(r_of_u.shape)
+    nsr2_h_at = np.interp(flat, log_r_tab, nsr2_h_tab).reshape(r_of_u.shape)
+    kernel = 1.0 - beta * R[:, None] ** 2 / r_of_u ** 2
+    P_arr = 2.0 * np.trapezoid(kernel * nsr2_g_at, u, axis=1)
+    Q_arr = 2.0 * np.trapezoid(kernel * nsr2_h_at, u, axis=1)
     return P_arr, Q_arr
 
 
