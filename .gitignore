@@ -54,3 +54,6 @@ chains/
 # Claude Code local state
 .claude/
 
+# SLURM logs and per-run keyfiles
+logs/
+
