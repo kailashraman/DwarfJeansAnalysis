@@ -213,25 +213,35 @@ follows; column-by-column provenance is in
 The 22 Path~A galaxies are ingested from the homogeneous Keck/DEIMOS
 spectroscopic census of Geha et~al.\ (2026, Papers~I/II).  The driver
 is \code{src/dwarfjeans/ingest/stage0b\_geha.py}; it reads the
-pre-staged master table \code{data/geha2026/table3A\_20260110.csv},
-filters per-galaxy slices by the \code{Galaxy} column (matched to the
-registry field \code{geha\_galaxy}), and writes one
-\code{data/star\_catalogs/<lvdb\_key>.npz} archive per galaxy.
+pre-staged full-precision per-star catalog
+\code{data/geha2026/table5A\_20260110.csv} (Paper~I,
+24,436 rows $\times$ 50 columns), filters per-galaxy slices by the
+\code{system\_name} column (matched to the registry field
+\code{geha\_galaxy}), and writes one
+\code{data/star\_catalogs/<lvdb\_key>.npz} archive per galaxy.  Table 5A
+is the authoritative source as of 2026-05-08 because it carries the
+binary \code{Pmem\_novar} column (1 = member with velocity variables
+already removed; 0 = non-member or variable) used by Paper~II~\S3.1 to
+compute the Table~A1 N\* counts.  The legacy
+\code{table3A\_20260110.csv} release exposes only a graded \code{Pmem}
+and a separate \code{Var} flag; combining them as
+$\mathrm{Pmem}>0.5\,\&\,\mathrm{Var}\neq 1$ does not exactly reproduce
+Paper~II's N\*.
 
 \paragraph{Output schema.}
 Every Path~A archive carries the canonical columns required by the
 downstream Jeans inference: \code{V} and \code{sigma\_eps}
 (heliocentric line-of-sight velocity and 1$\sigma$ error in $\kms$,
-mapped from \code{v} and \code{verr}); \code{p} (membership
-probability, copied verbatim from \code{Pmem}; NaN entries receive
-$p_i = 1$ by the framework's missing-probability default); \code{R}
+mapped from \code{v} and \code{v\_err}); \code{p} (binary 0/1
+membership flag, copied verbatim from \code{Pmem\_novar}); \code{R}
 (projected physical radius in kpc, computed via
 \code{staging.projected\_radius\_kpc}); \code{star\_id} (zero-based
 contiguous integer per galaxy, with per-star uniqueness verified);
 and \code{RA\_star}, \code{Dec\_star}.  Auxiliary columns retained
-verbatim include \code{FeH}, \code{FeH\_err}, \code{Var}, \code{r\_mag},
-\code{gr}, \code{nmask}, \code{t\_exp}, \code{SN}, \code{CaT},
-\code{CaTerr}.  Stage~0b is raw-data-only: membership thresholding
+verbatim include \code{FeH}, \code{FeH\_err}, \code{Var}
+(from \code{flag\_var}), \code{Pmem} (the graded probability, kept
+for cross-checks), \code{g\_mag}, \code{r\_mag}, \code{MV},
+\code{nmask}, \code{t\_exp}, \code{SN}, \code{CaT}, \code{CaTerr}.  Stage~0b is raw-data-only: membership thresholding
 and aperture cuts are deferred to a downstream selection stage.
 
 \subsection{Path B: per-paper adapters}
@@ -1174,8 +1184,10 @@ Simon~et~al.\ (2011) VizieR catalog with $B_\mathrm{pr}>0.8$
 (\code{simon}); the Pace pre-combined Bayes file with $p\ge 0.8$
 (\code{pace}); and the Geha~et~al.\ (2026) catalog staged through
 the production \code{prepare\_jeans\_input} pipeline with
-$p_\mathrm{mem}>0.5$, $R<2\,r_{1/2,\mathrm{maj}}$, and variable
-stars removed (\code{geha}).  For \code{simon} / \code{pace},
+$p_\mathrm{mem,novar}=1$ and the
+$R<2\,r_{1/2,\mathrm{maj}}\,\sqrt{1-\varepsilon}\,(4/3)$
+sphericalised-3D-Plummer cut (\code{geha}); the variability removal is
+already folded into $p_\mathrm{mem,novar}$ upstream in Paper~I.  For \code{simon} / \code{pace},
 nuisance priors follow P\&S~2018: $d=23\pm 2\,\kpc$,
 $r_{1/2,\mathrm{2D}}=21\pm 5\,\mathrm{pc}$
 ($r_h=4.31\pm 1.03\,\mathrm{arcmin}$ with $\varepsilon=0.47\pm 0.11$).

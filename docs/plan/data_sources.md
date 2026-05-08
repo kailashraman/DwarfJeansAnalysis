@@ -11,7 +11,9 @@ The Plummer scale radius `r_p` for Stage 2's tracer model is **not** fit by us f
 
 | Date | Change |
 |---|---|
-| 2026-05-05 | Reconciled with on-disk data: (a) Geha Path A `p_i ← Pmem` (the `Pmem_novar` column does not exist in `table3A_20260110.csv`; `Var` is carried as auxiliary). (b) LVDB v1.0.5 has no `spatial_model` column; profile flag now sourced from a hand-curated `src/dwarfjeans/ingest/config/spatial_model_overrides.yaml`. |
+| 2026-05-08 | Stage 0b Path A swapped from `table3A_20260110.csv` to `table5A_20260110.csv` (Paper I full-precision per-star release; carries the binary `Pmem_novar` column absent from `table3A`). `p_i ← Pmem_novar`. Combined with the `R < 2·r_½ · √(1−ε) · 4/3` selection cut (sphericalized 3D Plummer half-mass radius), this reproduces Paper II Table A1 N\* to within ±2 stars for **17 of 22** Path A galaxies (Draco residual: −2 stars vs. previous +94; 5 outliers — Leo I +15, Leo II +26, Sextans +7, UMi −9, Herc −5 — trace to `Pmem_novar` snapshot drift, not the cut convention). |
+| 2026-05-08 | `dwarfjeans.jeans.selection.select_jeans_stars` radial cut redefined: from `R < 2·rhalf_major_pc` to `R < 2·rhalf_major_pc·√(1−ε)·(4/3)`. The new convention reproduces Paper II §3.1's stated `2·r_½` cut where `r_½` is the sphericalized 3D Plummer half-mass radius. |
+| 2026-05-05 | Reconciled with on-disk data: (a) Geha Path A `p_i ← Pmem` (the `Pmem_novar` column does not exist in `table3A_20260110.csv`; `Var` is carried as auxiliary). **Superseded 2026-05-08** when the MRT release was added. (b) LVDB v1.0.5 has no `spatial_model` column; profile flag now sourced from a hand-curated `src/dwarfjeans/ingest/config/spatial_model_overrides.yaml`. |
 | 2026-05-05 | Clarified the **missing-probability default**: `p_i = 1` applies only to papers that *publish a member list* and let null mean "implicit member." For papers that publish every observed star with a *continuous* classification (e.g., Koposov 2018's `logodds` column for Hydrus I), a null/masked probability means "fit failed" rather than "implicit member"; per-paper adapters in this case set `p_i = 0` for the masked rows and override the global default. The override decision is recorded in the per-paper adapter's `notes` and in the per-galaxy `_meta` `membership_rule` field. |
 
 ---
@@ -303,7 +305,11 @@ The ingest stance, consistent with the raw-data-only rule:
 
 ### Path A — Geha DEIMOS ingest
 
-**Source:** Geha et al. (2026) Paper I, Table 3A — one row per unique star observed with DEIMOS, 22,339 rows total across 78 systems. Available as CSV and FITS from the [Geha Group DEIMOS page](https://geha-group.github.io/deimos/) (Dropbox-hosted, links current as of 2026-01-10 release stamp `20260110`).
+**Source (current, 2026-05-08):** Geha et al. (2026) Paper I, full-precision per-star CSV `table5A_20260110.csv` — one row per unique star observed with DEIMOS, 24,436 rows × 50 columns. **Carries the binary `Pmem_novar` column** (velocity variables already removed); this is the `p` source for Stage 0b.
+
+**Source (legacy, no longer ingested):** `table3A_20260110.csv` — earlier Paper I release at the Geha Group DEIMOS page (Dropbox, release stamp `20260110`). 22,339 rows × 16 columns. Lacks `Pmem_novar`. Combining the released `Pmem` and `Var` as `Pmem > 0.5 & Var != 1` does not exactly reproduce Paper II Table A1 N\*. Retained for cross-checks.
+
+The Stage 0b ingest filters by the `system_name` column (matched to the registry's `geha_galaxy`) and maps source columns to canonical names: `v → V`, `v_err → sigma_eps`, `Pmem_novar → p`, `RA → RA_star`, `DEC → Dec_star`. Staging policy, no-cuts-at-ingest invariant, and `_meta` provenance dict are unchanged. See `src/dwarfjeans/ingest/stage0b_geha.py`.
 
 **Staging:** Geha Table 3A already lives somewhere in this repository from prior Paper II work. As part of Stage 0b setup, copy the source file(s) into `data/geha2026/` per the [Data staging conventions](#data-staging-conventions) above, write `PROVENANCE.md` (recording the original repo location of the source file and the Geha Group page as the upstream URL), and generate `checksums.sha256`. The Stage 0b ingest reads from `data/geha2026/table3A_20260110.csv` (or the `.fits` equivalent), never from the original repo location. If `data/geha2026/` is missing or its checksums fail, fail loudly with a message pointing to the staging step and the Geha Group URL — do not auto-fetch from Dropbox at runtime, both because the Dropbox URL contains a session token (`rlkey=...&st=...`) that may expire, and because this would violate the "stage once, version-pin, never re-fetch" pattern.
 
