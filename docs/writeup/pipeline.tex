@@ -187,9 +187,20 @@ follows; column-by-column provenance is in
         \code{vlos\_sigma\_unresolved} flag.  The LVDB
         $\sigma_\mathrm{los}$ value is metadata only; it does not
         enter the Jeans likelihood.
-  \item \textbf{Photometry / provenance}: \code{M\_V}, \code{ref\_vlos},
-        \code{ref\_structure} (NASA ADS bibcodes for the LVDB
-        kinematic and structural references).
+  \item \textbf{Photometry}: \code{M\_V}.
+  \item \textbf{LVDB provenance}: \code{ref\_vlos},
+        \code{ref\_structure} --- NASA ADS bibcodes for the LVDB
+        historical kinematic and structural references.  These are
+        pedigree fields and are \emph{not} guaranteed to identify the
+        catalog actually consumed by our analysis.
+  \item \textbf{Analysis source}: \code{data\_source\_paper} ---
+        bibcode of the paper whose per-star catalog is loaded into
+        \code{data/star\_catalogs/<lvdb\_key>.npz}.  For Path~A this
+        is \code{Geha2026arXiv260210200G} regardless of LVDB's
+        \code{ref\_vlos}; for Path~B this matches \code{ref\_vlos}
+        (the adapter dispatch key).  Downstream code, writeup
+        citations, and comparisons against published work should use
+        this column, not \code{ref\_vlos}.
 \end{itemize}
 
 % ===================================================================

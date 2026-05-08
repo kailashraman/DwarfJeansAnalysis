@@ -162,6 +162,8 @@ For each galaxy the registry stores, with provenance:
 - `r_half_2d_pc_err` — derived diagnostic only, not used in the likelihood
 - `plummer_radius_pc` — `r_p`, derived from LVDB structural parameters via per-profile conversion (`r_p = r_1/2` for Plummer fits, `r_p = 1.68 × r_exponential` for exponential fits, etc. — see Half-Light Radius Handling)
 - `spatial_model` — string flag, sourced from `src/dwarfjeans/ingest/config/spatial_model_overrides.yaml` (LVDB v1.0.5 has no native column); kept as metadata for the Plummer-fit consistency check
+- `ref_vlos`, `ref_structure` — LVDB historical pedigree bibcodes. Pure provenance; not guaranteed to identify the catalog actually consumed by the analysis (see next item).
+- `data_source_paper` — bibcode of the paper whose per-star catalog is loaded into `data/star_catalogs/<lvdb_key>.npz`. Path A → `Geha2026arXiv260210200G` (the LVDB `ref_vlos` is *not* the analysis source for Path A galaxies, even when it points to a recent paper such as Bruce+2023 or Heiger+2024). Path B → matches `ref_vlos` (the adapter dispatch key). Use this column for downstream citations and comparisons against published work.
 
 The 3D half-light radius is **not** stored; it's computed at the call site whenever needed (and the call site always passes through a profile-aware factor explicitly).
 

@@ -237,6 +237,14 @@ def build_registry() -> Table:
             "M_V": float(r["M_V"]) if pd.notna(r["M_V"]) else math.nan,
             "ref_vlos": str(r["ref_vlos"]) if pd.notna(r["ref_vlos"]) else "",
             "ref_structure": str(r["ref_structure"]) if pd.notna(r["ref_structure"]) else "",
+            # Analysis-source paper for the per-star kinematic catalog actually
+            # ingested into data/star_catalogs/<lvdb_key>.npz. For Path A this
+            # is Geha+2026 regardless of LVDB's historical ref_vlos; for Path B
+            # it is the same paper as ref_vlos (the adapter dispatch key).
+            "data_source_paper": (
+                "Geha2026arXiv260210200G" if meta["path"] == "A"
+                else (str(r["ref_vlos"]) if pd.notna(r["ref_vlos"]) else "")
+            ),
         })
         log_lines.append(
             f"{key}: host_chain={'->'.join(host_chains[key])}, profile={profile}, "
