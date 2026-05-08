@@ -77,6 +77,7 @@ Delegate mock runs: **worker** to set up and execute, **test-runner** for the ru
 - Before pushing: run tests via test-runner and confirm the working tree is clean.
 - Commit messages explain *why*, not just *what*. Reference issue numbers where applicable.
 - Pipeline changes and the LaTeX writeup (below) must land in the same commit or PR.
+- Never `git push`. Stage and commit locally, then surface that the branch is ready to push — the user runs `git push`.
 ## Pipeline documentation (LaTeX)
  
 Maintain a running `.tex` source and compiled PDF in the repo describing the pipeline and tests **as implemented**. Update whenever the pipeline changes.
