@@ -52,11 +52,13 @@ r_half_3d_t = float(truth["r_half_3d"])
 log_M3_t = float(truth["log10_M_half_3d"])
 log_M2_t = float(truth["log10_M_half_2d"])
 
-# Geometry from JD summary
-with open(OUT_DIR / "ufd_asimov_jd.json") as f:
-    jd_sum = json.load(f)
-d_kpc = float(jd_sum["d_kpc"])
-r_t = float(jd_sum["r_t_kpc"])
+# JD geometry — Stage 2 MC convention (synthetic data carries no host
+# distance or 3D position to drive a Springel+08 r_t). The historical
+# ufd_asimov_jd.json (produced by the now-removed run_jd_summary.py)
+# carried the same defaults; we set them inline so analyze_asimov.py is
+# self-contained against the current pipeline.
+d_kpc = 30.0
+r_t = 1.0
 alpha_c = jd.alpha_c_radians(r_half_3d_t, d_kpc)
 
 print("=" * 70)

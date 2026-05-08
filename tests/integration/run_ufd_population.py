@@ -27,6 +27,7 @@ from scipy import stats
 
 from dwarfjeans.mocks import galaxy as mock_galaxy
 from dwarfjeans.jeans import inference as jeans_inference
+from dwarfjeans.jeans import solver as jeans
 
 
 # -- Configuration -----------------------------------------------------------
@@ -43,14 +44,23 @@ from pathlib import Path
 OUT_DIR = str(Path(__file__).resolve().parents[2] / "results" / "tests" / "ufd_population")
 TABLE_PATH = os.path.join(OUT_DIR, "ufd_pop_table.json")
 
-PARAM_KEYS = ("V", "log10_rs", "log10_rhos", "beta_tilde", "log10_rhos_rs3")
-# Truth values for each derived parameter, computed once from TRUTH:
+PARAM_KEYS = ("V", "log10_rs", "log10_rhos", "beta_tilde", "log10_rhos_rs3",
+              "log10_M_half_2d", "log10_M_half_3d")
+# Truth values for each derived parameter, computed once from TRUTH.
+# M_half truth is computed via the same NFW analytic mass profile that
+# enters the likelihood (matches mock_galaxy's truth dict).
+_g = lambda x: np.log(1 + x) - x / (1 + x)  # NFW g(x)
+_R_half_2d_truth = TRUTH["r_p"]              # Plummer 2D r_½ = r_p
+_r_half_3d_truth = 1.30477 * TRUTH["r_p"]    # Plummer 3D r_½
+_M_norm = 4 * np.pi * TRUTH["rho_s"] * TRUTH["r_s"] ** 3
 TRUTH_VALS = {
     "V": TRUTH["V_sys"],
     "log10_rs": float(np.log10(TRUTH["r_s"])),
     "log10_rhos": float(np.log10(TRUTH["rho_s"])),
     "beta_tilde": TRUTH["beta"] / (2.0 - TRUTH["beta"]),
     "log10_rhos_rs3": float(np.log10(TRUTH["rho_s"] * TRUTH["r_s"] ** 3)),
+    "log10_M_half_2d": float(np.log10(_M_norm * _g(_R_half_2d_truth / TRUTH["r_s"]))),
+    "log10_M_half_3d": float(np.log10(_M_norm * _g(_r_half_3d_truth / TRUTH["r_s"]))),
 }
 
 
@@ -257,9 +267,15 @@ def population_diagnostics(rows: list[dict]) -> dict:
             d = np.load(os.path.join(OUT_DIR, f"compact_ufd_seed{seed}.npz"))
             samples = d["samples_eq"]
             V, lr, lp, bt = samples.T
+            r_s_chain = 10.0 ** lr
+            rho_s_chain = 10.0 ** lp
+            R_half_2d_truth = TRUTH["r_p"]
+            r_half_3d_truth = 1.30477 * TRUTH["r_p"]
             chain = {
                 "V": V, "log10_rs": lr, "log10_rhos": lp, "beta_tilde": bt,
                 "log10_rhos_rs3": lp + 3.0 * lr,
+                "log10_M_half_2d": np.log10(jeans.nfw_M(R_half_2d_truth, r_s_chain, rho_s_chain)),
+                "log10_M_half_3d": np.log10(jeans.nfw_M(r_half_3d_truth, r_s_chain, rho_s_chain)),
             }[k]
             q2p5, q97p5 = np.percentile(chain, [2.5, 97.5])
             t = r["summary"][k]["truth"]
@@ -316,7 +332,7 @@ def print_asimov_summary(r: dict) -> None:
     print()
     print(f"  {'param':<22} {'truth':>12} {'median':>12} {'σ_lo':>8} {'σ_hi':>8} "
           f"{'med-truth':>11}  notes")
-    for k in PARAM_KEYS + ("log10_M_half_2d", "log10_M_half_3d"):
+    for k in PARAM_KEYS:
         e = s[k]
         bias = e["median"] - e["truth"]
         prior_only = e.get("prior_only", False)

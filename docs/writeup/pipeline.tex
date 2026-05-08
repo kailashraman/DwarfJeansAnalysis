@@ -793,25 +793,54 @@ $\theta\in\{\bar V,\,\log_{10} r_s,\,\log_{10}\rho_s,\,\tilde\beta,\,
   \item mean $z$, std$(z)$, and median bias.
 \end{itemize}
 
-\paragraph{Calibration results.}
-The well-constrained derived quantity is $M(r_{1/2,\mathrm{3D}})$:
-mean posterior width $\langle\sigma\rangle\approx 0.15$~dex, median
-bias $<0.01$~dex, $\mathrm{std}(z)\approx 1.1$, and KS $p\approx 0.7$.
-No realisation has $|z|>2.3$ on any halo or mass quantity.  The
-individual halo parameters $\log_{10} r_s$, $\log_{10}\rho_s$, and
-$\log_{10}(\rho_s r_s^3)$ have $1\sigma$ widths of $\sim 0.9$, $1.2$,
-and $1.5$~dex respectively; in the small-$x$ NFW regime relevant for
-this UFD configuration ($r_{1/2}/r_s\approx 0.2$), the enclosed mass
-scales as $M\propto\rho_s r_s r^2$, so $\rho_s r_s^3$ is not the
-well-constrained combination.
+\paragraph{Calibration results (Jeffreys prior, current default).}
+The 15-realisation MC was rerun with \code{prior\_name="jeffreys"} to
+match the production default (\code{run\_ufd\_population.py}). Per-parameter
+diagnostics:
+
+\begin{center}
+\begin{tabular}{lrrrrrr}
+\hline
+Parameter & mean$(z)$ & std$(z)$ & med.\ bias & cov$_{68\%}$ & cov$_{95\%}$ & KS $p$ \\
+\hline
+$\bar V$                  & $-0.08$ & $0.93$ & $-0.08$ & $87\%$ & $93\%$  & $0.75$ \\
+$\log_{10} r_s$           & $+0.72$ & $0.60$ & $-0.65$ & $60\%$ & $100\%$ & $0.0002$ \\
+$\log_{10}\rho_s$         & $-0.77$ & $0.63$ & $+1.10$ & $60\%$ & $100\%$ & $0.0003$ \\
+$\tilde\beta$             & $+0.17$ & $0.81$ & $+0.00$ & $87\%$ & $100\%$ & $0.73$ \\
+$\log_{10}(\rho_s r_s^3)$ & $+0.65$ & $0.56$ & $-0.86$ & $67\%$ & $100\%$ & $0.0002$ \\
+$\log_{10} M(r_{1/2,2\mathrm{D}})$ & $-0.83$ & $0.82$ & $+0.13$ & $53\%$ & $100\%$ & $0.013$ \\
+$\log_{10} M(r_{1/2,3\mathrm{D}})$ & $-0.61$ & $0.79$ & $+0.07$ & $60\%$ & $100\%$ & $0.071$ \\
+\hline
+\end{tabular}
+\end{center}
+
+The well-constrained derived quantity remains $M(r_{1/2,\mathrm{3D}})$
+(typical $1\sigma$ width $\approx 0.12$~dex, smaller than the
+loguniform value of $0.15$~dex), but under Jeffreys it picks up a
+$\sim 0.07$~dex high-side median bias and a tighter-than-nominal
+$z$-distribution ($\mathrm{std}(z) = 0.79$, $\mathrm{cov}_{68\%}=60\%$,
+KS $p=0.07$). The individual halo parameters $\log_{10} r_s$,
+$\log_{10}\rho_s$, $\log_{10}(\rho_s r_s^3)$ are now meaningfully
+biased ($|\mathrm{med.\ bias}| = 0.6$--$1.1$~dex) with strongly
+non-normal $z$-distributions (KS $p < 10^{-3}$).
+
+This is a marked departure from the historical loguniform-prior
+result, where $M(r_{1/2,\mathrm{3D}})$ was recovered with median bias
+$<0.01$~dex, $\mathrm{std}(z)\approx 1.1$, and KS $p\approx 0.7$. The
+Jeffreys term shifts the joint posterior peak toward higher
+$\rho_s$ / lower $r_s$ in the small-$x$ NFW regime relevant for
+UFDs ($r_{1/2}/r_s\approx 0.2$), where the data only constrain the
+enclosed-mass combination $M \propto \rho_s r_s r^2$. The inflated
+peak shifts $M(r_{1/2})$ slightly high and tightens the marginal
+posterior beyond the realisation-to-realisation spread, producing
+the observed under-dispersion.
 
 \paragraph{Prior note.}
-The 15-realisation MC was run with log-flat priors;
-\code{run\_ufd\_population.py} pins
-\code{prior\_name="loguniform"} for reproducibility.  The
-conditional Jeffreys prior introduced for the production analysis
-has not yet been validated through this MC; the Jeffreys-prior
-rerun is pending (\code{docs/plan/stage2.md}).
+The 15-realisation MC is now run under the production prior
+(\code{prior\_name="jeffreys"}) to keep the calibration aligned with
+production. The historical log-flat numbers (median bias $<0.01$~dex,
+$\mathrm{std}(z)\approx 1.1$, KS $p\approx 0.7$) remain accessible by
+overriding to \code{prior\_name="loguniform"}.
 
 % ===================================================================
 \section{Stage 3: $J$- and $D$-factor extraction}
@@ -910,14 +939,22 @@ $q_{16}/q_{84}$ + 1D-KDE MAP.
 The 15 mocks of Section~\ref{sec:stage2:mc} are pushed through $J/D$
 with $d=30\,\kpc$ and $r_t=1\,\kpc$ held at truth (synthetic data
 carry no host-orbit information for a Springel~et~al.\ 2008 $r_t$).
-\textbf{$D$-factor recovery is clean} at all four angles: median bias
-$\le 0.03$~dex, std$(z)\le 1.15$, $\max|z|\approx 2.1$, KS $p\in[0.37,0.79]$,
-mean $1\sigma$ posterior widths $0.15$--$0.36$~dex.
-\textbf{$J$-factor recovery} is unbiased at the $\sim 0.1$~dex level
-with std$(z)\le 1.18$, $\max|z|\approx 2.3$, and a small
-population-level high-side median bias of $+0.08$ to $+0.12$~dex.
-The bias is a property of chain-median estimation on a curved
-posterior ridge, not a procedure error; this is demonstrated below.
+
+\emph{Population-level J/D diagnostics are pending under the
+Jeffreys-prior MC.} The historical numbers below were produced by the
+former \code{run\_jd\_summary.py} tool under the loguniform prior; the
+current \code{run\_ufd\_population.py} computes the halo recovery only.
+Reinstating per-realisation J/D summaries (via a \code{summarize\_jd}
+call inside the MC loop, writing \code{ufd\_pop\_jd\_diagnostics.json})
+is a follow-up. Historical loguniform numbers, retained as a baseline:
+\textbf{$D$-factor recovery was clean} at all four angles (median
+bias $\le 0.03$~dex, std$(z)\le 1.15$, $\max|z|\approx 2.1$, KS
+$p\in[0.37,0.79]$, mean $1\sigma$ posterior widths $0.15$--$0.36$~dex);
+\textbf{$J$-factor recovery was unbiased to $\sim 0.1$~dex} with
+std$(z)\le 1.18$, $\max|z|\approx 2.3$, and a small high-side median
+bias of $+0.08$ to $+0.12$~dex. The Asimov decomposition below is
+re-verified under Jeffreys and matches the historical loguniform
+numbers to within $\sim 0.01$~dex.
 
 \subsection{Asimov-bias decomposition}
 \label{sec:stage3:asimov}
@@ -933,9 +970,9 @@ Pushing through $J(\alpha_c)$:
 \hline
 Estimator & Offset from truth (dex) \\
 \hline
-1D-KDE MAP of $\log_{10} J(\alpha_c)$ & $+0.024$ \\
+1D-KDE MAP of $\log_{10} J(\alpha_c)$ & $+0.037$ \\
 Chain median of $\log_{10} J(\alpha_c)$ & $+0.162$ \\
-Chain mean of $\log_{10} J(\alpha_c)$ & $+0.212$ \\
+Chain mean of $\log_{10} J(\alpha_c)$ & $+0.214$ \\
 \hline
 \end{tabular}
 \end{center}
@@ -958,11 +995,11 @@ hold over the full chain support.
 \hline
 Projection & Median bias (dex) \\
 \hline
-$\log r_s$ only ($\log\rho_s = \mathrm{truth}$) & $+0.46$ \\
+$\log r_s$ only ($\log\rho_s = \mathrm{truth}$) & $+0.45$ \\
 $\log\rho_s$ only ($\log r_s = \mathrm{truth}$) & $-0.32$ \\
-Sum & $+0.14$ \\
+Sum & $+0.13$ \\
 Full joint chain & $+0.16$ \\
-Non-additive remainder & $+0.02$ \\
+Non-additive remainder & $+0.03$ \\
 \hline
 \end{tabular}
 \end{center}
@@ -970,7 +1007,7 @@ The full bias is a small residual between two large opposite-sign
 1D-projection offsets.  The non-additivity is negligible
 ($0.02/0.16$~dex), indicating that the chain ridge is approximately
 log-linearly aligned with the $J$ surface.  The $J/D$ bias ratio
-across angles is $2.0$--$2.6$, consistent with $\rho^2$ vs.\ linear
+across angles is $2.1$--$2.8$, consistent with $\rho^2$ vs.\ linear
 $\rho$ kernels both experiencing the same posterior-curvature skew.
 The pipeline publishes median + $q_{16}/q_{84}$ + 1D-KDE MAP for
 every $\log_{10} J(\theta)$ and $\log_{10} D(\theta)$, so the

@@ -7,9 +7,20 @@ before applying it to real dwarfs.
 
 ## Status
 
-**Stage-2 halo recovery: validated.** 15 UFD realizations at fixed truth,
-all `|z| < 2.3`. M(r_½, 3D) is the well-constrained quantity (mean ⟨σ⟩ ≈
-0.15 dex, median bias < 0.01 dex, std(z) ≈ 1.1, KS p ≈ 0.7 vs N(0,1)).
+**Stage-2 halo recovery under Jeffreys (current production prior).** 15 UFD
+realizations at fixed truth. Headline numbers:
+
+| param            | mean(z) | std(z) | med bias | cov68% | KS p   |
+|------------------|--------:|-------:|---------:|-------:|-------:|
+| `log10_M_half_3d`|  −0.61  |  0.79  |  +0.07   |  60%   | 0.071  |
+| `log10_M_half_2d`|  −0.83  |  0.82  |  +0.13   |  53%   | 0.013  |
+
+Under the previous loguniform prior, M(r_½, 3D) was recovered cleanly
+(median bias < 0.01 dex, std(z) ≈ 1.1, KS p ≈ 0.7); Jeffreys shifts the
+joint posterior toward higher ρ_s / lower r_s in the small-x NFW regime
+(`r_½/r_s ≈ 0.2`), producing a small ~0.07 dex high-side bias and an
+under-dispersed z-distribution.
+
 The user's heuristic ρ_s · r_s³ is *not* the well-constrained combination
 on UFDs — small-x NFW gives M ∝ ρ_s · r_s · r², so log(ρ_s · r_s³) is the
 *widest* (1σ ≈ 1.5 dex) of the parameters tested.
@@ -18,9 +29,14 @@ Headline numbers and "what this test does *not* validate" are documented
 canonically in **`stage2.md` → MC recovery test** subsection. Decision-log
 entries in **`pipeline_overview.md`**.
 
-**Stage-3 J/D recovery: validated.** D-factor recovery is clean at all four
+**Stage-3 J/D MC recovery: pending under Jeffreys.** The current
+`run_ufd_population.py` runs only the halo recovery; per-realization J/D
+summaries (formerly produced by `run_jd_summary.py`, since removed) need
+to be reinstated as a `summarize_jd` call inside the MC loop.
+
+Historical loguniform baseline: D-factor recovery was clean at all four
 reporting angles (median bias ≤ 0.03 dex, std(z) ≤ 1.15). J-factor recovery
-is unbiased to ~0.1 dex with mildly under-dispersed posteriors (std(z) up
+was unbiased to ~0.1 dex with mildly under-dispersed posteriors (std(z) up
 to 1.18, +0.08 to +0.12 dex high-side median bias) — chain-median offset
 under the curved `log J(r_s, ρ_s)` transform on a wide ridge, not a procedure
 issue (verified on the Asimov chain — see below). Realization z-scores at
@@ -39,15 +55,16 @@ numerically; V_sys unconstrained by construction (flagged `prior_only`).
 End-to-end halo + J/D in ~30 s. Used as a fast smoke test during development;
 does not replace the 15-realization MC as the calibration gate.
 
-**Asimov J-bias source verified.** On the Asimov chain (`compact_ufd_asimov.npz`):
-M(r_½, 3D) recovered cleanly (median +0.038 dex on σ = 0.142 dex, near-symmetric).
-The 1D-KDE MAP of `log₁₀ J(α_c)` sits at +0.024 dex from truth while the median
-sits at +0.162 dex — the bias lives entirely in the median of a positively-skewed
-transformation distribution, not in posterior centering. The "small-x analytic"
-attribution (J ∝ ρ_s² r_s³) is wrong: chain spans 3 dex in `log r_s` and crosses
-the small-x → large-x regime, so `log J(r_s, ρ_s)` is curved, not log-linear, over
-the chain ridge. Marginal-projection decomposition shows the bias is a small
-(+0.16 dex) residual between large opposite-sign 1D offsets (+0.46 from `log r_s`,
+**Asimov J-bias source verified under Jeffreys.** On the Asimov chain
+(`compact_ufd_asimov.npz`): M(r_½, 3D) recovered with median ~0.04 dex
+above truth. The 1D-KDE MAP of `log₁₀ J(α_c)` sits at +0.04 dex from truth
+while the median sits at +0.162 dex — the bias lives largely in the median
+of a positively-skewed transformation distribution, not in posterior
+centering. The "small-x analytic" attribution (J ∝ ρ_s² r_s³) is wrong:
+chain spans 3 dex in `log r_s` and crosses the small-x → large-x regime,
+so `log J(r_s, ρ_s)` is curved, not log-linear, over the chain ridge.
+Marginal-projection decomposition shows the bias is a small (+0.16 dex)
+residual between large opposite-sign 1D offsets (+0.45 from `log r_s`,
 −0.32 from `log ρ_s`). Run `python tests/integration/analyze_asimov.py` to reproduce; full write-up
 in **`stage3.md` → Asimov verification of the J-bias source**.
 

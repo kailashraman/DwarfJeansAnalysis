@@ -88,7 +88,9 @@ python tests/integration/analyze_asimov.py       # Asimov J/D bias decomposition
 
 (The original standalone `run_jd_summary.py` was not migrated; J/D is now computed inline by `run_ufd_population.py` via `summarize_jd`, and the Asimov decomposition lives in `analyze_asimov.py`.)
 
-**D-factor recovery is clean** at all four angles: median bias ≤ 0.03 dex, std(z) ≤ 1.15, max `|z|` ≈ 2.1, KS p ∈ [0.37, 0.79], with mean 1σ widths 0.15–0.36 dex.
+**Population-level J/D MC numbers are pending under the Jeffreys-prior MC.** The historical loguniform numbers below were produced by the former `run_jd_summary.py`; the current `run_ufd_population.py` runs only the halo recovery. Reinstating per-realization J/D summaries (a `summarize_jd` call inside the MC loop, writing `ufd_pop_jd_diagnostics.json`) is a follow-up.
+
+Historical loguniform baseline: **D-factor recovery was clean** at all four angles: median bias ≤ 0.03 dex, std(z) ≤ 1.15, max `|z|` ≈ 2.1, KS p ∈ [0.37, 0.79], with mean 1σ widths 0.15–0.36 dex.
 
 **J-factor recovery is unbiased to ~0.1 dex** with mildly under-dispersed posteriors: std(z) up to 1.18 at J(α_c), 1–3 realizations crossing `|z| = 2` across the four J angles, max `|z|` ≈ 2.3, with a small population-level high-side median bias of +0.08 to +0.12 dex. The bias is the median of `log₁₀ J` along a wide-and-curved chain ridge being offset from `log₁₀ J` at the ridge peak; the J/D ratio of the bias magnitude (≈ 2× across angles) is consistent with the density-squared kernel in J vs. linear in D. The realization-by-realization z-scores for J(α_c) and D(α_c/2) track `z(M(r_½, 3D))` tightly (sign agrees on every seed, magnitude correlates), as expected since the Wolf+10 angle probes the same well-constrained mass profile that anchors `M(r_½)`. See the [Asimov verification](#asimov-verification-of-the-j-bias-source) below for the chain-MAP-vs-median decomposition that pins this attribution.
 
@@ -110,11 +112,11 @@ The Asimov chain (`results/tests/ufd_population/compact_ufd_asimov.npz`, 1803 eq
 
 | quantity | offset from truth (dex) |
 |---|---|
-| 1D-KDE MAP of `log₁₀ J(α_c)` | **+0.024** |
+| 1D-KDE MAP of `log₁₀ J(α_c)` | **+0.037** |
 | chain median of `log₁₀ J(α_c)` | +0.162 |
-| chain mean of `log₁₀ J(α_c)` | +0.212 |
+| chain mean of `log₁₀ J(α_c)` | +0.214 |
 
-The MAP of the J posterior sits essentially at truth; the bias lives entirely in the median of a positively-skewed transformation distribution. Same pattern at all four angles (1D-KDE MAP offsets +0.13 / +0.07 / +0.09 / +0.02 vs median offsets +0.13 / +0.16 / +0.23 / +0.16). This is the Asimov-procedure-correctness check: the procedure puts the J-posterior peak at truth; the median offset is a property of the posterior shape, not a bias in what the procedure is recovering.
+The MAP of the J posterior sits close to truth; the bias lives largely in the median of a positively-skewed transformation distribution. Same pattern at all four angles (1D-KDE MAP offsets +0.13 / +0.08 / +0.09 / +0.04 vs median offsets +0.14 / +0.16 / +0.22 / +0.16). This is the Asimov-procedure-correctness check: the procedure puts the J-posterior peak near truth; the median offset is a property of the posterior shape, not a bias in what the procedure is recovering.
 
 **The "small-x analytic" attribution (`log J ≈ 2 log ρ_s + 3 log r_s + const`) is wrong.** The chain median of `2 log₁₀ ρ_s + 3 log₁₀ r_s` is +0.42 dex, vs. the actual +0.13 dex bias on J(0.1°) where the small-x limit applies most. Per-sample regression of `Δ log₁₀ J` on the small-x prediction has slopes 0.29–0.53 (not 1) and r² of 0.08–0.52 across the four angles. The chain spans `log r_s ∈ [−2, +1]` (3 dex), against an integration aperture of order 0.05 kpc, so the chain crosses the small-x → large-x regime and `log J(r_s, ρ_s)` is *not* log-linear over its support.
 
@@ -122,7 +124,7 @@ The MAP of the J posterior sits essentially at truth; the bias lives entirely in
 
 | projection | median bias (dex) |
 |---|---|
-| `log r_s` only (`log ρ_s = truth`) | +0.46 |
+| `log r_s` only (`log ρ_s = truth`) | +0.45 |
 | `log ρ_s` only (`log r_s = truth`) | −0.32 |
 | sum (would equal full if chain were log-linear in both channels) | +0.14 |
 | full joint chain | +0.16 |
@@ -130,13 +132,13 @@ The MAP of the J posterior sits essentially at truth; the bias lives entirely in
 
 The full bias is a small residual between two large opposite-sign 1D-projection offsets. Non-additivity is small (0.02 of 0.16), so the chain ridge is approximately log-linearly aligned and the residual curvature is what's left over after projecting through the J transform.
 
-**D-bias scales like density-channel-only.** The J-bias / D-bias ratio at the four angles is 2.0–2.6 — consistent with J's density-squared kernel and D's linear kernel both seeing the same posterior-curvature skew, but with different powers in the density channel. (The "small-x analytic" picture predicts 2× to 3× depending on which channel dominates, so this part of the small-x intuition survives; the absolute prediction does not.)
+**D-bias scales like density-channel-only.** The J-bias / D-bias ratio at the four angles is 2.1–2.8 — consistent with J's density-squared kernel and D's linear kernel both seeing the same posterior-curvature skew, but with different powers in the density channel. (The "small-x analytic" picture predicts 2× to 3× depending on which channel dominates, so this part of the small-x intuition survives; the absolute prediction does not.)
 
-**Joint 2D KDE peak in `(log r_s, log ρ_s)` is at (−0.77, +8.86) vs truth (−0.52, +8.48).** Even with the MLE at truth, the *posterior* peak is offset along the ridge by a uniform-prior volume effect. `log J` evaluated at the 2D KDE peak is +0.10 dex above truth — partway between the 1D-MAP-of-log-J (+0.02) and the median (+0.16). The 1D MAP of log J pulls back further toward truth because the J-surface curvature on the ridge maps the joint-peak position to a J-value that the marginal still places at truth.
+**Joint 2D KDE peak in `(log r_s, log ρ_s)` is at (−0.83, +8.94) vs truth (−0.52, +8.48).** Even with the MLE at truth, the *posterior* peak is offset along the ridge by a prior-volume effect (under Jeffreys, this offset is somewhat larger than under loguniform: −0.83 vs the historical −0.77). `log J` evaluated at the 2D KDE peak is +0.09 dex above truth — partway between the 1D-MAP-of-log-J (+0.04) and the median (+0.16). The 1D MAP of log J pulls back further toward truth because the J-surface curvature on the ridge maps the joint-peak position to a J-value that the marginal still places at truth.
 
 **Prior-edge influence is small.** Of 1803 chain samples, 7.5% sit within 0.20 dex of the upper `log r_s` prior bound and 3.4% within 0.20 of the lower. Nonzero but the bias is dominated by the ridge interior, not the edges; the prior box is `U(−2, 1)` to match P&S 2018 and we keep it.
 
-**Conclusion.** The Asimov procedure is correct: MLE at truth, M(r_½) recovered cleanly with σ matching the MC, and the J-posterior peak (1D MAP of log J) at truth to within 0.02–0.13 dex across angles. The +0.15–0.23 dex J *median* offsets are a property of pushing a wide curved ridge through a curved transform — what an earlier handoff called "Jensen on a wide log ρ_s posterior" was right in spirit (a curved transform applied to a wide posterior) but the quantitative attribution to a small-x convex transform is wrong: the chain leaves the small-x regime, J(r_s, ρ_s) is not log-linear over the chain, and the bias is the median offset of a nonlinear projection on a strongly degenerate ridge.
+**Conclusion.** The Asimov procedure is correct: MLE at truth, M(r_½) recovered with median ≈ 0.04 dex above truth (matches the Jeffreys MC), and the J-posterior peak (1D MAP of log J) close to truth (within 0.04–0.13 dex across angles under Jeffreys; the α_c MAP shifts from +0.02 (loguniform) to +0.04 (Jeffreys)). The +0.15–0.23 dex J *median* offsets are a property of pushing a wide curved ridge through a curved transform — what an earlier handoff called "Jensen on a wide log ρ_s posterior" was right in spirit (a curved transform applied to a wide posterior) but the quantitative attribution to a small-x convex transform is wrong: the chain leaves the small-x regime, J(r_s, ρ_s) is not log-linear over the chain, and the bias is the median offset of a nonlinear projection on a strongly degenerate ridge.
 
 The pipeline does not attempt to remove this offset — we are reproducing P&S 2018 and a wide posterior is what the data give at UFD-scale `N_stars`. The reporting policy is to publish median + q16/q84 + 1D-KDE MAP for every J(θ) and D(θ), per galaxy, so the gap is visible to downstream consumers. Validation runs (this Asimov, the 15-realization MC) compare both median and MAP to truth, separately. See `pipeline_overview.md` Stage 4 — Outputs & diagnostics, and the 2026-05-01 reporting-strategy decision-log entry.
 
