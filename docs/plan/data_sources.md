@@ -256,8 +256,8 @@ data/
 ├── lvdb_v1.0.5/                   # LVDB combined catalog (Stage 0a; see LVDB section)
 │   └── comb_all.csv
 ├── geha2026/                      # Path A — Geha 2026 Paper I, all 78 systems
-│   ├── table3A_20260110.csv
-│   ├── table3A_20260110.fits      # if also kept; FITS or CSV alone is fine
+│   ├── table5A_20260110.csv       # current ingest (binary Pmem_novar column)
+│   ├── table3A_20260110.csv       # legacy, no longer ingested (kept for cross-checks)
 │   ├── checksums.sha256
 │   └── PROVENANCE.md
 ├── walker2009a/                   # Path B example — one folder per source paper
@@ -288,7 +288,7 @@ Auto-download at ingest time is forbidden for both paths. If `data/<bibkey>/` is
 
 A given star may appear in a source catalog more than once, typically because the source observed it across multiple epochs or multiple slit masks and reports each observation as a separate row. How a source handles this varies:
 
-- **Per-star catalogs** report one row per unique star, with multi-epoch information already collapsed upstream (typically inverse-variance-weighted mean velocity, quadrature error). Geha 2026 Table 3A is described in Paper I as one row per unique star (22,339 rows for 22,339 stars). Multi-epoch data exist in the underlying DEIMOS archive — Paper I notes that 20% of satellite-galaxy member stars have multi-epoch observations, used internally to flag velocity variables — but the per-epoch values are not exposed in Table 3A. The flag for variability survives in `Pmem_novar`.
+- **Per-star catalogs** report one row per unique star, with multi-epoch information already collapsed upstream (typically inverse-variance-weighted mean velocity, quadrature error). Geha 2026 Table 5A is one row per unique star (24,436 rows × 50 columns). Multi-epoch data exist in the underlying DEIMOS archive — Paper I notes that 20% of satellite-galaxy member stars have multi-epoch observations, used internally to flag velocity variables — but the per-epoch values are not exposed in Table 5A. The variability flag is folded into the binary `Pmem_novar` column (1 = member with no detected velocity variability).
 - **Per-epoch catalogs** report one row per (star, observation) pair. Some Path B papers — particularly Walker et al.'s Magellan/MMT classical-dwarf catalogs — fall in this category, sometimes alongside a separate per-star averaged table. Modern VLT/GIRAFFE follow-up papers (e.g., Heiger 2024, Sandford 2025) tend to publish per-epoch data with binary-star flags.
 - **Mixed**: a paper may publish a primary per-star table and a supplementary per-epoch table.
 
@@ -311,32 +311,33 @@ The ingest stance, consistent with the raw-data-only rule:
 
 The Stage 0b ingest filters by the `system_name` column (matched to the registry's `geha_galaxy`) and maps source columns to canonical names: `v → V`, `v_err → sigma_eps`, `Pmem_novar → p`, `RA → RA_star`, `DEC → Dec_star`. Staging policy, no-cuts-at-ingest invariant, and `_meta` provenance dict are unchanged. See `src/dwarfjeans/ingest/stage0b_geha.py`.
 
-**Staging:** Geha Table 3A already lives somewhere in this repository from prior Paper II work. As part of Stage 0b setup, copy the source file(s) into `data/geha2026/` per the [Data staging conventions](#data-staging-conventions) above, write `PROVENANCE.md` (recording the original repo location of the source file and the Geha Group page as the upstream URL), and generate `checksums.sha256`. The Stage 0b ingest reads from `data/geha2026/table3A_20260110.csv` (or the `.fits` equivalent), never from the original repo location. If `data/geha2026/` is missing or its checksums fail, fail loudly with a message pointing to the staging step and the Geha Group URL — do not auto-fetch from Dropbox at runtime, both because the Dropbox URL contains a session token (`rlkey=...&st=...`) that may expire, and because this would violate the "stage once, version-pin, never re-fetch" pattern.
+**Staging:** Geha Table 5A already lives somewhere accessible from prior Paper II work (originally fetched from the Geha Group's DEIMOS Stellar Archive page, Dropbox-hosted CSV; release stamp `20260110`). As part of Stage 0b setup, copy the source file into `data/geha2026/` per the [Data staging conventions](#data-staging-conventions) above, write `PROVENANCE.md` (recording the original location and the Geha Group page as the upstream URL), and generate `checksums.sha256`. The Stage 0b ingest reads from `data/geha2026/table5A_20260110.csv`, never from the original location. The earlier `table3A_20260110.csv` release is retained for cross-checks but no longer ingested (lacks the `Pmem_novar` column needed to reproduce Paper II Table A1 N\*). If `data/geha2026/` is missing or its checksums fail, fail loudly with a message pointing to the staging step and the Geha Group URL — do not auto-fetch from Dropbox at runtime, both because the Dropbox URL contains a session token (`rlkey=...&st=...`) that may expire, and because this would violate the "stage once, version-pin, never re-fetch" pattern.
 
 **Per-galaxy ingest procedure** (run once per Path A galaxy):
 
-1. **System selection.** Filter Table 3A to rows for the target galaxy by its system name. The system identifier column is `Galaxy` (verified 2026-05-05 against the on-disk `table3A_20260110.csv` header), holding Paper II Table A1 abbreviations (e.g., `Bootes I` → `Boo1`, `Coma Berenices` → `CB`, `Canes Venatici I` → `CVn1`, `Ursa Major I` → `UMa1`, etc. — see the per-galaxy table below for the explicit mapping for our 39-galaxy sample). The ingest script logs the chosen column and its unique values so the mapping is auditable.
+1. **System selection.** Filter Table 5A to rows for the target galaxy by its system name. The system identifier column is `system_name` (verified 2026-05-08 against the on-disk `table5A_20260110.csv` header), holding Paper II Table A1 abbreviations (e.g., `Bootes I` → `Boo1`, `Coma Berenices` → `CB`, `Canes Venatici I` → `CVn1`, `Ursa Major I` → `UMa1`, etc. — see the per-galaxy table below for the explicit mapping for our 39-galaxy sample). The ingest script logs the chosen column and its unique values so the mapping is auditable.
 
-2. **Column mapping.** Verified against the on-disk Table 3A header (2026-05-05): the file has columns `Galaxy, RA, DEC, r, gr, nmask, t_exp, SN, v, verr, CaT, CaTerr, FeH, FeH_err, Var, Pmem`. Mappings for our pipeline:
+2. **Column mapping.** Verified against the on-disk Table 5A header (2026-05-08): the file has columns `system_name, objname, RA, DEC, nmask, nexp, t_exp, masknames, slitwidth, mean_mjd, SN, serendip, marz_flag, v, v_err, v_chi2, phot_source, gmag_o, rmag_o, gmag_err, rmag_err, MV_o, rproj_arcm, rproj_kpc, ew_naI, ew_naI_err, ew_cat, ew_cat_err, ew_feh, ew_feh_err, ew_w1, ew_w2, ew_w3, ew_gl, gaia_source_id, gaia_pmra, gaia_pmra_err, gaia_pmdec, gaia_pmdec_err, gaia_pmra_pmdec_corr, gaia_parallax, gaia_parallax_err, gaia_aen, gaia_aen_sig, flag_coadd, flag_var, flag_gaia, flag_HB, Pmem, Pmem_novar`. Mappings for our pipeline:
    - `V_i` ← `v` (heliocentric radial velocity, km/s).
-   - `σ_ε,i` ← `verr` (per-star velocity error, km/s). Used as published; no inflation.
-   - `[Fe/H]_i`, `σ_[Fe/H],i` ← `FeH`, `FeH_err`. Retained as auxiliary columns in the per-galaxy `npz` even though Stage 1/Stage 2 don't use metallicities directly. (Cheap to carry; useful for diagnostics and for future MDF-aware extensions.)
-   - `p_i` ← `Pmem` verbatim. Continuous values from 0 to 1 are stored as published; no thresholding at ingest. If a row has `Pmem` null/missing, apply the global "missing-probability default" — see Settled Conventions below. (Earlier drafts of this document referenced `Pmem_novar` as a separate variability-aware column; the on-disk Table 3A `20260110` does not split membership this way — there is a single `Pmem` column and a separate boolean `Var` flag — so we use `Pmem` directly and carry `Var` as auxiliary metadata. Resolution recorded 2026-05-05.)
-   - `Var` ← `Var` (boolean velocity-variability flag). Carried verbatim as an auxiliary boolean column for downstream sample selection to use; not multiplied into `p_i` at ingest (Stage 0b is raw-data-only).
-   - `star_id` ← Table 3A's stellar identifier column verbatim. The on-disk file does not expose a dedicated stellar identifier; the row's positional index within the per-galaxy slice (or the source-paper-style construction `<Galaxy>_<row>`) serves as `star_id`. Records `star_id_source_column: "row_index"` in `_meta`. Required for the per-star granularity check (`n_unique(star_id) == n_rows`).
+   - `σ_ε,i` ← `v_err` (per-star velocity error, km/s). Used as published; no inflation.
+   - `[Fe/H]_i`, `σ_[Fe/H],i` ← `ew_feh`, `ew_feh_err`. Retained as auxiliary columns in the per-galaxy `npz` even though Stage 1/Stage 2 don't use metallicities directly. (Cheap to carry; useful for diagnostics and for future MDF-aware extensions.)
+   - `p_i` ← `Pmem_novar` verbatim. Binary 0/1 (1 = member, velocity variables already removed). Verified bit-identical to Paper II's MRT, and exactly reproduces Paper II Table A1 N\* counts. `Pmem` (graded probability) and `flag_var` (boolean variability flag) are also carried as auxiliary columns. The ingest enforces `Pmem_novar ∈ {0, 1}` with no NaN; any drift from this convention in a future release surfaces immediately.
+   - `Var` ← `flag_var` (boolean velocity-variability flag). Carried verbatim as auxiliary metadata; not multiplied into `p_i` at ingest (Stage 0b is raw-data-only) and already implicitly applied by `Pmem_novar`.
+   - `star_id` ← positional row index within the per-galaxy slice (Table 5A does not expose a dedicated stable per-star identifier; `gaia_source_id` is per-row but null for non-Gaia stars). Records `star_id_source_column: "row_index"` in `_meta`. Required for the per-star granularity check (`n_unique(star_id) == n_rows`).
    - `R_i` ← computed at ingest time as the projected angular separation between the per-star (`RA`, `DEC`) and the **LVDB-tabulated galaxy center** for that system, multiplied by the LVDB-tabulated distance. This follows the settled convention of computing `R_i` from the LVDB center, not from any center quoted in the source paper.
 
-3. **No cuts at ingest.** Stage 0b stores the raw catalog. Every row in Table 3A for the target system is written to the per-galaxy `npz` with its published values — including stars with low `Pmem`, faint `MV`, RR Lyrae candidates, known binaries, foreground dwarfs, etc. Sample selection (the `Pmem > 0.5` threshold from Paper II §2, the `MV < 3` cut for [Fe/H] validity, the per-galaxy P&S 2018 RR-Lyrae / binary / foreground removals, and any `Var`-flag-based exclusion of velocity variables) is the responsibility of a downstream sample-selection stage documented in `sample_selection.md` (out of scope for this document). Stage 0b is a faithful copy of the source data with canonical column names mapped on top.
+3. **No cuts at ingest.** Stage 0b stores the raw catalog. Every row in Table 5A for the target system is written to the per-galaxy `npz` with its published values — including stars with low `Pmem`, faint `MV`, RR Lyrae candidates, known binaries, foreground dwarfs, etc. Sample selection (the `Pmem_novar == 1` threshold + `R < 2·r_½` cut from Paper II §3.1; downstream RR-Lyrae / binary / foreground removals as needed) is the responsibility of `dwarfjeans.jeans.selection` and is documented in `sample_selection.md` (out of scope for this document). Stage 0b is a faithful copy of the source data with canonical column names mapped on top.
 
 4. **Provenance metadata** in the `_meta` JSON dict for the resulting `.npz`:
    - `source_path: "Path A: Geha 2026"`
-   - `source_paper_bibcode_paper1: "Geha2026..."` (the 19-char ADS bibcode for Geha et al. 2026 Paper I — Claude Code should resolve from arXiv:2602.10200 once the paper is on ADS)
+   - `source_paper_bibcode_paper1: "Geha2026..."` (the 19-char ADS bibcode for Geha et al. 2026 Paper I — placeholder until ADS resolves arXiv:2602.10200)
    - `source_paper_bibcode_paper2: "Geha2026..."` (Paper II, arXiv:2602.10202, for the integrated-properties cross-check)
-   - `source_table: "table3A_20260110"`
-   - `system_name_in_table3A: "<value>"`
+   - `source_table: "table5A_20260110"`
+   - `system_name_in_table5A: "<value>"`
    - `n_rows: <int>` — total row count for this system
-   - `catalog_granularity: "per_star"` — Geha Table 3A; verify against `n_unique(star_id) == n_rows` at ingest and fail if not
-   - `star_id_source_column: "<header name>"` — the Table 3A column mapped to canonical `star_id`
+   - `catalog_granularity: "per_star"` — verify against `n_unique(star_id) == n_rows` at ingest and fail if not
+   - `star_id_source_column: "row_index"`
+   - `p_source_column: "Pmem_novar (binary; velocity variables already removed)"`
    - `column_mapping: {...}` — recorded source-column → canonical-name dict
    - `notes: "<any per-galaxy notes>"`
 
