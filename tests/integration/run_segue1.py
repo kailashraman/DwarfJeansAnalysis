@@ -34,6 +34,7 @@ from dwarfjeans.jeans import inference as jeans_inference
 from dwarfjeans.jeans.preprocess import prepare_jeans_input
 from dwarfjeans.jeans.selection import SelectionPolicy
 from dwarfjeans.jd import factors as jdf
+from dwarfjeans.jeans.constant_sigma import constant_sigma_inference as _pkg_constant_sigma_inference
 
 LVDB_URL = ("https://github.com/apace7/local_volume_database/"
             "releases/download/v1.0.5/comb_all.csv")
@@ -315,122 +316,8 @@ def load_stars(d_kpc: float, source: str,
     return keep, audit
 
 
-def constant_sigma_inference(V_obs, sigma_eps, p, V_center,
-                               V_halfwidth=10.0,
-                               log10_sigma_min=-2.0, log10_sigma_max=2.0,
-                               n_V=400, n_sigma=400):
-    """
-    Walker+2006 membership-weighted Gaussian likelihood for (V_sys, σ_los)
-    under a radius-independent dispersion model.
+constant_sigma_inference = _pkg_constant_sigma_inference  # re-export from package
 
-    Likelihood per star:
-        ln L_i = p_i [ -½ ln(2π(σ² + ε_i²)) - ½ (V_i - V_sys)² / (σ² + ε_i²) ]
-
-    Priors: uniform on V_sys ∈ [V_center ± V_halfwidth] and proper Jeffreys
-    (Fisher-determinant) prior on σ, truncated to log₁₀σ ∈ [log10_sigma_min,
-    log10_sigma_max]. Per-star Fisher info is diagonal in (V̄, σ) with
-    I_V̄V̄ = 1/σ_i² and I_σσ = 2σ²/σ_i⁴ where σ_i² = σ² + ε_i², so
-        p_J(σ) ∝ σ · √( [Σ_i p_i/σ_i²] [Σ_i p_i/σ_i⁴] )    (V̄-independent).
-    """
-    V_obs = np.asarray(V_obs, dtype=float)
-    sigma_eps_sq = np.asarray(sigma_eps, dtype=float) ** 2
-    p = np.asarray(p, dtype=float)
-
-    V_grid = np.linspace(V_center - V_halfwidth, V_center + V_halfwidth, n_V)
-    log10_sigma_grid = np.linspace(log10_sigma_min, log10_sigma_max, n_sigma)
-    sigma_grid = 10.0 ** log10_sigma_grid
-
-    # sigma2[j, k] = sigma_grid[j]^2 + sigma_eps_sq[k]   shape (n_sigma, N)
-    sigma2 = sigma_grid[:, None] ** 2 + sigma_eps_sq[None, :]
-
-    # log_norm[j] = Σ_k p_k ln(2π σ2[j,k])              shape (n_sigma,)
-    log_norm = np.log(2.0 * np.pi * sigma2) @ p
-
-    # dV2[i, k] = (V_obs[k] - V_grid[i])^2              shape (n_V, N)
-    dV2 = (V_obs[None, :] - V_grid[:, None]) ** 2
-
-    # chi2[i, j] = Σ_k p_k dV2[i,k] / sigma2[j,k]      shape (n_V, n_sigma)
-    chi2 = dV2 @ (p[:, None] / sigma2.T)
-
-    # Bare log-likelihood (used by profile-LL; prior-independent).
-    log_lik = -0.5 * (log_norm[None, :] + chi2)
-
-    # Proper Jeffreys prior for the (V̄, σ) Walker+2006 model, σ-only:
-    # ln p_J(σ) = ln σ + ½ ln(Σ_i p_i/σ_i²) + ½ ln(Σ_i p_i/σ_i⁴)
-    inv_sigma2 = 1.0 / sigma2                                     # (n_sigma, N)
-    sum1 = inv_sigma2 @ p                                          # (n_sigma,)
-    sum2 = (inv_sigma2 ** 2) @ p                                   # (n_sigma,)
-    log_prior_J = np.log(sigma_grid) + 0.5 * (np.log(sum1) + np.log(sum2))
-
-    log_post = log_lik + log_prior_J[None, :]
-    log_post -= log_post.max()
-    log_lik  -= log_lik.max()                                      # for numerical stability of profile-LL
-    post = np.exp(log_post)
-
-    # Prior is absorbed into log_post; integrate the σ-marginal directly on
-    # the linear σ-grid (no Jacobian). For the V-marginal, integrate over σ.
-    marg_V = np.trapezoid(post, sigma_grid, axis=1)
-    marg_V /= np.trapezoid(marg_V, V_grid)
-    marg_sigma = np.trapezoid(post, V_grid, axis=0)
-    marg_sigma /= np.trapezoid(marg_sigma, sigma_grid)
-    # Optional log10σ-space marginal (just for plotting): p(log10σ) = p(σ)·σ·ln10
-    marg_log10_sigma = marg_sigma * sigma_grid * np.log(10.0)
-
-    def _pct(x, pdf):
-        dx = np.diff(x)
-        cdf = np.concatenate([[0.0], np.cumsum(0.5 * (pdf[:-1] + pdf[1:]) * dx)])
-        cdf /= cdf[-1]
-        return [float(np.interp(q, cdf, x)) for q in (0.16, 0.50, 0.84)]
-
-    q16_V, q50_V, q84_V = _pct(V_grid, marg_V)
-    q16_s, q50_s, q84_s = _pct(sigma_grid, marg_sigma)
-
-    # Profile log-likelihood vs σ (V_sys profiled out at each σ). Uses the
-    # bare log-likelihood (NOT the Jeffreys-weighted log-posterior) so the
-    # interval remains prior-independent.
-    # Δln L = -½ from the maximum gives the 1σ frequentist (Wilks) interval.
-    prof_lnL = log_lik.max(axis=0)             # shape (n_sigma,) — log_lik is already max-shifted
-    j_hat = int(np.argmax(prof_lnL))
-    sigma_hat = float(sigma_grid[j_hat])
-    target = prof_lnL[j_hat] - 0.5
-    # Lower side: scan from peak down to j=0; profile is monotonic away from peak in well-behaved cases.
-    if j_hat > 0:
-        lo_slice_x = sigma_grid[:j_hat + 1]
-        lo_slice_y = prof_lnL[:j_hat + 1]
-        # Need monotonic-in-y for interp; profile rises toward peak so y ascends.
-        if (lo_slice_y[-1] - lo_slice_y[0]) > 0 and lo_slice_y[0] < target:
-            sigma_lo_prof = float(np.interp(target, lo_slice_y, lo_slice_x))
-        else:
-            sigma_lo_prof = float(sigma_grid[0])  # hit prior bound — data don't constrain below
-    else:
-        sigma_lo_prof = float(sigma_grid[0])
-    # Upper side: scan from peak up; profile descends, so reverse for monotone-ascending interp.
-    if j_hat < n_sigma - 1:
-        hi_slice_x = sigma_grid[j_hat:][::-1]
-        hi_slice_y = prof_lnL[j_hat:][::-1]
-        if (hi_slice_y[-1] - hi_slice_y[0]) > 0 and hi_slice_y[0] < target:
-            sigma_hi_prof = float(np.interp(target, hi_slice_y, hi_slice_x))
-        else:
-            sigma_hi_prof = float(sigma_grid[-1])
-    else:
-        sigma_hi_prof = float(sigma_grid[-1])
-
-    return {
-        "V_sys":     {"median": q50_V, "q16": q16_V, "q84": q84_V,
-                      "sigma_lo": q50_V - q16_V, "sigma_hi": q84_V - q50_V},
-        "sigma_int": {"median": q50_s, "q16": q16_s, "q84": q84_s,
-                      "sigma_lo": q50_s - q16_s, "sigma_hi": q84_s - q50_s},
-        "sigma_int_profile": {"mle": sigma_hat,
-                                "lo": sigma_lo_prof, "hi": sigma_hi_prof,
-                                "sigma_lo": sigma_hat - sigma_lo_prof,
-                                "sigma_hi": sigma_hi_prof - sigma_hat},
-        "V_grid": V_grid, "sigma_grid": sigma_grid,
-        "log10_sigma_grid": log10_sigma_grid,
-        "log_post": log_post, "log_lik": log_lik, "log_prior_J": log_prior_J,
-        "marg_V": marg_V,
-        "marg_sigma": marg_sigma, "marg_log10_sigma": marg_log10_sigma,
-        "prof_lnL": prof_lnL,
-    }
 
 
 def percentiles(arr: np.ndarray) -> dict:

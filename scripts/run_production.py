@@ -44,6 +44,7 @@ from dwarfjeans.jeans import inference as jeans_inference
 from dwarfjeans.jeans.preprocess import prepare_jeans_input
 from dwarfjeans.jeans.selection import SelectionPolicy
 from dwarfjeans.jd import factors as jdf
+from dwarfjeans.jeans.constant_sigma import constant_sigma_inference
 
 ARCMIN_TO_RAD = np.pi / (180.0 * 60.0)
 PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
@@ -136,6 +137,7 @@ def run(lvdb_key: str,
         p_min: float = 0.5,
         rmax_over_rhalf: float = 2.0,
         drop_variable: bool = True,
+        use_p_weights: bool = False,
         thin_sigma: int = 2000,
         thin_jd: int = 500,
         thin_profile: int = 300,
@@ -223,6 +225,18 @@ def run(lvdb_key: str,
     logp(f"  N final = {R_kpc.size};  R/kpc range=[{R_kpc.min():.4f}, "
          f"{R_kpc.max():.4f}];  V mean/std={V.mean():+.2f}/{V.std():.2f} km/s")
 
+    # Post-cut membership convention. The default (use_p_weights=False)
+    # treats every survivor as a confirmed member (p_i := 1) — the
+    # standard convention used by tests/integration/run_segue1.py and the
+    # P&S 2018 reference numbers. Setting use_p_weights=True propagates
+    # the catalog's continuous p_i into the likelihood (Walker+2006).
+    p_raw = p.copy()
+    if not use_p_weights:
+        p = np.ones_like(p_raw)
+        logp(f"  use_p_weights=False: post-cut p_i replaced by 1.0 in the likelihood")
+    else:
+        logp(f"  use_p_weights=True: continuous p_i propagated into the likelihood")
+
     # r_p(2D) at registry-fiducial geometry. The 7D nuisance-marginalized
     # likelihood does NOT consume `truth.r_p` (per_sample r_p is built
     # internally from d × rhalf_arcmin × √(1−ε) at each draw). It is
@@ -242,6 +256,17 @@ def run(lvdb_key: str,
         "p": p,
         "truth": {"r_p": r_p_kpc_fid},
     }
+
+    # ----- Walker+2006 constant-σ dispersion (data-only, model-free) -----
+    cs = constant_sigma_inference(V, sigma_eps, p, V_center=V_center)
+    sigma_los_walker = cs["sigma_int"]                 # (V̄, σ) joint marginal
+    sigma_los_walker_profile = cs["sigma_int_profile"] # profile-LL (prior-independent)
+    logp(f"\n=== Constant-σ inference (Walker+2006, radius-independent) ===")
+    logp(f"  σ_los (Bayes,  median): {sigma_los_walker['median']:.3f} "
+         f"[{sigma_los_walker['q16']:.3f}, {sigma_los_walker['q84']:.3f}] km/s")
+    logp(f"  σ_los (profile-LL MLE): {sigma_los_walker_profile['mle']:.3f} "
+         f"[{sigma_los_walker_profile['lo']:.3f}, "
+         f"{sigma_los_walker_profile['hi']:.3f}] km/s")
 
     # ----- Inference -----
     logp(f"\n=== dynesty (7D, prior={prior_name}, nlive={nlive}, "
@@ -395,6 +420,11 @@ def run(lvdb_key: str,
         ("log10_M_half_2d_Msun", *_q(log10_M_2d)),
         ("log10_M_half_3d_Msun", *_q(log10_M_3d)),
         ("sigma_los_at_Rhalf2d_kms", *_q(sigma_at_Rhalf)),
+        ("sigma_los_walker_kms",
+            sigma_los_walker["q16"], sigma_los_walker["median"], sigma_los_walker["q84"]),
+        ("sigma_los_walker_profile_kms",
+            sigma_los_walker_profile["lo"], sigma_los_walker_profile["mle"],
+            sigma_los_walker_profile["hi"]),
         ("alpha_c_rad",          *_q(alpha_c_chain)),
     ]
     for tag in (*fixed_J_angles, "alphac"):
@@ -455,6 +485,9 @@ def _cli() -> argparse.Namespace:
     p.add_argument("--rseed", type=int, default=0)
     p.add_argument("--p-min", type=float, default=0.5)
     p.add_argument("--rmax-over-rhalf", type=float, default=2.0)
+    p.add_argument("--use-p-weights", action="store_true",
+                   help="Propagate continuous p_i into the likelihood instead of "
+                        "replacing post-cut survivors with p=1 (default).")
     p.add_argument("--keep-variable", action="store_true",
                    help="Disable the variability/χ² drop in selection")
     p.add_argument("--thin-sigma", type=int, default=2000,
@@ -479,6 +512,7 @@ if __name__ == "__main__":
         p_min=args.p_min,
         rmax_over_rhalf=args.rmax_over_rhalf,
         drop_variable=not args.keep_variable,
+        use_p_weights=args.use_p_weights,
         thin_sigma=args.thin_sigma,
         thin_profile=args.thin_profile,
         thin_jd=args.thin_jd,
