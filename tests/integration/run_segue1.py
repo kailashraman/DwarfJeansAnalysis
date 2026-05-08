@@ -9,8 +9,9 @@ J, D posterior chains and writes plots + summary.
 Per-star source options (SOURCE toggle):
   'simon': Simon+2011 VizieR Table 1, Bpr > 0.8
   'pace':  Pace pre-combined Bayes 0.8 file
-  'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB semi-major rhalf, Var != 1
-           Uses LVDB nuisance priors instead of PS18 overrides.
+  'geha':  Geha+2026 Table 5A (Pmem_novar==1) + sphericalized 3D Plummer
+           half-mass cut R < 2·rhalf_major·√(1−ε)·(4/3) per the production
+           SelectionPolicy. Uses LVDB nuisance priors instead of PS18 overrides.
 """
 from __future__ import annotations
 
@@ -41,14 +42,8 @@ LVDB_URL = ("https://github.com/apace7/local_volume_database/"
 LVDB_CACHE     = REPO / "data" / "lvdb_v1.0.5" / "comb_all.csv"
 SEGUE1_KIN_CSV = REPO / "data" / "segue1" / "segue1_kinematics_simon2011.csv"
 PACE_DAT       = REPO / "data" / "segue1" / "Pace_Segue1_Bayes_0d8_binary.dat"
-GEHA_CSV       = REPO / "data" / "geha2026" / "table3A_20260110.csv"
 P_CUT = 0.8
-P_CUT_GEHA = 0.5  # Geha+2026 §Sample Selection
-# Radial aperture used for the Geha star selection (2× this value).
-#   3.62' → LVDB v1.0.5 semi-major rhalf (~24 pc at d=22.9 kpc) → 47 stars
-#   4.31' → Martin+2008 r_h → 53 stars
-# GEHA_RHALF_CUT_ARCMIN = 4.31  # Martin+2008
-GEHA_RHALF_CUT_ARCMIN = 3.62  # LVDB v1.0.5 semi-major
+P_CUT_GEHA = 0.5  # Geha+2026 §3.1 sample selection
 ARCMIN_TO_RAD = np.pi / (180.0 * 60.0)
 PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
 
@@ -56,7 +51,9 @@ PLUMMER_3D_OVER_2D = 1.30477  # r_½(3D) / r_½(2D) for Plummer
 #   'simon': segue1_kinematics_simon2011.csv (VizieR Simon+2011 Table 1) with Bpr > 0.8.
 #   'pace':  Pace_Segue1_Bayes_0d8_binary.dat (Pace 0.8-membership combined-velocity file).
 #            simon/pace select the same 62 stars (compare_pace_vs_bpr08.py); both use PS18 priors.
-#   'geha':  Geha+2026 table3A; Pmem > 0.5, within 2×LVDB semi-major rhalf, Var != 1 → 47 stars.
+#   'geha':  data/star_catalogs/segue_1.npz (staged from Geha+2026 Table 5A, Pmem_novar);
+#            production SelectionPolicy(p_min=0.5, R_over_rhalf_max=2.0, drop_variable=True)
+#            with sphericalized 3D Plummer cut → 52 stars.
 #            Uses LVDB v1.0.5 nuisance priors (d, rhalf, ε) instead of PS18 overrides.
 SOURCE = "geha"  # 'simon' | 'pace' | 'geha'
 USE_P_WEIGHTS = False     # if False, replace post-cut p_i with 1.0 in the likelihood
@@ -193,44 +190,24 @@ def load_stars_pace(ra_center_deg: float, dec_center_deg: float) -> pd.DataFrame
     return keep
 
 
-def _read_registry_rhalf_major_pc(lvdb_key: str) -> float:
-    """Read rhalf_major_pc from data/registry/galaxies.ecsv. The registry
-    is the single source of truth — the staged R_kpc was computed with
-    the same row's distance_kpc, so the radial cut is internally
-    consistent regardless of any later LVDB changes.
-    """
-    import shlex
-    ecsv = REPO / "data" / "registry" / "galaxies.ecsv"
-    header = None
-    for line in ecsv.read_text().splitlines():
-        if line.startswith("#") or not line.strip():
-            continue
-        toks = shlex.split(line)
-        if header is None:
-            header = toks
-            continue
-        if toks[0] == lvdb_key:
-            return float(dict(zip(header, toks))["rhalf_major_pc"])
-    raise KeyError(f"{lvdb_key!r} not found in {ecsv}")
-
-
-def load_stars_geha(d_kpc: float, rhalf_major_pc: float) -> tuple[pd.DataFrame, dict]:
+def load_stars_geha(d_kpc: float, registry_row: dict) -> tuple[pd.DataFrame, dict]:
     """
     Route the Segue 1 Geha-staged catalog through the analysis-time
     preprocessing pipeline (jeans.preprocess.prepare_jeans_input):
       - per-star granularity → no combiner
       - SelectionPolicy(p_min=P_CUT_GEHA, R_over_rhalf_max=2.0,
-        drop_variable=True) reproduces the Geha+2026 §Sample Selection
-        recipe (Pmem > 0.5, R < 2·r_½ on the semi-major axis,
-        remove Var==1).
+        drop_variable=True) matches the production §3.1 recipe:
+        Pmem_novar==1 and R < 2·rhalf_major·√(1−ε)·(4/3) on the
+        sphericalized 3D Plummer half-mass radius.
 
-    Returns the per-star DataFrame in the legacy schema downstream
-    callers expect, plus the audit dict from prepare_jeans_input so the
-    selection report can be logged and dumped.
+    Selection requires the full registry row (uses ``rhalf_major_pc``
+    AND ``ellipticity``); pass via _read_registry_row from
+    run_production. Returns the per-star DataFrame in the legacy schema
+    downstream callers expect, plus the audit dict from
+    prepare_jeans_input so the selection report can be logged and dumped.
     """
     catalog_path = REPO / "data" / "star_catalogs" / "segue_1.npz"
     cat = np.load(catalog_path, allow_pickle=True)
-    registry_row = {"rhalf_major_pc": rhalf_major_pc}
     arrays, audit = prepare_jeans_input(
         cat, registry_row,
         selection_policy=SelectionPolicy(
@@ -290,8 +267,7 @@ def lvdb_nuisance_priors(row: pd.Series) -> dict:
 def load_stars(d_kpc: float, source: str,
                 ra_center_deg: float | None = None,
                 dec_center_deg: float | None = None,
-                lvdb_rhalf_arcmin: float | None = None,
-                rhalf_major_pc: float | None = None,
+                registry_row: dict | None = None,
                 ) -> tuple[pd.DataFrame, dict | None]:
     audit: dict | None = None
     if source == "simon":
@@ -301,9 +277,9 @@ def load_stars(d_kpc: float, source: str,
             raise ValueError("source='pace' requires ra/dec center")
         keep = load_stars_pace(ra_center_deg, dec_center_deg)
     elif source == "geha":
-        if rhalf_major_pc is None:
-            raise ValueError("source='geha' requires rhalf_major_pc")
-        keep, audit = load_stars_geha(d_kpc, rhalf_major_pc)
+        if registry_row is None:
+            raise ValueError("source='geha' requires registry_row")
+        keep, audit = load_stars_geha(d_kpc, registry_row)
     else:
         raise ValueError(f"unknown source {source!r}")
     if "R_kpc" not in keep.columns:
@@ -383,15 +359,17 @@ def main():
                 "expected 0.018–0.035 kpc for Segue 1."
             )
 
-    # Geha radial aperture: rhalf_major_pc comes from data/registry/galaxies.ecsv
-    # — the same canonical column staging.projected_radius_kpc used to
-    # bake R_kpc into the .npz, so the cut and the radii can't drift.
-    _rhalf_major_pc = _read_registry_rhalf_major_pc("segue_1")
-    _geha_cut_arcmin = GEHA_RHALF_CUT_ARCMIN  # kept for logging continuity
+    # Pull the full registry row — selection needs both rhalf_major_pc AND
+    # ellipticity (post-2026-05-08). Same row staging.projected_radius_kpc
+    # used to bake R_kpc into the .npz, so the cut and the radii can't drift.
+    import sys as _sys
+    _sys.path.insert(0, str(REPO / "scripts"))
+    from run_production import _read_registry_row  # noqa: E402
+    _registry_row = _read_registry_row("segue_1")
+    _rhalf_major_pc = float(_registry_row["rhalf_major_pc"])
     stars, geha_audit = load_stars(g["d_kpc"], SOURCE,
                         ra_center_deg=g["ra_deg"], dec_center_deg=g["dec_deg"],
-                        lvdb_rhalf_arcmin=_geha_cut_arcmin,
-                        rhalf_major_pc=_rhalf_major_pc)
+                        registry_row=_registry_row)
     src_name = (SEGUE1_KIN_CSV.name if SOURCE == "simon"
                 else "data/star_catalogs/segue_1.npz" if SOURCE == "geha"
                 else PACE_DAT.name)
