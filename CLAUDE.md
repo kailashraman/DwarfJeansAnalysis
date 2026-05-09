@@ -91,3 +91,15 @@ Cite functions and modules by name (`\code{nfw_M}`, `solver.py`); never cite lin
 `docs/original-plan/` is **read-only** — a static reference snapshot. Do not modify it, even for typos.
  
 For an evolving plan, maintain a working copy at `docs/plan/`. When referencing "the plan," specify which copy to avoid ambiguity.
+
+## Architecture document
+
+`ARCHITECTURE.md` declares **where things go and why** — top-level layout, module boundaries, output-path conventions, registry/combiner dispatch. Update it in the same commit as any change that:
+
+- adds a top-level directory,
+- shifts module boundaries (new `dwarfjeans/` subpackage, moved responsibility),
+- changes a repo-wide convention (units, RNG handling, output paths, prior centering),
+- promotes "out-of-band/future" feature work to mainline, or
+- collapses/restructures `results/` or `data/` layout.
+
+Routine code edits inside an existing module do not require an update. If you find yourself adding code-level detail to ARCHITECTURE.md, that content belongs in a docstring or `docs/plan/` instead.
