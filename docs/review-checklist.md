@@ -30,3 +30,11 @@ Recurring bug classes for adversarial review. Reviewers consult this before sign
 - **`np.interp(arr.ravel(), xp, fp).reshape(arr.shape)` assumes C-contiguity.** The ravel+reshape round-trip preserves element-to-position mapping only when the source is C-contiguous (or a view that ravels in C order). Refactors that introduce transposes, `np.moveaxis`, or strided slicing upstream of the interp can silently scramble the mapping. When using this idiom, keep the source array C-contiguous (e.g. build it directly from broadcast ops, not from a transpose) and prefer `arr.reshape(-1)` over `arr.ravel()` if you want a hard error on non-contiguous inputs.
 - **`np.trapezoid(y, x, axis=k)` with 2D `x`.** Integrates row-/column-wise with per-row abscissae when `x.ndim == y.ndim`. Correct, but verify the `axis` matches the abscissa-varying axis; mismatched axis silently integrates over the wrong dimension and produces plausible-looking nonsense.
 - **Default grid sizes that are tuned in tests but used at lower resolution in production.** When a tabulation function exposes `n_inner`/`n_outer` defaults, ensure the unit test that gates its accuracy exercises the *production* default (or pins a separate, looser gate at the production default). A test that passes explicit high-resolution args won't catch a default downgrade.
+
+## Documented-but-unplumbed registry overrides
+
+- **Registry override fields mentioned in docs but not wired in code.** Fields like `vlos_prior_halfwidth` are described in plan docs and doc strings as "per-galaxy overrides" but may never be read from the registry row at the call site — the module-level constant is used instead. When a doc change repeats or extends such a claim, verify the field is actually consumed. Defense: `row.get("vlos_prior_halfwidth", V_HALFWIDTH)` at the call site, not a module constant.
+
+## Silent weight domination from near-zero inputs
+
+- **Clipping rather than rejecting near-zero denominators in weighted means.** When computing IVW (or any 1/σ² weighting), a `np.clip(sigma, floor, None)` silently promotes an anomalously small σ to enormous weight, pulling the weighted mean to that star's value. For physical inputs (spectroscopic σ_eps ≥ 1 km/s in practice), the correct defense is an assertion / loud error on `sigma_eps.min() < physical_floor`, not a silent clip to 1e-6.
