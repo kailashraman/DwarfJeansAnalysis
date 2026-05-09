@@ -107,7 +107,7 @@ Implemented as a SLURM array driver, not Snakemake:
 - `scripts/run_production.py` — single-galaxy production driver (loads registry, runs 7D dynesty, computes J/D, dumps `posterior_samples.npz` + `summary.csv` + `audit.json` per run).
 - `scripts/run_batch.py` — local-node batch over staged catalogs with `--jobs N` parallelism.
 - `scripts/submit_batch.sh` — SLURM array submission (`lr7`, one task per `lvdb_key`).
-- **Per-galaxy run dirs** under `results/production/<lvdb_key>/<prior>/<UTC timestamp>/` for clean reruns and provenance.
+- **Per-galaxy run dirs** at the canonical path `results/production/<lvdb_key>/<prior>/`, overwritten by each production run (no per-run history retained — the central tree stays small across re-runs).
 - **Embarrassing parallelism** across galaxies (~39 dSphs) is realised via the SLURM array.
 
 ---

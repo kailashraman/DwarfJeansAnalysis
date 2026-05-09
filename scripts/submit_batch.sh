@@ -14,8 +14,8 @@
 
 # Production driver: one array task per staged catalog in
 # data/star_catalogs/. Each task runs scripts/run_production.py for one
-# lvdb_key with the Jeffreys prior. Outputs land under
-# results/production/_slurm_<jobid>/_runs/<key>/jeffreys/<ts>/.
+# lvdb_key with the Jeffreys prior. Outputs land under the canonical
+# results/production/<key>/jeffreys/ and overwrite the previous run.
 #
 # Four ways to invoke:
 #
@@ -136,13 +136,9 @@ KEY="${KEYS[$SLURM_ARRAY_TASK_ID]}"
 NPOOL="${SLURM_CPUS_PER_TASK:-1}"
 echo "Task $SLURM_ARRAY_TASK_ID: lvdb_key=$KEY  npool=$NPOOL"
 
-OUT_BASE="results/production/_slurm_${SLURM_ARRAY_JOB_ID}/_runs"
-mkdir -p "$OUT_BASE"
-
 python scripts/run_production.py \
     --lvdb-key "$KEY" \
     --prior jeffreys \
     --nlive 500 \
     --dlogz 0.1 \
-    --npool "$NPOOL" \
-    --output-base "$OUT_BASE"
+    --npool "$NPOOL"

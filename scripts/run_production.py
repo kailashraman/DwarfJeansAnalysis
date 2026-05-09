@@ -18,7 +18,7 @@ Given an LVDB key, this script runs the full Stage-1 inference:
      M(r_½,3D), J(α_c) + J(0.1°/0.2°/0.5°), D(α_c/2) + D at the same
      fixed angles.
   5. Dump samples + a summary CSV + the selection/combine audit JSON
-     to ``results/production/<lvdb_key>/<prior>/<timestamp>/``.
+     to ``results/production/<lvdb_key>/<prior>/`` (overwrites each run).
 
 Usage:
     python scripts/run_production.py --lvdb-key tucana_2
@@ -147,9 +147,12 @@ def run(lvdb_key: str,
     """Run the full pipeline for one galaxy. Returns the output dir."""
     if output_base is None:
         output_base = REPO / "results" / "production"
-    timestamp = _dt.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
-    out_dir = output_base / lvdb_key / prior_name / timestamp
+    # Canonical, single-output-per-(galaxy, prior). Each run overwrites
+    # the previous one — wrong results are not preserved for provenance,
+    # to keep the central results tree from ballooning over re-runs.
+    out_dir = output_base / lvdb_key / prior_name
     out_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = _dt.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
 
     log: list[str] = []
 

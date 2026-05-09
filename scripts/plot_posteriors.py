@@ -22,12 +22,11 @@ root), refreshed from the latest production run on each invocation. The
 Usage:
     python scripts/plot_posteriors.py --lvdb-key willman_1
     python scripts/plot_posteriors.py --all
-    python scripts/plot_posteriors.py --lvdb-key willman_1 \\
-        --run-dir results/production/_slurm_22439950/_runs/willman_1/jeffreys/<ts>
 
-If ``--run-dir`` is omitted the latest run is auto-discovered. ``--all``
-iterates every staged catalog and writes plots for any galaxy that has
-at least one completed posterior.
+Reads from the canonical ``results/production/<lvdb_key>/<prior>/``
+directory (overwritten by each production run). ``--all`` iterates
+every staged catalog and writes plots for any galaxy that has a
+completed posterior. ``--run-dir`` overrides the path explicitly.
 """
 from __future__ import annotations
 
@@ -50,20 +49,19 @@ from run_production import _read_registry_row  # noqa: E402
 
 
 def _latest_run(lvdb_key: str, prior: str) -> Path:
-    candidates = sorted(
-        REPO.glob(f"results/production/**/_runs/{lvdb_key}/{prior}/*"),
-        key=lambda p: p.name,
-    ) + sorted(
-        REPO.glob(f"results/production/{lvdb_key}/{prior}/*"),
-        key=lambda p: p.name,
-    )
-    candidates = [c for c in candidates if (c / "posterior_samples.npz").exists()]
-    if not candidates:
+    """Return the canonical run dir for (lvdb_key, prior).
+
+    Production results live at the fixed path
+    ``results/production/<lvdb_key>/<prior>/`` (overwritten on each run);
+    no timestamp/jobid layer.
+    """
+    run_dir = REPO / "results" / "production" / lvdb_key / prior
+    if not (run_dir / "posterior_samples.npz").exists():
         raise FileNotFoundError(
-            f"No posterior_samples.npz under results/production for "
-            f"{lvdb_key}/{prior}"
+            f"No posterior_samples.npz at {run_dir} — has the production "
+            f"run for {lvdb_key} ({prior}) completed?"
         )
-    return candidates[-1]
+    return run_dir
 
 
 def _walker_posterior(audit: dict) -> dict:

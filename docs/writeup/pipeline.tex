@@ -823,7 +823,8 @@ $M(r_{1/2,\mathrm{3D}})$ via \code{jeans.nfw\_M};
 $\sigma_\mathrm{los}$ at $R_{1/2,\mathrm{2D}}$ (thinned to 2000 draws);
 and $J/D$ chains at four angles each (thinned to 500 draws,
 Section~\ref{sec:stage3:chain}).  Outputs land in
-\code{results/production/<lvdb\_key>/<prior>/<timestamp>/} as
+\code{results/production/<lvdb\_key>/<prior>/} (overwritten by each
+run) as
 \code{posterior\_samples.npz}, a per-quantity $16/50/84$-percentile
 \code{summary.csv}, and an \code{audit.json} recording registry
 inputs, selection policy, and dynesty configuration.
