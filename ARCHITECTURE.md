@@ -15,7 +15,7 @@ complete; see "Migration status" below.
 DwarfJeansAnalysis/
 ├── ARCHITECTURE.md                  this file
 ├── CLAUDE.md                        agent behavioral guidelines
-├── README.md                        one-screen orientation (future)
+├── README.md                        one-screen orientation for new users
 ├── pyproject.toml                   package metadata + deps
 ├── src/
 │   └── dwarfjeans/
