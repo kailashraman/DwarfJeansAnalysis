@@ -120,12 +120,6 @@ Implemented as a SLURM array driver, not Snakemake:
 
 ---
 
-## Open Questions
-
-- **Per-star spectroscopic ingestion:** detailed plan TBD (see `data_sources.md`).
-
----
-
 ## Decisions Log
 
 | Date | Decision | Notes |
@@ -133,7 +127,7 @@ Implemented as a SLURM array driver, not Snakemake:
 | 2026-04-30 | Follow P&S 2018 dynamical methodology | Spherical Jeans, NFW, Plummer, constant β |
 | 2026-04-30 | dynesty as sole production sampler | MultiNest available for one-off validation comparisons; no runtime abstraction |
 | 2026-04-30 | Scope limited to per-galaxy J/D-factor posteriors | Population-level scaling-relation fit dropped from pipeline |
-| 2026-04-30 | LVDB v1.0.5 for global dwarf properties | See data_sources.md; per-star ingestion TBD |
+| 2026-04-30 | LVDB v1.0.5 for global dwarf properties | See data_sources.md (per-star ingestion design landed there 2026-05-08; Path A = Geha 2026 Table 5A, Path B = per-paper LVDB `ref_vlos` adapters) |
 | 2026-04-30 | Split-normal priors with raw asymmetric errors | See uncertainty_conventions.md |
 | 2026-04-30 | Truncate priors at physical boundaries uniformly | See uncertainty_conventions.md |
 | 2026-04-30 | Independent proper-motion priors (no `pmra_pmdec_corr`) | Effect on log J negligible vs reported errors; matches P&S 2018 |
