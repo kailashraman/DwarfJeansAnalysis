@@ -1,74 +1,87 @@
 # ARCHITECTURE
 
-This document declares the **target** layout for DwarfJeansAnalysis and
-the migration path from the current state. It is the contract that
-subsequent work — code promotion, LaTeX writeup, test scaffolding, CI —
-will conform to.
-
-It is **not** a reference manual. Per-module APIs, equations, and
-calibration claims live in `docs/plan/` and (eventually)
+This document describes the **current** layout of DwarfJeansAnalysis
+and the conventions that govern where new work goes. Per-module APIs,
+equations, and calibration claims live in `docs/plan/` and
 `docs/writeup/pipeline.tex`. This file describes only **where things
 go and why**.
 
-## Target top-level layout
+The `src/` migration that this document originally planned is
+complete; see "Migration status" below.
+
+## Top-level layout
 
 ```
 DwarfJeansAnalysis/
 ├── ARCHITECTURE.md                  this file
 ├── CLAUDE.md                        agent behavioral guidelines
 ├── README.md                        one-screen orientation (future)
-├── pyproject.toml                   package metadata + deps (future)
+├── pyproject.toml                   package metadata + deps
 ├── src/
 │   └── dwarfjeans/
 │       ├── __init__.py
-│       ├── ingest/                  ← from data_ingest/
+│       ├── ingest/
 │       │   ├── stage0a_registry.py
 │       │   ├── stage0b_geha.py
 │       │   ├── stage0b_pathb.py
 │       │   ├── stage0b_pathb_worklist.py
 │       │   ├── staging.py
 │       │   ├── path_b_adapters/     per-paper raw → per-star OR per-epoch
-│       │   ├── multi_epoch.py       IVW + χ² primitives (analysis-time use)
-│       │   └── combiners/           per-dataset per-epoch → per-star handlers
+│       │   ├── multi_epoch.py       IVW + χ² primitives (analysis-time)
+│       │   ├── combiners/           per-paper per-epoch → per-star handlers
+│       │   └── config/              YAML overrides (spatial models, samples)
 │       ├── jeans/
-│       │   ├── inference.py         ← from docs/plan/jeans_inference.py
-│       │   ├── solver.py            ← from docs/plan/jeans.py
+│       │   ├── inference.py         dynesty driver (4D and 7D)
+│       │   ├── solver.py            σ_los(R) Jeans integrator
 │       │   ├── priors.py            three-prior registry (uniform,
-│       │   │                         loguniform, jeffreys); jeffreys
-│       │   │                         Fisher-determinant log term
-│       │   ├── selection.py         principled per-star cuts (p, R, var)
+│       │   │                         loguniform, jeffreys); Fisher-
+│       │   │                         determinant log term
+│       │   ├── constant_sigma.py    Walker+2006 constant-σ baseline
+│       │   ├── selection.py         per-star cuts (p, R, var)
 │       │   └── preprocess.py        per-epoch → per-star → selection
 │       │                             orchestrator (combine_policy +
 │       │                             selection_policy)
-│       ├── jd/                      ← from docs/plan/j_d_factors.py
+│       ├── jd/
 │       │   ├── factors.py
-│       │   └── summary.py           ← from run_jd_summary.py
-│       └── mocks/                   ← from docs/plan/mock_galaxy.py
+│       │   └── summary.py
+│       └── mocks/
 │           └── galaxy.py
+├── scripts/
+│   ├── run_production.py            one-galaxy production driver
+│   ├── submit_batch.sh              SLURM array driver (one task / catalog)
+│   ├── run_batch.py                 local-node batch (multiprocessing)
+│   ├── plot_posteriors.py           per-galaxy plot regen
+│   └── bench_*.py                   solver / sampler benchmarks
 ├── tests/
 │   ├── unit/                        per-function checks
-│   │   ├── test_jeans.py            ← from docs/plan/
-│   │   └── test_jeans_vs_quad.py    ← from docs/plan/
+│   │   ├── test_jeans.py
+│   │   ├── test_jeans_vs_quad.py
+│   │   ├── test_priors.py
+│   │   ├── test_selection.py
+│   │   ├── test_preprocess.py
+│   │   ├── test_multi_epoch.py
+│   │   ├── test_default_combiner.py
+│   │   └── test_combiner_dispatch.py
 │   └── integration/                 whole-pipeline tests (gold-standard)
-│       ├── run_segue1.py            ← from Segue1_test/run_segue1.py
-│       ├── run_ufd_population.py    ← from docs/plan/
-│       └── analyze_asimov.py        ← from docs/plan/
+│       ├── run_segue1.py
+│       ├── run_ufd_population.py
+│       └── analyze_asimov.py
 ├── docs/
 │   ├── writeup/
 │   │   └── pipeline.tex             single doc, all stages
 │   │                                 (PDF built by CI — not committed)
 │   ├── plan/                        living markdown specs
-│   └── original-plan/               frozen reference (read-only)
-├── data/                            unchanged
+│   ├── original-plan/               frozen reference (read-only)
+│   └── review-checklist.md          recurring bug classes for reviewers
+├── data/
 │   ├── registry/                    galaxies.ecsv + build_log
 │   ├── star_catalogs/               per-galaxy .npz inputs to inference
 │   ├── lvdb_v1.0.5/                 LVDB snapshot
 │   └── <per-paper raw dirs>         raw ingest inputs (kirby2015/, walker2015/, …)
+├── plots/                           per-galaxy regen plots (gitignored)
 └── results/                         run outputs (gitignored)
-    ├── tests/                       outputs from integration-test runs
-    │   └── segue1/                  ← from Segue1_test/baseline_*, *.npz, *.png
-    └── <galaxy_key>/                future per-galaxy production runs
-                                     (e.g. results/reticulum_2/, results/carina_1/)
+    ├── production/<lvdb_key>/<prior>/   canonical, overwritten on each run
+    └── tests/<test_name>/               outputs from integration-test runs
 ```
 
 ## Layout rationale
@@ -77,36 +90,51 @@ DwarfJeansAnalysis/
   (`from dwarfjeans.jeans import inference`) and prevents
   cwd-relative shadowing. Standard for installable Python packages.
 
+- **`scripts/` for production drivers.** Production drivers
+  (`run_production.py`), the SLURM submission script
+  (`submit_batch.sh`), local-node batch (`run_batch.py`), plot regen
+  (`plot_posteriors.py`), and benchmarks (`bench_*.py`) live here.
+  These are entry points, not library code; keeping them outside
+  `src/dwarfjeans/` keeps the package surface clean.
+
 - **`tests/unit/` vs. `tests/integration/`.** Enforces the CLAUDE.md
   gold-standard rule. `integration/` holds whole-pipeline tests:
   `run_segue1.py` (single-galaxy mock-pipeline check),
   `run_ufd_population.py` (15-realization MC recovery), and
-  `analyze_asimov.py` (Asimov bias check). These are tests, not
-  drivers — there is **no separate `scripts/` directory** in the
-  target layout.
+  `analyze_asimov.py` (Asimov bias check).
 
 - **`results/` gitignored, split by purpose.**
+  - `results/production/<lvdb_key>/<prior>/` — canonical per-galaxy
+    production output. **Overwritten on each run**; wrong/old results
+    are not retained for provenance (provenance is captured inside
+    `audit.json` via `timestamp_utc`, dynesty config, registry row).
   - `results/tests/<test_name>/` — outputs from integration-test runs
-    (Segue 1 testbed today; future test runs go alongside).
-  - `results/<galaxy_key>/` — per-galaxy production runs once Stage 1
-    inference is run on the Path B galaxies.
+    (Segue 1 testbed, etc.).
 
-  Splitting prevents test artifacts from colliding with real science
-  outputs.
+  Splitting prevents test artifacts from colliding with science
+  outputs. The flat per-(galaxy, prior) layout under `production/`
+  keeps the central tree small across re-runs — earlier per-SLURM-job
+  / per-timestamp subdirectories ballooned the tree and were collapsed
+  on 2026-05-08.
 
 - **`docs/writeup/`.** Single `pipeline.tex` covering all stages,
   per CLAUDE.md. The `.tex` source lives in the repo; the compiled
   PDF is built by `.github/workflows/writeup.yml` on changes to
-  `docs/writeup/**` and exposed as a workflow artifact. The PDF is
-  treated as a community-facing CI artifact rather than a repo
-  asset, so it is not committed.
+  `docs/writeup/**` and exposed as a workflow artifact (not
+  committed).
 
-- **`jeans/priors.py` is its own module** because we already run with
-  multiple prior choices (logflat vs. Jeffreys for Segue 1) and Stage 2
-  has an open TODO to rerun the MC under Jeffreys. Today the
-  prior-transform builders, Jeffreys log-term, and prior bounds all
-  live inside `jeans_inference.py`; pulling them out lets new prior
-  variants be added without touching the inference driver.
+- **`jeans/priors.py` is its own module** because we run with multiple
+  prior choices (loguniform vs. Jeffreys) and the Stage 2 MC and
+  Segue 1 testbed both compare across them. The module also owns
+  the `V_HALFWIDTH` constant; the V prior is centered on the
+  post-selection IVW mean of the catalog (computed in
+  `scripts/run_production.py`), with the halfwidth overridable per
+  galaxy via the optional `vlos_prior_halfwidth_kms` registry column.
+
+- **`jeans/constant_sigma.py`** holds the Walker+2006
+  radius-independent constant-σ inference. It is the model-free
+  counterpart to the Jeans posterior σ_los(R) and is the canonical
+  cross-paper comparison quantity (P&S 2018, Walker 2006).
 
 - **Ingest preserves provenance; combination is downstream.** Adapters
   in `path_b_adapters/` write the catalog at whatever granularity the
@@ -122,7 +150,7 @@ DwarfJeansAnalysis/
   them into the on-disk catalog would force a 39-galaxy re-ingest
   every time we revisit them, and would erase the per-epoch
   information needed for binary-aware σ-deconvolution and period
-  searches. Keeping the per-epoch granularity on disk is a feature.
+  searches.
 
 - **`ingest/multi_epoch.py` + `ingest/combiners/`** hold the
   combination machinery, *invoked at analysis time* by
@@ -139,16 +167,16 @@ DwarfJeansAnalysis/
     p-value threshold (e.g. `p < 0.01`); single-epoch stars are
     left unflagged.
 
-  `combiners/<dataset>.py` holds the per-dataset handler that knows
-  the survey's zero-point offsets, error floor (e.g. 1.1 km/s for
-  DEIMOS), variability threshold, and any dataset-specific quality
-  cuts. Handlers are organized **per dataset, not per dwarf**, since
-  the combine procedure is a property of the survey/instrument. The
-  registry in `combiners/__init__.py` dispatches by
+  `combiners/<paper>.py` holds per-paper handlers (chiti2022,
+  chiti2023, hansen2024, li2017, li2018, simon2020) that know that
+  paper's zero-point offsets, error floors, and variability
+  thresholds. Handlers are organized **per paper, not per dwarf**,
+  since the combine procedure is a property of the survey/instrument.
+  The registry in `combiners/__init__.py` dispatches by
   `_meta["source_paper_bibcode"]`; an unregistered bibcode falls
   back to `combiners/default.py` (IVW + χ² with no offsets and zero
-  σ_sys floor — adequate when the published velocities are already
-  on a single zero-point and errors include the survey's systematic
+  σ_sys floor — adequate when published velocities are already on a
+  single zero-point and errors include the survey's systematic
   budget).
 
 - **`jeans/preprocess.py`** is the orchestrator that turns a raw
@@ -158,14 +186,16 @@ DwarfJeansAnalysis/
   and the `SelectionPolicy` in the run's audit dict so any inference
   output is reproducible from the raw `.npz` plus the policy
   records. Per-star catalogs (e.g. Walker 2009 Carina I) skip the
-  combiner step — the paper's combination is part of the
-  provenance; we don't re-do it.
+  combiner step.
 
 - **`docs/plan/` keeps its current role** as the living markdown
   spec set (`pipeline_overview.md`, `stage1.md`, `stage2.md`,
   `stage3.md`, `data_sources.md`, `jeffreys_jeans_derivation.md`,
-  `uncertainty_conventions.md`). New edits go there, **not** into
-  `docs/original-plan/`, which remains a frozen reference snapshot.
+  `per_paper_combiners.md`, `uncertainty_conventions.md`,
+  `segue1_test.md`, `README_mc_test.md`). New edits go there, **not**
+  into `docs/original-plan/`, which remains a frozen reference
+  snapshot. `docs/review-checklist.md` accumulates recurring bug
+  classes used by adversarial review.
 
 ## Module conventions
 
@@ -179,61 +209,20 @@ DwarfJeansAnalysis/
   explicit `rng` or `seed` argument. No module-level `np.random`
   state, no implicit globals.
 
-## Migration ordering
+## Migration status
 
-Each step is a separate PR. Each step leaves the repo importable and
-the existing Segue 1 testbed runnable. No step bundles a behavioral
-change with a layout change.
+The `src/` migration originally laid out in this document is
+**complete** (concluded 2026-05-07). `pyproject.toml` exists; the
+`src/dwarfjeans/` package is editable-installed; ingest, jeans, jd,
+and mocks all moved out of `docs/plan/*.py`; `priors.py` is extracted;
+tests live under `tests/unit/` and `tests/integration/`; `results/`
+is gitignored; `docs/writeup/pipeline.tex` exists and is built by CI.
 
-1. **Land this `ARCHITECTURE.md`.**
-2. Add `pyproject.toml`. Create empty `src/dwarfjeans/` package with
-   only `__init__.py`. Install in editable mode.
-3. Promote `data_ingest/` → `src/dwarfjeans/ingest/`. `git mv` plus
-   import-path fixups; adapter logic unchanged.
-4a. **Pure `git mv`** of pipeline modules from `docs/plan/*.py` →
-    `src/dwarfjeans/{jeans,jd,mocks}/` with import-path fixups only.
-    Before the `git mv`, clean any `docs/plan/.ipynb_checkpoints/`
-    copies so checkpoint shadows don't dangle.
-    `docs/plan/segue1_test.md` and `docs/plan/README_mc_test.md`
-    stay put as living specs. **No factoring**: `priors.py` is not
-    extracted in this step; `jeans_inference.py` retains its current
-    prior-transform builders and Jeffreys log-term inline. This step
-    must produce identical posteriors to pre-rename.
-4b. **Extract `jeans/priors.py`** from `jeans_inference.py`: pull
-    `make_prior_transform`, `make_prior_transform_with_nuisances`,
-    `_jeffreys_log_term`, and the prior-bound constants into the new
-    module; have `inference.py` import them. Verify by rerunning the
-    Segue 1 testbed and confirming posterior parity (chains agree to
-    sampling-noise floor) before declaring done.
-5. Move tests **and update their output paths in the same commit**
-   so the testbed remains runnable. Existing unit tests →
-   `tests/unit/`. Pipeline tests `run_segue1.py`,
-   `run_ufd_population.py`, and `analyze_asimov.py` →
-   `tests/integration/`. Update each test's output directory to
-   `results/tests/<test_name>/` so writes land in the new location.
-6. Move existing `Segue1_test/` run outputs (`*.npz`, `*.png`,
-   `*.csv`, `baseline_logflat/`) → `results/tests/segue1/`. Add
-   `results/` to `.gitignore`. Retire the `Segue1_test/` directory
-   (including the one-shot diagnostic
-   `compare_pace_vs_bpr08.py`, which has served its purpose).
-7. Create `docs/writeup/pipeline.tex` skeleton (single document,
-   sections per stage). The compiled PDF is published by the
-   step-8 CI workflow as a build artifact — not committed.
-8. Add CI under `.github/workflows/` running `pytest tests/unit` and
-   the LaTeX build on each PR.
-
-Out-of-band feature work (not numbered above because it is new code,
-not migration):
-
-- **Multi-epoch combiner (downstream).** `ingest/multi_epoch.py`
-  (IVW + χ² primitives) and `ingest/combiners/` (per-dataset
-  handlers + default fallback) are runtime tools called by
-  `jeans/preprocess.py`, not by the ingest drivers. Per-epoch `.npz`
-  files in `data/star_catalogs/` stay per-epoch; combination
-  happens at analysis time so σ_sys / zero-point / variability
-  thresholds remain tunable without re-ingest. Per-paper handlers
-  with paper-specific constants (DEIMOS σ_floor, M2FS offsets) are
-  added incrementally as catalogs go into Stage 1 production.
+The multi-epoch combiner machinery (`ingest/multi_epoch.py`,
+`ingest/combiners/`) was originally listed as out-of-band feature
+work; it is now mainline (seven per-paper handlers + default fallback,
+unit tests under `tests/unit/test_*combiner*.py` and
+`test_multi_epoch.py`).
 
 ## Maintenance contract
 
