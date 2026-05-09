@@ -227,6 +227,7 @@ def run_inference(
     prior_name: str = "jeffreys",
     fix_r_p_arcmin: bool = False,
     npool: int = 1,
+    V_halfwidth: float | None = None,
 ) -> dict:
     """
     Run dynesty on the mock galaxy. Returns a dict with:
@@ -248,9 +249,10 @@ def run_inference(
     Default ``jeffreys`` matches the previous ``use_jeffreys_prior=True``
     default.
     """
-    from dwarfjeans.jeans.priors import get_prior
+    from dwarfjeans.jeans.priors import V_HALFWIDTH, get_prior
 
     prior = get_prior(prior_name)
+    V_hw = V_HALFWIDTH if V_halfwidth is None else float(V_halfwidth)
 
     if marginalize_nuisances:
         if asimov:
@@ -270,6 +272,7 @@ def run_inference(
             d_mean=nuisance_priors["d_mean"], d_sigma=nuisance_priors["d_sigma"],
             eps_mean=nuisance_priors["eps_mean"], eps_sigma=nuisance_priors["eps_sigma"],
             rhalf_mean=nuisance_priors["rhalf_mean"], rhalf_sigma=nuisance_priors["rhalf_sigma"],
+            V_halfwidth=V_hw,
         )
         ndim = 7
         param_names = ("V", "log10_rs", "log10_rhos", "beta_tilde",
@@ -282,7 +285,7 @@ def run_inference(
             r_p=galaxy["truth"]["r_p"],
             sigma_los_truth=galaxy["sigma_los_true"],
         )
-        prior_transform = prior.make_transform(V_center, log10_rs_min=log10_rs_min)
+        prior_transform = prior.make_transform(V_center, log10_rs_min=log10_rs_min, V_halfwidth=V_hw)
         ndim = 4
         param_names = ("V", "log10_rs", "log10_rhos", "beta_tilde")
     else:
@@ -294,7 +297,7 @@ def run_inference(
             r_p=galaxy["truth"]["r_p"],
             prior=prior,
         )
-        prior_transform = prior.make_transform(V_center, log10_rs_min=log10_rs_min)
+        prior_transform = prior.make_transform(V_center, log10_rs_min=log10_rs_min, V_halfwidth=V_hw)
         ndim = 4
         param_names = ("V", "log10_rs", "log10_rhos", "beta_tilde")
 

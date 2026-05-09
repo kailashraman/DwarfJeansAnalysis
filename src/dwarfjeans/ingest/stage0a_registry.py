@@ -234,6 +234,12 @@ def build_registry() -> Table:
             "vlos_systemic_ep": float(r["vlos_systemic_ep"]) if pd.notna(r["vlos_systemic_ep"]) else math.nan,
             "vlos_sigma_kms": float(r["vlos_sigma"]) if pd.notna(r["vlos_sigma"]) else math.nan,
             "vlos_sigma_unresolved": vlos_sigma_missing,
+            # Per-galaxy override on the V_sys prior halfwidth used in
+            # Stages 1 and 2. Default 10 km/s; widen by hand for galaxies
+            # whose post-selection IVW mean may sit far from the true
+            # systemic (small samples, contamination). Consumed by
+            # scripts/run_production.py.
+            "vlos_prior_halfwidth_kms": 10.0,
             "M_V": float(r["M_V"]) if pd.notna(r["M_V"]) else math.nan,
             "ref_vlos": str(r["ref_vlos"]) if pd.notna(r["ref_vlos"]) else "",
             "ref_structure": str(r["ref_structure"]) if pd.notna(r["ref_structure"]) else "",
@@ -261,6 +267,7 @@ def build_registry() -> Table:
         "rhalf_major_pc": u.pc, "r_half_2d_pc": u.pc, "plummer_radius_pc": u.pc,
         "vlos_systemic_kms": u.km / u.s, "vlos_systemic_em": u.km / u.s, "vlos_systemic_ep": u.km / u.s,
         "vlos_sigma_kms": u.km / u.s,
+        "vlos_prior_halfwidth_kms": u.km / u.s,
         "M_V": u.mag,
     }
     for col, unit in units.items():

@@ -172,10 +172,19 @@ def run(lvdb_key: str,
         V_center = 0.0
         logp("WARN: registry vlos_systemic_kms NaN; using 0 km/s as V_center")
 
+    # Per-galaxy override on the V prior halfwidth. Defaults to V_HALFWIDTH
+    # (10 km/s) from priors.py; can be widened in the registry for small
+    # samples or unusual velocity distributions (P&S 2018 footnote 6).
+    from dwarfjeans.jeans.priors import V_HALFWIDTH as _V_HW_DEFAULT
+    _vhw_raw = row.get("vlos_prior_halfwidth_kms", _V_HW_DEFAULT)
+    V_halfwidth = (_V_HW_DEFAULT if (isinstance(_vhw_raw, float) and np.isnan(_vhw_raw))
+                   else float(_vhw_raw))
+
     logp(f"\n=== Registry row ({lvdb_key}) ===")
     logp(f"  distance_kpc:    {d_kpc:.3f}")
     logp(f"  rhalf_major_pc:  {rhalf_major_pc:.3f}")
-    logp(f"  V_center (km/s): {V_center:+.2f}")
+    logp(f"  V_halfwidth (km/s): {V_halfwidth:.2f}"
+         + ("" if V_halfwidth == _V_HW_DEFAULT else " (registry override)"))
     logp(f"  spatial_model:   {row.get('spatial_model', 'plummer')!r}")
     logp(f"  source_paper:    vlos={row.get('ref_vlos', '?')}, "
          f"struct={row.get('ref_structure', '?')}")
@@ -226,6 +235,25 @@ def run(lvdb_key: str,
     logp(f"  N final = {R_kpc.size};  R/kpc range=[{R_kpc.min():.4f}, "
          f"{R_kpc.max():.4f}];  V mean/std={V.mean():+.2f}/{V.std():.2f} km/s")
 
+    # Re-center the V_sys prior on the IVW mean of the post-selection
+    # velocities. Registry vlos_systemic_kms can be stale / based on a
+    # different sample (e.g. Pegasus III posterior railed against a
+    # ±10 km/s registry-centered prior). The ±V_HALFWIDTH window is
+    # set in priors.py and unchanged. Hard-floor σ_eps at 0.05 km/s:
+    # spectroscopic σ_eps is realistically ≥ 0.1 km/s, so anything
+    # smaller is a data bug and would dominate the weighted mean.
+    if not np.all(sigma_eps > 0.05):
+        raise ValueError(
+            f"sigma_eps for {lvdb_key} contains values <= 0.05 km/s "
+            f"(min={sigma_eps.min():.4g}); refusing to compute IVW "
+            "V_center — investigate the catalog."
+        )
+    _w = 1.0 / sigma_eps ** 2
+    V_center_ivw = float(np.sum(_w * V) / np.sum(_w))
+    logp(f"  V_center (km/s): registry={V_center:+.2f} -> "
+         f"post-selection IVW mean={V_center_ivw:+.2f} (used for prior)")
+    V_center = V_center_ivw
+
     # Post-cut membership convention. The default (use_p_weights=False)
     # treats every survivor as a confirmed member (p_i := 1) — the
     # standard convention used by tests/integration/run_segue1.py and the
@@ -259,7 +287,8 @@ def run(lvdb_key: str,
     }
 
     # ----- Walker+2006 constant-σ dispersion (data-only, model-free) -----
-    cs = constant_sigma_inference(V, sigma_eps, p, V_center=V_center)
+    cs = constant_sigma_inference(V, sigma_eps, p, V_center=V_center,
+                                   V_halfwidth=V_halfwidth)
     sigma_los_walker = cs["sigma_int"]                 # (V̄, σ) joint marginal
     logp(f"\n=== Constant-σ inference (Walker+2006, radius-independent) ===")
     logp(f"  σ_los (Bayes,  median): {sigma_los_walker['median']:.3f} "
@@ -272,6 +301,7 @@ def run(lvdb_key: str,
     result = jeans_inference.run_inference(
         galaxy,
         V_center=V_center,
+        V_halfwidth=V_halfwidth,
         nlive=nlive,
         dlogz=dlogz,
         rseed=rseed,

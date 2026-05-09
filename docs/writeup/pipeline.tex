@@ -768,7 +768,12 @@ likelihood evaluation.
 $\tilde\beta$ is flat on $[-0.95,\,1)$ (eq.~\ref{eq:beta-tilde}); the
 open upper bound avoids the radial-orbit singularity at $\beta=1$.
 $\bar V$ is flat on $[V_\mathrm{centre} - 10,\,V_\mathrm{centre} + 10]\,\kms$,
-where $V_\mathrm{centre}$ is the registry \code{vlos\_systemic\_kms}.
+where $V_\mathrm{centre}$ is the inverse-variance-weighted mean of the
+post-selection velocities,
+$V_\mathrm{centre} = \sum_i V_i/\sigma_{\varepsilon,i}^2 \big/ \sum_i 1/\sigma_{\varepsilon,i}^2$.
+Centering on the data rather than on the registry
+\code{vlos\_systemic\_kms} avoids stale/sample-mismatch failures
+(Pegasus III hit the lower wall of a registry-centered prior in QA).
 
 \paragraph{Nuisance priors (7-D mode).}
 When \code{marginalize\_nuisances=True}, three additional parameters
@@ -850,7 +855,9 @@ no halo parameters and no nuisances enter.
 
 \paragraph{Priors.}
 Uniform on $V_\mathrm{sys}\in[V_\mathrm{centre}\pm 10\;\mathrm{km\,s^{-1}}]$
-($V_\mathrm{centre}$ from the registry).  On $\sigma$ we use the
+($V_\mathrm{centre}$ is the IVW mean of the post-selection velocities,
+matching the Stage~2 prior; see the anisotropy-and-systemic-priors
+paragraph).  On $\sigma$ we use the
 \emph{proper} (Fisher-determinant) Jeffreys prior, computed at each
 grid point from the diagonal Fisher information $I_{\bar V\bar V} =
 1/\sigma_i^{2}$ and $I_{\sigma\sigma} = 2\sigma^{2}/\sigma_i^{4}$

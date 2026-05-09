@@ -9,9 +9,11 @@ from __future__ import annotations
 
 import numpy as np
 
+from dwarfjeans.jeans.priors import V_HALFWIDTH
+
 
 def constant_sigma_inference(V_obs, sigma_eps, p, V_center,
-                             V_halfwidth=10.0,
+                             V_halfwidth=V_HALFWIDTH,
                              log10_sigma_min=-2.0, log10_sigma_max=2.0,
                              n_V=400, n_sigma=400):
     """Walker+2006 membership-weighted Gaussian likelihood for (V_sys, σ_los).

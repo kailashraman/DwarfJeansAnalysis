@@ -20,9 +20,12 @@ Each family is encoded as a ``Prior`` dataclass holding:
   - ``log_correction``: data-dependent additive term applied inside
     the likelihood. Returns 0.0 for non-Jeffreys priors.
 
-V is always a uniform prior on [V_center - V_HALFWIDTH, V_center +
-V_HALFWIDTH]; β̃ is always uniform on BETA_TILDE_BOUNDS. The "prior
-family" only affects (r_s, rho_s).
+V is always a uniform prior on [V_center − V_halfwidth, V_center +
+V_halfwidth]; the halfwidth defaults to ``V_HALFWIDTH`` (10 km/s) but
+can be overridden per call (and per galaxy via the registry's
+``vlos_prior_halfwidth_kms`` column — wired in ``run_production.py``).
+β̃ is always uniform on BETA_TILDE_BOUNDS. The "prior family" only
+affects (r_s, rho_s).
 """
 
 from __future__ import annotations
@@ -46,15 +49,20 @@ V_HALFWIDTH = 10.0                   # km/s, default per-galaxy override
 # ---------------------------------------------------------------------------
 
 def make_loguniform_prior_transform(V_center: float,
-                                     log10_rs_min: float | None = None):
+                                     log10_rs_min: float | None = None,
+                                     V_halfwidth: float = V_HALFWIDTH):
     """4D unit-cube → (V, log10 r_s, log10 rho_s, β̃) with uniform priors
     on the log-space halo parameters.
 
     log10_rs_min overrides the default lower bound on log10(r_s), e.g. to
     enforce r_s > r_p.
+
+    V_halfwidth overrides the V prior halfwidth (default ``V_HALFWIDTH``
+    = 10 km/s); see ``run_production.py`` for the per-galaxy override
+    sourced from the registry.
     """
-    V_lo = V_center - V_HALFWIDTH
-    V_hi = V_center + V_HALFWIDTH
+    V_lo = V_center - V_halfwidth
+    V_hi = V_center + V_halfwidth
     rs_lo = LOG10_RS_BOUNDS[0] if log10_rs_min is None else log10_rs_min
     rs_hi = LOG10_RS_BOUNDS[1]
 
@@ -74,6 +82,7 @@ def make_loguniform_prior_transform_with_nuisances(
     d_mean: float, d_sigma: float,
     eps_mean: float, eps_sigma: float,
     rhalf_mean: float, rhalf_sigma: float,
+    V_halfwidth: float = V_HALFWIDTH,
 ):
     """7D unit-cube → (V, log10 r_s, log10 rho_s, β̃, d, ε, rhalf_arcmin).
 
@@ -81,9 +90,11 @@ def make_loguniform_prior_transform_with_nuisances(
     - d_kpc:       Normal(d_mean, d_sigma).
     - eps:         Normal(eps_mean, eps_sigma) truncated to [0, 1).
     - rhalf_arcmin: Normal(rhalf_mean, rhalf_sigma).
+
+    V_halfwidth overrides the V prior halfwidth (default 10 km/s).
     """
-    V_lo = V_center - V_HALFWIDTH
-    V_hi = V_center + V_HALFWIDTH
+    V_lo = V_center - V_halfwidth
+    V_hi = V_center + V_halfwidth
     rs_lo, rs_hi = LOG10_RS_BOUNDS
     eps_a = (0.0 - eps_mean) / eps_sigma
     eps_b = (1.0 - eps_mean) / eps_sigma  # truncnorm a, b are in std-normal units
@@ -107,7 +118,8 @@ def make_loguniform_prior_transform_with_nuisances(
 # ---------------------------------------------------------------------------
 
 def make_uniform_prior_transform(V_center: float,
-                                  log10_rs_min: float | None = None):
+                                  log10_rs_min: float | None = None,
+                                  V_halfwidth: float = V_HALFWIDTH):
     """4D unit-cube → (V, log10 r_s, log10 rho_s, β̃) with linear-uniform
     priors on r_s and rho_s over the same physical span as ``loguniform``.
 
@@ -117,9 +129,11 @@ def make_uniform_prior_transform(V_center: float,
 
     log10_rs_min overrides the default lower bound on r_s — interpreted
     in log-space so the constraint matches the loguniform variant.
+
+    V_halfwidth overrides the V prior halfwidth (default 10 km/s).
     """
-    V_lo = V_center - V_HALFWIDTH
-    V_hi = V_center + V_HALFWIDTH
+    V_lo = V_center - V_halfwidth
+    V_hi = V_center + V_halfwidth
     rs_lo_log = LOG10_RS_BOUNDS[0] if log10_rs_min is None else log10_rs_min
     rs_lo = 10.0 ** rs_lo_log
     rs_hi = 10.0 ** LOG10_RS_BOUNDS[1]
@@ -144,12 +158,15 @@ def make_uniform_prior_transform_with_nuisances(
     d_mean: float, d_sigma: float,
     eps_mean: float, eps_sigma: float,
     rhalf_mean: float, rhalf_sigma: float,
+    V_halfwidth: float = V_HALFWIDTH,
 ):
     """7D analogue of make_uniform_prior_transform with the same nuisance
     block as the loguniform variant.
+
+    V_halfwidth overrides the V prior halfwidth (default 10 km/s).
     """
-    V_lo = V_center - V_HALFWIDTH
-    V_hi = V_center + V_HALFWIDTH
+    V_lo = V_center - V_halfwidth
+    V_hi = V_center + V_halfwidth
     rs_lo = 10.0 ** LOG10_RS_BOUNDS[0]
     rs_hi = 10.0 ** LOG10_RS_BOUNDS[1]
     rhos_lo = 10.0 ** LOG10_RHOS_BOUNDS[0]
