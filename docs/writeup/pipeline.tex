@@ -769,6 +769,57 @@ Section~\ref{sec:stage3:chain}).  Outputs land in
 \code{summary.csv}, and an \code{audit.json} recording registry
 inputs, selection policy, and dynesty configuration.
 
+\subsection{Walker constant-$\sigma$ baseline}
+\label{sec:stage1:walker}
+
+Alongside the Jeans posterior, the production driver also evaluates
+a radius-independent Walker (2006) dispersion as a model-free
+cross-check.  This is the canonical comparison number quoted across
+the dwarf-galaxy literature (P\&S 2018, Walker 2006), so reporting it
+in the same \code{summary.csv} as the Jeans result makes paper-vs-paper
+checks one-line.
+
+\paragraph{Likelihood.}
+A single global $\sigma$ replaces the radial profile
+$\sigma_\mathrm{los}(R)$.  The per-star membership-weighted Gaussian
+matches Eq.~\eqref{eq:lnlike} stripped of the $R$-dependence
+($s_i^{2}\to\sigma^{2}+\varepsilon_i^{2}$ instead of
+Eq.~\eqref{eq:stot}):
+\begin{equation}
+\ln L_i \;=\; p_i\,\Big[\,
+  -\tfrac{1}{2}\ln\!\big[2\pi(\sigma^{2} + \varepsilon_i^{2})\big]
+  -\tfrac{1}{2}\,\frac{(V_i - V_\mathrm{sys})^{2}}{\sigma^{2} + \varepsilon_i^{2}}
+\,\Big].
+\end{equation}
+Inference is on the two parameters $(V_\mathrm{sys}, \sigma)$ only;
+no halo parameters and no nuisances enter.
+
+\paragraph{Priors.}
+Uniform on $V_\mathrm{sys}\in[V_\mathrm{centre}\pm 10\;\mathrm{km\,s^{-1}}]$
+($V_\mathrm{centre}$ from the registry).  On $\sigma$ we use the
+\emph{proper} (Fisher-determinant) Jeffreys prior, computed at each
+grid point from the diagonal Fisher information $I_{\bar V\bar V} =
+1/\sigma_i^{2}$ and $I_{\sigma\sigma} = 2\sigma^{2}/\sigma_i^{4}$
+with $\sigma_i^{2} = \sigma^{2} + \varepsilon_i^{2}$:
+\begin{equation}
+p_J(\sigma) \;\propto\; \sigma\,
+\sqrt{\Big[\sum_i p_i/\sigma_i^{2}\Big]\Big[\sum_i p_i/\sigma_i^{4}\Big]},
+\end{equation}
+which is $\bar V$-independent and truncated to
+$\log_{10}\sigma\in[-2, 2]$ (i.e.\ $\sigma\in[0.01, 100]\;\mathrm{km\,s^{-1}}$).
+The proper Jeffreys form is preferred over the bare log-uniform
+because the latter piles posterior mass at $\sigma\!\ll\!\varepsilon_i$
+where the likelihood is $\sigma$-independent.
+
+\paragraph{Implementation and reporting.}
+The 2D posterior on $(V_\mathrm{sys}, \sigma)$ is evaluated on a
+$400\times400$ grid in \code{constant\_sigma\_inference}.  Marginals
+on $V_\mathrm{sys}$ and $\sigma$ are integrated by trapezoid; the
+$16/50/84$ percentiles are read off the cumulative.  The driver
+records the $\sigma$ marginal as \code{sigma\_los\_walker\_kms} in
+\code{summary.csv}.  Runtime is sub-second per galaxy and is
+independent of the Jeans inference.
+
 % ===================================================================
 \section{Stage 2: Population Monte Carlo calibration}
 \label{sec:stage2}

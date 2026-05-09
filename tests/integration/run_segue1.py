@@ -441,9 +441,6 @@ def main():
          f"[{cs['V_sys']['q16']:+.4g}, {cs['V_sys']['q84']:+.4g}]  (km/s)")
     logp(f"  sigma_int: {cs['sigma_int']['median']:.4g}  "
          f"[{cs['sigma_int']['q16']:.4g}, {cs['sigma_int']['q84']:.4g}]  (km/s)")
-    pf = cs["sigma_int_profile"]
-    logp(f"  sigma_int (profile-LL Δlnℒ=½): "
-         f"{pf['mle']:.4g} +{pf['sigma_hi']:.4g}/-{pf['sigma_lo']:.4g}  (km/s)")
 
     logp(f"\n=== Running dynesty (7D, nuisance-marginalized; nlive={DYNESTY_NLIVE}, dlogz={DYNESTY_DLOGZ}) ===")
     _rp_label = "r_p_arcmin (fix_r_p_arcmin)" if fix_r_p is not None else "rhalf"
@@ -620,16 +617,6 @@ def main():
         addrow(f"log10_D_{tag}", v, "log10(GeV/cm^2)")
     summary_rows.append({"quantity": "V_sys_walker",       "unit": "km/s", **cs["V_sys"]})
     summary_rows.append({"quantity": "sigma_los_walker",    "unit": "km/s", **cs["sigma_int"]})
-    pf = cs["sigma_int_profile"]
-    # NOTE: this row is NOT a Bayesian percentile interval. The "median"/"q16"/"q84"
-    # slots store the MLE and the Δlnℒ=½ (Wilks 1σ) endpoints — re-using the columns
-    # only so the CSV schema stays homogeneous. The `_profileLL_mle_dlnL_half` suffix
-    # is the disambiguator; readers should not interpret these as quantiles.
-    summary_rows.append({
-        "quantity": "sigma_los_walker_profileLL_mle_dlnL_half", "unit": "km/s",
-        "median": pf["mle"], "q16": pf["lo"], "q84": pf["hi"],
-        "sigma_lo": pf["sigma_lo"], "sigma_hi": pf["sigma_hi"],
-    })
 
     summary = pd.DataFrame(summary_rows)
     summary.to_csv(out("summary", "csv"), index=False, float_format="%.6g")
@@ -750,28 +737,20 @@ def main():
     _jd_plot(log10_D, f"D-factor posteriors (median α_c/2={0.5*alpha_c_med_deg:.3f}°)",
               "posterior_D.png", r"$\log_{10} D\ [{\rm GeV} / {\rm cm}^2]$")
 
-    # σ_los Walker+2006 marginal posterior (Jeffreys prior on σ).
-    # Overlay the profile-likelihood Δlnℒ=½ interval as a prior-independent
-    # comparison: shows what the data alone constrain.
+    # σ_los Walker+2006 marginal posterior (proper Jeffreys / Fisher-det prior on σ).
     fig, ax = plt.subplots(figsize=(7.5, 4.5))
     sg = cs["sigma_grid"]
     pdf = cs["marg_sigma"]
     ax.fill_between(sg, pdf, color="C0", alpha=0.45)
-    ax.plot(sg, pdf, "C0-", lw=1.5, label="Bayesian marginal (proper Jeffreys / Fisher det)")
+    ax.plot(sg, pdf, "C0-", lw=1.5)
     q16, q50, q84 = cs["sigma_int"]["q16"], cs["sigma_int"]["median"], cs["sigma_int"]["q84"]
     for q, ls in [(q50, "-"), (q16, "--"), (q84, "--")]:
         ax.axvline(q, color="C0", ls=ls, lw=1)
-    pf = cs["sigma_int_profile"]
-    for x, ls in [(pf["mle"], "-"), (pf["lo"], "--"), (pf["hi"], "--")]:
-        ax.axvline(x, color="C3", ls=ls, lw=1)
-    ax.plot([], [], "C3-", lw=1, label=r"profile-LL  $\Delta\ln\mathcal{L}=\frac{1}{2}$")
     ax.set_xlim(0, min(15.0, sg[-1]))
     ax.set_xlabel(r"$\sigma_{\rm los}$ [km/s]")
     ax.set_ylabel("posterior density")
-    ax.legend(loc="upper right", fontsize=9)
     ax.set_title(
-        rf"Segue 1: Bayes $\sigma = {q50:.2f}^{{+{q84-q50:.2f}}}_{{-{q50-q16:.2f}}}$ "
-        rf"  |  profile $\sigma = {pf['mle']:.2f}^{{+{pf['sigma_hi']:.2f}}}_{{-{pf['sigma_lo']:.2f}}}$"
+        rf"Segue 1: Walker $\sigma = {q50:.2f}^{{+{q84-q50:.2f}}}_{{-{q50-q16:.2f}}}$ km/s"
         f"  (N={len(stars)})"
     )
     fig.tight_layout()

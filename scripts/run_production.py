@@ -261,13 +261,9 @@ def run(lvdb_key: str,
     # ----- Walker+2006 constant-σ dispersion (data-only, model-free) -----
     cs = constant_sigma_inference(V, sigma_eps, p, V_center=V_center)
     sigma_los_walker = cs["sigma_int"]                 # (V̄, σ) joint marginal
-    sigma_los_walker_profile = cs["sigma_int_profile"] # profile-LL (prior-independent)
     logp(f"\n=== Constant-σ inference (Walker+2006, radius-independent) ===")
     logp(f"  σ_los (Bayes,  median): {sigma_los_walker['median']:.3f} "
          f"[{sigma_los_walker['q16']:.3f}, {sigma_los_walker['q84']:.3f}] km/s")
-    logp(f"  σ_los (profile-LL MLE): {sigma_los_walker_profile['mle']:.3f} "
-         f"[{sigma_los_walker_profile['lo']:.3f}, "
-         f"{sigma_los_walker_profile['hi']:.3f}] km/s")
 
     # ----- Inference -----
     logp(f"\n=== dynesty (7D, prior={prior_name}, nlive={nlive}, "
@@ -425,9 +421,6 @@ def run(lvdb_key: str,
         ("sigma_los_at_Rhalf2d_kms", *_q(sigma_at_Rhalf)),
         ("sigma_los_walker_kms",
             sigma_los_walker["q16"], sigma_los_walker["median"], sigma_los_walker["q84"]),
-        ("sigma_los_walker_profile_kms",
-            sigma_los_walker_profile["lo"], sigma_los_walker_profile["mle"],
-            sigma_los_walker_profile["hi"]),
         ("alpha_c_rad",          *_q(alpha_c_chain)),
     ]
     for tag in (*fixed_J_angles, "alphac"):

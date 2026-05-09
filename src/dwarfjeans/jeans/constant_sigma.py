@@ -65,42 +65,14 @@ def constant_sigma_inference(V_obs, sigma_eps, p, V_center,
     q16_V, q50_V, q84_V = _pct(V_grid, marg_V)
     q16_s, q50_s, q84_s = _pct(sigma_grid, marg_sigma)
 
-    prof_lnL = log_lik.max(axis=0)
-    j_hat = int(np.argmax(prof_lnL))
-    sigma_hat = float(sigma_grid[j_hat])
-    target = prof_lnL[j_hat] - 0.5
-    if j_hat > 0:
-        lo_slice_x = sigma_grid[:j_hat + 1]
-        lo_slice_y = prof_lnL[:j_hat + 1]
-        if (lo_slice_y[-1] - lo_slice_y[0]) > 0 and lo_slice_y[0] < target:
-            sigma_lo_prof = float(np.interp(target, lo_slice_y, lo_slice_x))
-        else:
-            sigma_lo_prof = float(sigma_grid[0])
-    else:
-        sigma_lo_prof = float(sigma_grid[0])
-    if j_hat < len(sigma_grid) - 1:
-        hi_slice_x = sigma_grid[j_hat:][::-1]
-        hi_slice_y = prof_lnL[j_hat:][::-1]
-        if (hi_slice_y[-1] - hi_slice_y[0]) > 0 and hi_slice_y[0] < target:
-            sigma_hi_prof = float(np.interp(target, hi_slice_y, hi_slice_x))
-        else:
-            sigma_hi_prof = float(sigma_grid[-1])
-    else:
-        sigma_hi_prof = float(sigma_grid[-1])
-
     return {
         "V_sys":     {"median": q50_V, "q16": q16_V, "q84": q84_V,
                       "sigma_lo": q50_V - q16_V, "sigma_hi": q84_V - q50_V},
         "sigma_int": {"median": q50_s, "q16": q16_s, "q84": q84_s,
                       "sigma_lo": q50_s - q16_s, "sigma_hi": q84_s - q50_s},
-        "sigma_int_profile": {"mle": sigma_hat,
-                              "lo": sigma_lo_prof, "hi": sigma_hi_prof,
-                              "sigma_lo": sigma_hat - sigma_lo_prof,
-                              "sigma_hi": sigma_hi_prof - sigma_hat},
         "V_grid": V_grid, "sigma_grid": sigma_grid,
         "log10_sigma_grid": log10_sigma_grid,
         "log_post": log_post, "log_lik": log_lik, "log_prior_J": log_prior_J,
         "marg_V": marg_V,
         "marg_sigma": marg_sigma, "marg_log10_sigma": marg_log10_sigma,
-        "prof_lnL": prof_lnL,
     }

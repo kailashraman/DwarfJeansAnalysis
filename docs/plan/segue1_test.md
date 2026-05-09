@@ -97,8 +97,7 @@ Output filenames combine the active suffixes in order: e.g. `summary_pace_nop_fi
   - *Log-uniform on log10 σ* (often called "Jeffreys" but really not): produces a long lower tail because the Walker likelihood is σ-independent for σ ≪ ε_i, so the broad log-prior piles posterior mass at small σ.
   The proper Jeffreys prior is `∝ σ` for σ ≪ ε_i (kills the small-σ pile-up) and `∝ σ⁻²` for σ ≫ ε_i.
 
-- **Profile-likelihood interval (prior-independent cross-check):** Δlnℒ = ½ from the MLE on the profile-LL `prof_lnL(σ) = max_V̄ lnL(V̄, σ)`, inverted by linear interpolation. Reported in `summary.csv` as `sigma_los_walker_profileLL_mle_dlnL_half`.
-- Runtime: < 1 s; independent of the Jeans inference. Output plot: `sigma_los_walker.png` (Bayes marginal + profile-LL endpoints overlaid).
+- Runtime: < 1 s; independent of the Jeans inference. Output plot: `sigma_los_walker.png` (Bayes marginal with median + 16/84 percentile lines).
 
 ---
 
@@ -110,7 +109,6 @@ Sampled parameters: 4 halo (V_sys, log10 r_s, log10 ρ_s, β̃) + 3 nuisances (d
 |---|---|---|---|
 | V_sys (Walker, constant-σ block) | 209.4 | [208.5, 210.3] | km/s |
 | **σ_los (Walker, proper Jeffreys)** | **3.96** | **[2.80, 5.13]** | km/s |
-| σ_los profile-LL Δlnℒ=½ (prior-indep) | 3.95 | [2.81, 5.13] | km/s |
 | V_sys (Jeans) | 209.2 | [208.3, 210.1] | km/s |
 | **σ_los at R_½ (Jeans)** | **3.86** | **[2.89, 4.92]** | km/s |
 | log10 r_s | −1.22 | [−1.58, −0.58] | log10(kpc) |
@@ -138,7 +136,7 @@ logZ = −209.61 ± 0.13; n_eq = 5227 equal-weight samples. Wall time 479 s.
 - M_half (2D and 3D) shifts up by ~0.3 dex and tightens by ~3×.
 - J/D at the small angles shift up by ~0.5 dex.
 
-**P&S 2018 Table A1 reference (Segue 1):** σ_los = 3.10 +0.90/−0.80 km/s. Our Walker constant-σ result agrees within ~1σ on the median (errors ~30% wider). The Walker Bayesian credible interval (proper Jeffreys on σ) and the prior-independent profile-LL interval coincide to two decimals; the Jeans+Jeffreys σ_los at R_½ now agrees with both — strong indicator the result is robust.
+**P&S 2018 Table A1 reference (Segue 1):** σ_los = 3.10 +0.90/−0.80 km/s. Our Walker constant-σ result agrees within ~1σ on the median (errors ~30% wider). The Jeans+Jeffreys σ_los at R_½ agrees with the Walker result — strong indicator the result is robust.
 
 **Comparison-run snapshots.** The following `summary_*.csv` files in `results/tests/segue1/` are bundled as research artifacts:
 - `summary.csv`, `summary_pace.csv` — Simon and Pace ingest at the toggled-on baseline (`USE_P_WEIGHTS=True`, no fix-rp). Production-quality nlive=2000.
