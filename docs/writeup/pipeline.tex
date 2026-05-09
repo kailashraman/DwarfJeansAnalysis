@@ -9,7 +9,26 @@
 \usepackage{xcolor}
 
 \newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
-\newcommand{\code}[1]{\texttt{#1}}
+
+% Keep long inline code (file paths, dotted module names, etc.) from
+% extending past the right margin: (a) allow LaTeX to stretch a problem
+% line instead of overflowing; (b) walk the \code argument character by
+% character and insert \penalty0 (= \allowbreak) after `.`, `/`, `-` so
+% paths can wrap. Underscore breaks are not added because the common
+% \code{X\_Y} idiom passes a control-sequence token, not a char.
+\setlength{\emergencystretch}{3em}
+\makeatletter
+\def\dj@codescan#1{%
+  \ifx\dj@codeend#1\else
+    #1%
+    \ifx#1.\penalty0\fi
+    \ifx#1/\penalty0\fi
+    \ifx#1-\penalty0\fi
+    \expandafter\dj@codescan
+  \fi}
+\def\dj@codeend{\dj@codeend}
+\newcommand{\code}[1]{\texttt{\dj@codescan#1\dj@codeend}}
+\makeatother
 \newcommand{\Msun}{M_\odot}
 \newcommand{\kpc}{\mathrm{kpc}}
 \newcommand{\kms}{\mathrm{km\,s^{-1}}}
