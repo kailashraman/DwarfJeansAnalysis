@@ -103,3 +103,5 @@ For an evolving plan, maintain a working copy at `docs/plan/`. When referencing 
 - collapses/restructures `results/` or `data/` layout.
 
 Routine code edits inside an existing module do not require an update. If you find yourself adding code-level detail to ARCHITECTURE.md, that content belongs in a docstring or `docs/plan/` instead.
+
+`README.md` is the new-user orientation. Update it when an install dep changes (`pyproject.toml`), a quickstart command's CLI surface changes, or a section marked "to be filled in" becomes fillable.
