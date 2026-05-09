@@ -68,14 +68,24 @@ dispersion across realisations.
 
 \noindent\emph{This document describes the pipeline as implemented
 in code. Repository layout, module boundaries, and migration history
-live in \code{ARCHITECTURE.md} at the repository root; this writeup
-does not duplicate that content.}
+live in \code{ARCHITECTURE.md} at the repository root; the working
+design plan, P\&S~2018 deviation log, and per-stage extended treatments
+(including derivations) live in \code{docs/plan/} (overview entry
+point: \code{pipeline\_overview.md}).  Each section below opens with
+a pointer to the relevant plan document so a reader can drill into
+the derivation, the convention, or the historical rationale without
+chasing references through the prose.  This writeup does not duplicate
+either the architecture file or the plan documents.}
 
 \tableofcontents
 
 % ===================================================================
 \section{Stage 0a: Galaxy registry}
 \label{sec:stage0a}
+
+The full provenance log for the LVDB pin, the staging conventions, and
+the per-source rationale lives in \code{docs/plan/data\_sources.md} (LVDB
+section); this section summarizes the as-implemented build.
 
 \subsection{Data source and study sample}
 
@@ -225,6 +235,13 @@ follows; column-by-column provenance is in
 % ===================================================================
 \section{Stage 0b: Per-galaxy stellar kinematic ingest}
 \label{sec:stage0b}
+
+The two-path ingest design (Geha 2026 monolithic catalog vs.\ per-paper
+adapters) and the no-cuts-at-ingest invariant are documented in
+\code{docs/plan/data\_sources.md}; per-paper combiner conventions
+(IVW recipes, $\sigma_\mathrm{sys}$ floors, instrument zero-point
+offsets) are tabulated in \code{docs/plan/per\_paper\_combiners.md}.
+This section summarizes the two paths as they are implemented.
 
 \subsection{Path A: Geha+2026 ingest}
 \label{sec:stage0b-patha}
@@ -512,6 +529,21 @@ The selection report (audited per-galaxy in \code{audit.json}) records
 \section{Stage 1: Spherical Jeans inference}
 \label{sec:stage1}
 
+The canonical extended treatment of the Jeans inference (motivation,
+parameter parameterizations, log-space numerical scheme, sampler
+configuration, MC validation plan) lives in \code{docs/plan/stage2.md}
+in the working plan; the high-level role in the broader pipeline is
+in \code{docs/plan/pipeline\_overview.md}.  The full algebraic
+derivation of the conditional Jeffreys prior $p(\ln\rho_s,\ln r_s\mid
+\beta,r_p,\mathrm{data})$ used here lives in
+\code{docs/plan/jeffreys\_jeans\_derivation.md}; this section quotes
+the resulting formula but not the full derivation.  Nuisance-prior
+conventions (split-normal targets, the symmetric-Gaussian interim) are
+in \code{docs/plan/uncertainty\_conventions.md}.  The Walker constant-$\sigma$
+baseline reported alongside (Section~\ref{sec:stage1:walker}) is the
+plan's Stage~1 (\code{docs/plan/stage1.md}) — it's bundled here in the
+writeup because it shares the same per-galaxy driver.
+
 \subsection{Model}
 \label{sec:stage1-model}
 
@@ -712,7 +744,7 @@ The dispersion $\sigma_\mathrm{los}^2(R_i)$ is linear in $\rho_s$ at
 fixed $(r_s,\beta)$; its $\ln r_s$-derivative satisfies
 $\partial\sigma_\mathrm{los}^2/\partial\ln r_s = \sigma_\mathrm{los}^2 \, T_i$
 with auxiliary shape factor $T_i = 3 - \mathcal{Q}(R_i)/\mathcal{P}(R_i)$
-(jeffreys derivation Steps~2--3).  With per-star weights
+(\code{docs/plan/jeffreys\_jeans\_derivation.md}, Steps~2--3).  With per-star weights
 $\tilde w_i = A_i^2/(A_i + \sigma_{\varepsilon,i}^2)^2$ and
 $A_i = \sigma_\mathrm{los}^2(R_i)$, and membership-weighted sum
 $S_0 = \sum_i p_i \tilde w_i$, the $2\times 2$ Fisher matrix in
@@ -741,7 +773,10 @@ where $V_\mathrm{centre}$ is the registry \code{vlos\_systemic\_kms}.
 \paragraph{Nuisance priors (7-D mode).}
 When \code{marginalize\_nuisances=True}, three additional parameters
 are sampled with independent Gaussian priors derived directly from
-the registry:
+the registry.  The interim symmetric-Gaussian form below matches the
+current implementation; the design target (split-normal priors for
+asymmetric LVDB error fields) and the rationale for both choices are
+in \code{docs/plan/uncertainty\_conventions.md}.
 \begin{align}
   d &\sim \mathcal{N}(\mu_d,\,\sigma_d), \label{eq:prior-d}\\
   \varepsilon &\sim \mathcal{N}(\mu_\varepsilon,\,\sigma_\varepsilon)
@@ -842,6 +877,11 @@ independent of the Jeans inference.
 % ===================================================================
 \section{Stage 2: Population Monte Carlo calibration}
 \label{sec:stage2}
+
+The MC test design (truth grids, realisation count, bias / coverage
+metrics, rerun procedure) is documented in
+\code{docs/plan/README\_mc\_test.md}; the calibration role within the
+pipeline is in \code{docs/plan/stage2.md} (``MC recovery test'' section).
 
 \subsection{Motivation}
 
@@ -982,6 +1022,11 @@ overriding to \code{prior\_name="loguniform"}.
 % ===================================================================
 \section{Stage 3: $J$- and $D$-factor extraction}
 \label{sec:stage3}
+
+The canonical extended treatment of the $J/D$-factor pipeline (the
+chain-push design, tidal-radius source choice, MC recovery plan, and
+deviations from P\&S 2018) lives in \code{docs/plan/stage3.md}; this
+section summarizes the as-implemented integrals and reporting angles.
 
 \subsection{Integral definitions}
 \label{sec:stage3:integrals}
@@ -1248,7 +1293,10 @@ verifies that \code{np.load} output is accepted directly.
 \label{sec:segue1}
 
 \code{tests/integration/run\_segue1.py} runs the complete pipeline on
-Segue~1 and compares the output to published results.  Three per-star
+Segue~1 and compares the output to published results.  Full toggles,
+results history, and the P\&S~2018 comparison table live in
+\code{docs/plan/segue1\_test.md}; this section summarizes the test
+spec.  Three per-star
 data sources are toggled by the \code{SOURCE} variable: the
 Simon~et~al.\ (2011) VizieR catalog with $B_\mathrm{pr}>0.8$
 (\code{simon}); the Pace pre-combined Bayes file with $p\ge 0.8$
