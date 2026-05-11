@@ -14,8 +14,15 @@
 
 # Production driver: one array task per staged catalog in
 # data/star_catalogs/. Each task runs scripts/run_production.py for one
-# lvdb_key with the Jeffreys prior. Outputs land under the canonical
-# results/production/<key>/jeffreys/ and overwrite the previous run.
+# lvdb_key. Outputs land under the canonical
+# results/production/<key>/<prior>/ and overwrite the previous run.
+#
+# Sampler / prior config (env overrides, exported through sbatch):
+#   PRIOR  (default: jeffreys)   — one of {jeffreys, loguniform, uniform}
+#   NLIVE  (default: 1500)       — dynesty nlive (dense production)
+#   DLOGZ  (default: 0.05)       — dynesty dlogz stop (dense production)
+# To reproduce the prior 500/0.1 sampling: NLIVE=500 DLOGZ=0.1 sbatch ...
+# To run both priors: submit twice with PRIOR=jeffreys and PRIOR=loguniform.
 #
 # Four ways to invoke:
 #
@@ -65,55 +72,75 @@ if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
           segue_1 tucana_2 tucana_4 tucana_5
           ursa_major_1 ursa_major_2 willman_1)
 
-    # --cohort {classical|ufd} expands to the appropriate key list.
-    # Auto-applies the recommended pool size unless --pool overrides.
+    # Sampler/prior CLI flags. These get baked into the sbatch --export so
+    # the array tasks see them regardless of the submitting shell's env.
+    PRIOR_ARG=jeffreys
+    NLIVE_ARG=1500
+    DLOGZ_ARG=0.05
     POOL_OVERRIDE=
-    if [[ "${1:-}" == "--cohort" ]]; then
-        case "${2:-}" in
-            classical) set -- "${CLASSICALS[@]}" ;;
-            ufd)       POOL_OVERRIDE=1; set -- "${UFDS[@]}" ;;
-            *)
-                echo "ERROR: --cohort must be 'classical' or 'ufd'" >&2
-                exit 1 ;;
-        esac
-    fi
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --prior) PRIOR_ARG="$2"; shift 2 ;;
+            --nlive) NLIVE_ARG="$2"; shift 2 ;;
+            --dlogz) DLOGZ_ARG="$2"; shift 2 ;;
+            --pool)  POOL_OVERRIDE="$2"; shift 2 ;;
+            --cohort)
+                case "${2:-}" in
+                    classical) shift 2; set -- "${CLASSICALS[@]}" "$@" ;;
+                    ufd)       POOL_OVERRIDE="${POOL_OVERRIDE:-1}"
+                               shift 2; set -- "${UFDS[@]}" "$@" ;;
+                    *) echo "ERROR: --cohort must be 'classical' or 'ufd'" >&2
+                       exit 1 ;;
+                esac ;;
+            --) shift; break ;;
+            -h|--help)
+                cat >&2 <<EOF
+Usage:
+  bash $0 [flags]                     # full 39-galaxy sweep
+  bash $0 [flags] --cohort classical  # 10 classicals at pool=8
+  bash $0 [flags] --cohort ufd        # 29 UFDs at pool=1
+  bash $0 [flags] KEY [KEY ...]       # explicit galaxy list
 
-    # Optional --pool N override (defaults to #SBATCH --cpus-per-task above,
-    # or to the cohort's recommended size if --cohort was used).
-    if [[ "${1:-}" == "--pool" ]]; then
-        POOL_OVERRIDE="$2"
-        shift 2
-    fi
-    if [[ $# -eq 0 ]]; then
-        echo "ERROR: invoke as one of:" >&2
-        echo "       sbatch $0                          # full --array=0-38 sweep" >&2
-        echo "       bash $0 --cohort classical         # 10 classicals at pool=8" >&2
-        echo "       bash $0 --cohort ufd               # 29 UFDs at pool=1" >&2
-        echo "       bash $0 [--pool N] KEY [KEY ...]   # explicit galaxy list" >&2
-        exit 1
-    fi
+Flags:
+  --prior {jeffreys|loguniform|uniform}   default: jeffreys
+  --nlive INT                             default: 1500
+  --dlogz FLOAT                           default: 0.05
+  --pool INT                              override --cpus-per-task
+EOF
+                exit 0 ;;
+            -*) echo "ERROR: unknown flag $1" >&2; exit 1 ;;
+            *) break ;;
+        esac
+    done
+
     mapfile -t ALL_KEYS < <(ls data/star_catalogs/*.npz | xargs -n1 basename | sed 's/.npz$//' | sort)
-    INDICES=()
-    for want in "$@"; do
-        found=
-        for i in "${!ALL_KEYS[@]}"; do
-            if [[ "${ALL_KEYS[$i]}" == "$want" ]]; then
-                INDICES+=("$i"); found=1; break
+    if [[ $# -eq 0 ]]; then
+        # Full sweep — all staged catalogs.
+        INDICES=()
+        for i in "${!ALL_KEYS[@]}"; do INDICES+=("$i"); done
+    else
+        INDICES=()
+        for want in "$@"; do
+            found=
+            for i in "${!ALL_KEYS[@]}"; do
+                if [[ "${ALL_KEYS[$i]}" == "$want" ]]; then
+                    INDICES+=("$i"); found=1; break
+                fi
+            done
+            if [[ -z "$found" ]]; then
+                echo "ERROR: lvdb_key '$want' not in data/star_catalogs/" >&2
+                exit 2
             fi
         done
-        if [[ -z "$found" ]]; then
-            echo "ERROR: lvdb_key '$want' not in data/star_catalogs/" >&2
-            exit 2
-        fi
-    done
+    fi
     array_arg=$(IFS=,; echo "${INDICES[*]}")
-    sbatch_args=(--array="$array_arg")
+    sbatch_args=(--array="$array_arg"
+                 --export="ALL,PRIOR=$PRIOR_ARG,NLIVE=$NLIVE_ARG,DLOGZ=$DLOGZ_ARG")
     if [[ -n "$POOL_OVERRIDE" ]]; then
         sbatch_args+=(--cpus-per-task="$POOL_OVERRIDE")
-        echo "Submitting subset: keys=$* -> --array=$array_arg --cpus-per-task=$POOL_OVERRIDE"
-    else
-        echo "Submitting subset: keys=$* -> --array=$array_arg"
     fi
+    echo "Submitting: prior=$PRIOR_ARG nlive=$NLIVE_ARG dlogz=$DLOGZ_ARG" \
+         "pool=${POOL_OVERRIDE:-<header default>} array=$array_arg"
     exec sbatch "${sbatch_args[@]}" "$0"
 fi
 
@@ -134,11 +161,19 @@ set -eu
 mapfile -t KEYS < <(ls data/star_catalogs/*.npz | xargs -n1 basename | sed 's/.npz$//' | sort)
 KEY="${KEYS[$SLURM_ARRAY_TASK_ID]}"
 NPOOL="${SLURM_CPUS_PER_TASK:-1}"
-echo "Task $SLURM_ARRAY_TASK_ID: lvdb_key=$KEY  npool=$NPOOL"
+
+# Sampler config is overridable via env so the same script drives multiple
+# prior/sampling sweeps without further edits. Defaults are the dense
+# production setting; the original (500, 0.1) is recoverable by exporting
+# NLIVE/DLOGZ at submit time.
+PRIOR="${PRIOR:-jeffreys}"
+NLIVE="${NLIVE:-1500}"
+DLOGZ="${DLOGZ:-0.05}"
+echo "Task $SLURM_ARRAY_TASK_ID: lvdb_key=$KEY  npool=$NPOOL  prior=$PRIOR  nlive=$NLIVE  dlogz=$DLOGZ"
 
 python scripts/run_production.py \
     --lvdb-key "$KEY" \
-    --prior jeffreys \
-    --nlive 500 \
-    --dlogz 0.1 \
+    --prior "$PRIOR" \
+    --nlive "$NLIVE" \
+    --dlogz "$DLOGZ" \
     --npool "$NPOOL"
