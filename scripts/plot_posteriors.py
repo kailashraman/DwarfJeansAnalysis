@@ -47,6 +47,7 @@ from dwarfjeans.jeans.selection import SelectionPolicy
 
 sys.path.insert(0, str(HERE))
 from run_production import _read_registry_row  # noqa: E402
+import plot_config  # noqa: F401,E402  — applies rcParams on import
 
 
 def _latest_run(lvdb_key: str, prior: str) -> Path:
@@ -115,10 +116,9 @@ def plot_sigma_walker(walker: dict, lvdb_key: str, out_path: Path) -> Path:
     ax.axvspan(q16, q84, alpha=0.18, color="C0",
                label=f"68% CI = [{q16:.2f}, {q84:.2f}]")
     ax.set_xlim(max(0.0, q16 - 2), q84 + 3)
-    ax.set_xlabel("σ_los Walker  [km/s]")
+    ax.set_xlabel(r"$\sigma_\mathrm{los}$ Walker  [km/s]")
     ax.set_ylabel("posterior PDF")
-    ax.set_title(f"{lvdb_key} — Walker σ_los = "
-                 f"{q50:.2f} +{q84 - q50:.2f}/−{q50 - q16:.2f} km/s")
+    ax.set_title(rf"{lvdb_key} -- Walker $\sigma_\mathrm{{los}}$ = "rf"{q50:.2f} +{q84 - q50:.2f}/$-${q50 - q16:.2f} km/s")
     ax.legend(loc="upper right", fontsize=9)
     fig.tight_layout()
     fig.savefig(out_path, dpi=130)
@@ -140,24 +140,31 @@ def plot_jeans_corner(npz, lvdb_key: str, out_path: Path) -> Path:
     ])
     labels = [
         r"$\bar V$  [km/s]",
-        r"$\log_{10}\,r_s$  [kpc]",
-        r"$\log_{10}\,\rho_s$  [M$_\odot$ kpc$^{-3}$]",
+        r"$\log_{10}(r_s / \mathrm{kpc})$",
+        r"$\log_{10}(\rho_s / (\mathrm{M}_\odot\,\mathrm{kpc}^{-3}))$",
         r"$\tilde\beta$",
     ]
-    fig = corner.corner(
+    import matplotlib.colors as mcolors
+    grey = mcolors.to_rgb("tab:grey")
+    fill_colors = [grey + (0.0,), grey + (0.5,), grey + (0.8,)]
+    fig = plt.figure(figsize=(12, 12))
+    corner.corner(
         samples,
         labels=labels,
         quantiles=(0.16, 0.5, 0.84),
         show_titles=True,
         title_fmt=".3g",
-        title_kwargs={"fontsize": 10},
-        label_kwargs={"fontsize": 11},
         plot_datapoints=False,
         fill_contours=True,
-        levels=(0.39, 0.86),  # 1σ / 2σ in 2D
-        color="C0",
+        smooth=0.7,
+        smooth1d=0.7,
+        levels=(0.68, 0.95),
+        color="tab:grey",
+        contour_kwargs={"colors": [grey + (0.8,), grey + (0.5,)]},
+        contourf_kwargs={"colors": fill_colors},
+        hist_kwargs={"color": "black"},
+        fig=fig,
     )
-    fig.suptitle(f"{lvdb_key} — Jeans posterior", fontsize=12, y=1.0)
     fig.savefig(out_path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     return out_path
@@ -173,22 +180,22 @@ def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
     layout = [
         # Row 1: J at the four reporting angles, ascending
         [
-            ("log10_J_0p1deg",       r"$\log_{10} J(0.1°)$  [GeV$^2$ cm$^{-5}$]"),
-            ("log10_J_0p2deg",       r"$\log_{10} J(0.2°)$"),
-            ("log10_J_0p5deg",       r"$\log_{10} J(0.5°)$"),
-            ("log10_J_alphac",       r"$\log_{10} J(\alpha_c)$"),
+            ("log10_J_0p1deg",       r"$\log_{10}(J(0.1^{\circ}) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"),
+            ("log10_J_0p2deg",       r"$\log_{10}(J(0.2^{\circ}) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"),
+            ("log10_J_0p5deg",       r"$\log_{10}(J(0.5^{\circ}) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"),
+            ("log10_J_alphac",       r"$\log_{10}(J(\alpha_c) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"),
         ],
         # Row 2: D at matching angles (α_c/2 in the natural-angle slot)
         [
-            ("log10_D_0p1deg",       r"$\log_{10} D(0.1°)$  [GeV cm$^{-2}$]"),
-            ("log10_D_0p2deg",       r"$\log_{10} D(0.2°)$"),
-            ("log10_D_0p5deg",       r"$\log_{10} D(0.5°)$"),
-            ("log10_D_alphacover2",  r"$\log_{10} D(\alpha_c/2)$"),
+            ("log10_D_0p1deg",       r"$\log_{10}(D(0.1^{\circ}) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
+            ("log10_D_0p2deg",       r"$\log_{10}(D(0.2^{\circ}) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
+            ("log10_D_0p5deg",       r"$\log_{10}(D(0.5^{\circ}) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
+            ("log10_D_alphacover2",  r"$\log_{10}(D(\alpha_c/2) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
         ],
         # Row 3: derived masses + projected dispersion at R_½,2D
         [
-            ("log10_M_half_2d",      r"$\log_{10} M(R_{1/2,2D})$  [M$_\odot$]"),
-            ("log10_M_half_3d",      r"$\log_{10} M(r_{1/2,3D})$  [M$_\odot$]"),
+            ("log10_M_half_2d",      r"$\log_{10}(M(R_{1/2,2D}) / \mathrm{M}_\odot)$"),
+            ("log10_M_half_3d",      r"$\log_{10}(M(r_{1/2,3D}) / \mathrm{M}_\odot)$"),
             ("sigma_los_at_Rhalf2d", r"$\sigma_\mathrm{los}(R_{1/2,2D})$ Jeans  [km/s]"),
             (None, None),
         ],
@@ -210,7 +217,7 @@ def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
             ax.axvspan(q[0], q[2], alpha=0.12, color="k")
             ax.set_xlabel(xlabel)
             ax.set_ylabel("density")
-            ax.set_title(f"{q[1]:.3g} +{q[2]-q[1]:.2g}/−{q[1]-q[0]:.2g}",
+            ax.set_title(rf"{q[1]:.3g} +{q[2]-q[1]:.2g}/$-${q[1]-q[0]:.2g}",
                          fontsize=10)
 
     fig.tight_layout(rect=[0, 0, 1, 0.97])
@@ -264,23 +271,29 @@ def plot_m_J_corner(npz, lvdb_key: str, out_path: Path) -> Path:
     M, J = M[mask], J[mask]
 
     samples = np.column_stack([M, J])
-    labels = [r"$\log_{10} M(r_{1/2,3D})$  [M$_\odot$]",
-              r"$\log_{10} J(0.5°)$  [GeV$^2$ cm$^{-5}$]"]
-    fig = corner.corner(
+    labels = [r"$\log_{10}(M(r_{1/2,3D}) / \mathrm{M}_\odot)$",
+              r"$\log_{10}(J(0.5^{\circ}) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"]
+    import matplotlib.colors as mcolors
+    grey = mcolors.to_rgb("tab:grey")
+    fill_colors = [grey + (0.0,), grey + (0.5,), grey + (0.8,)]
+    fig = plt.figure(figsize=(12, 12))
+    corner.corner(
         samples,
         labels=labels,
         quantiles=(0.16, 0.5, 0.84),
         show_titles=True,
         title_fmt=".3g",
-        title_kwargs={"fontsize": 10},
-        label_kwargs={"fontsize": 11},
         plot_datapoints=False,
         fill_contours=True,
-        levels=(0.39, 0.86),
-        color="C0",
+        smooth=0.7,
+        smooth1d=0.7,
+        levels=(0.68, 0.95),
+        color="tab:grey",
+        contour_kwargs={"colors": [grey + (0.8,), grey + (0.5,)]},
+        contourf_kwargs={"colors": fill_colors},
+        hist_kwargs={"color": "black"},
+        fig=fig,
     )
-    fig.suptitle(f"{lvdb_key} — M(r$_{{1/2,3D}}$) vs J(0.5°)  (N={len(M)})",
-                 fontsize=12, y=1.0)
     fig.savefig(out_path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     return out_path
@@ -296,11 +309,11 @@ def make_plots(run_dir: Path, out_dir: Path) -> list[Path]:
 
     out_dir.mkdir(parents=True, exist_ok=True)
     out = []
-    out.append(plot_jeans_corner(npz, lvdb_key, out_dir / "jeans_corner.png"))
-    out.append(plot_jd_mhalf(npz, lvdb_key,    out_dir / "jd_mhalf.png"))
-    out.append(plot_m_J_corner(npz, lvdb_key,  out_dir / "m_J_corner.png"))
+    out.append(plot_jeans_corner(npz, lvdb_key, out_dir / "jeans_corner.pdf"))
+    out.append(plot_jd_mhalf(npz, lvdb_key,    out_dir / "jd_mhalf.pdf"))
+    out.append(plot_m_J_corner(npz, lvdb_key,  out_dir / "m_J_corner.pdf"))
     out.append(plot_sigma_walker(_walker_posterior(audit), lvdb_key,
-                                  out_dir / "sigma_los_walker.png"))
+                                  out_dir / "sigma_los_walker.pdf"))
     return out
 
 
