@@ -338,7 +338,14 @@ def main() -> int:
         except FileNotFoundError as e:
             print(f"  skip  {key}: {e}")
             continue
-        out_dir = PLOTS_DIR / key / args.prior
+        # The plot subdir must reflect the prior of the *run* (read from
+        # audit.json), not the CLI flag, otherwise --run-dir pointing at
+        # a run whose prior differs from --prior silently overwrites
+        # plots in the wrong directory.
+        effective_prior = json.loads(
+            (run_dir / "audit.json").read_text()
+        ).get("prior_name", args.prior)
+        out_dir = PLOTS_DIR / key / effective_prior
         for p in make_plots(run_dir, out_dir):
             print(p)
         n_done += 1
