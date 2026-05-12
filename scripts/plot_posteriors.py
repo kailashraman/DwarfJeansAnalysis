@@ -1,8 +1,9 @@
 """Posterior diagnostic plots for production runs.
 
-Writes four PNGs per galaxy into ``plots/<lvdb_key>/`` (relative to repo
-root), refreshed from the latest production run on each invocation. The
-``plots/`` directory always reflects the most recent results.
+Writes four PNGs per galaxy into ``plots/<lvdb_key>/<prior>/`` (relative
+to repo root), refreshed from the latest production run on each
+invocation. The ``plots/`` directory always reflects the most recent
+results.
 
   * ``jeans_corner.png`` — corner plot of the four Stage-1 Jeans-model
     parameters: $\\bar V$, $\\log_{10} r_s$, $\\log_{10} \\rho_s$,
@@ -66,9 +67,12 @@ def _latest_run(lvdb_key: str, prior: str) -> Path:
 
 def _walker_posterior(audit: dict) -> dict:
     """Replay prepare_jeans_input with the run's selection policy and
-    return the constant_sigma_inference result dict."""
+    return the constant_sigma_inference result dict. The σ_los prior is
+    taken from audit['prior_name'] so the Walker plot is consistent with
+    the Jeans-side prior of the run."""
     lvdb_key = audit["lvdb_key"]
     sel = audit["selection_policy"]
+    prior = audit.get("prior_name", "jeffreys")
     catalog = np.load(REPO / "data" / "star_catalogs" / f"{lvdb_key}.npz",
                       allow_pickle=True)
     registry_row = _read_registry_row(lvdb_key)
@@ -87,7 +91,8 @@ def _walker_posterior(audit: dict) -> dict:
     V_center = float(registry_row.get("vlos_systemic_kms", np.median(V)))
     if np.isnan(V_center):
         V_center = float(np.median(V))
-    return constant_sigma_inference(V, sigma_eps, p, V_center=V_center)
+    return constant_sigma_inference(V, sigma_eps, p, V_center=V_center,
+                                     prior=prior)
 
 
 def _q(arr, qs=(0.16, 0.5, 0.84)):
@@ -333,7 +338,7 @@ def main() -> int:
         except FileNotFoundError as e:
             print(f"  skip  {key}: {e}")
             continue
-        out_dir = PLOTS_DIR / key
+        out_dir = PLOTS_DIR / key / args.prior
         for p in make_plots(run_dir, out_dir):
             print(p)
         n_done += 1

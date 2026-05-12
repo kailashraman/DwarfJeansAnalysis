@@ -291,9 +291,11 @@ def run(lvdb_key: str,
 
     # ----- Walker+2006 constant-σ dispersion (data-only, model-free) -----
     cs = constant_sigma_inference(V, sigma_eps, p, V_center=V_center,
-                                   V_halfwidth=V_halfwidth)
+                                   V_halfwidth=V_halfwidth,
+                                   prior=prior_name)
     sigma_los_walker = cs["sigma_int"]                 # (V̄, σ) joint marginal
-    logp(f"\n=== Constant-σ inference (Walker+2006, radius-independent) ===")
+    logp(f"\n=== Constant-σ inference (Walker+2006, radius-independent, "
+         f"prior={prior_name}) ===")
     logp(f"  σ_los (Bayes,  median): {sigma_los_walker['median']:.3f} "
          f"[{sigma_los_walker['q16']:.3f}, {sigma_los_walker['q84']:.3f}] km/s")
 
