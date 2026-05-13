@@ -208,6 +208,22 @@ For classical satellites with measured proper motions, include the Kaplinghat–
 
 Applied to: galaxies with measured proper motions in the LVDB (`pmra`, `pmdec` both present with finite errors). Not applied to ultra-faints without measured proper motions (matches P&S 2018 §3).
 
+**Status: not yet implemented.** Currently tracked as an open issue. The seam exists in the Stage 2 caller layout (see §"NFW profile and the `HaloProfile` seam"), but no correction is applied to per-star velocities. Once implemented, the per-star $v_\mathrm{los}$ entering the Gaussian likelihood will be `v_los - v_persp(R, μ_gal, d)` where `v_persp` is the Walker+ 2008 / Kaplinghat–Strigari projection term.
+
+---
+
+## Velocity gradients
+
+Some classical dwarfs (notably Carina, Fornax, Sculptor) show measurable line-of-sight velocity gradients across the field, attributable to a mix of intrinsic rotation, tidal streaming, and the perspective-motion signal of the bulk velocity. The Jeans likelihood as currently written assumes a single zero-mean (after subtracting the systemic $V$) isotropic-in-position dispersion, with no spatial trend in $\langle v_\mathrm{los} \rangle$.
+
+**Status: not yet implemented.** Currently tracked as an open issue. Options under consideration:
+
+- Subtract a measured per-galaxy gradient at the ingest stage (Stage 0b), reducing the kinematic sample to "residual" velocities before Stage 2.
+- Marginalize over a two-parameter gradient (amplitude, position angle) inside the Stage 2 likelihood, with priors informed by published per-galaxy fits.
+- For ultra-faints, document that the gradient amplitude is consistent with zero within errors and skip the correction (parallel to the perspective-correction treatment).
+
+The choice interacts with the perspective correction above: once perspective motion is subtracted, the residual gradient is the rotation/streaming component, and the two should not be double-counted.
+
 ---
 
 ## Sampler

@@ -1358,6 +1358,53 @@ the headline numbers in Section~\ref{sec:stage3:asimov} come from
 this run.
 
 % ===================================================================
+\section{Open issues}
+\label{sec:open-issues}
+
+Two corrections to the Stage~2 per-star likelihood are planned but not
+yet implemented.  They are listed here so the writeup faithfully
+reflects the as-implemented pipeline.
+
+\subsection{Perspective-motion correction}
+\label{sec:open:perspective}
+
+For classical satellites with measured proper motions, the
+Kaplinghat--Strigari perspective correction (Walker et al.\ 2008,
+Appendix; Kaplinghat \& Strigari 2008) adjusts each per-star
+$v_\mathrm{los}$ by the projection of the galaxy's bulk
+three-dimensional velocity along the star's line of sight, which
+differs from the line of sight to the galaxy centre for stars far
+from the projected centre.  At the half-light radius of a classical
+dwarf the correction is ${\sim}0.01$--$0.04$\,km\,s$^{-1}$.  The
+plan-document seam for this correction is described in
+\code{docs/plan/stage2.md}; the LVDB ingest already exposes the
+required proper-motion columns (\code{pmra}, \code{pmdec}) and their
+covariance.  The current pipeline applies no correction; once
+implemented, the per-star $v_\mathrm{los}$ entering the Gaussian
+likelihood becomes $v_\mathrm{los} - v_\mathrm{persp}(R,\,\boldsymbol{\mu}_\mathrm{gal},\,d)$,
+with ultra-faints (no measured proper motions) skipped, matching
+P\&S 2018, \S3.
+
+\subsection{Velocity gradients}
+\label{sec:open:gradients}
+
+The Stage~2 likelihood currently assumes a single zero-mean
+(systemic-subtracted) dispersion with no spatial trend in
+$\langle v_\mathrm{los}\rangle$.  Several classical dwarfs
+(e.g.\ Carina, Fornax, Sculptor) show measurable line-of-sight
+gradients from a mix of intrinsic rotation, tidal streaming, and
+the perspective-motion signal of \S\ref{sec:open:perspective}.
+Once \S\ref{sec:open:perspective} is in place, the residual
+gradient is the rotation/streaming component and the two
+contributions must not be double-counted.  Three options are
+under consideration --- ingest-time subtraction of a measured
+per-galaxy gradient, in-likelihood marginalisation over an
+amplitude--position-angle pair, or documenting that the
+ultra-faint gradients are consistent with zero and skipping the
+correction in that regime.  The implementation is deferred and
+tracked alongside the perspective correction.
+
+% ===================================================================
 \section*{Acknowledgements}
 \todo{Surveys, software, funding.}
 
