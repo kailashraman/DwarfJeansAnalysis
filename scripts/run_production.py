@@ -296,7 +296,17 @@ def run(lvdb_key: str,
     # PM split-normal priors come from the LVDB registry columns.
     persp_meta = audit.get("perspective", {})
     perspective_kwargs = {}
-    if persp_meta.get("applied") and "V_observed" in arrays:
+    if persp_meta.get("applied"):
+        # Fail loudly if the invariant breaks: prepare_jeans_input must
+        # stash V_observed whenever it sets applied=True. Falling through
+        # to the 7D path silently here would drop PM marginalisation
+        # without warning.
+        if "V_observed" not in arrays:
+            raise RuntimeError(
+                "prepare_jeans_input audit reports perspective.applied=True "
+                "but arrays['V_observed'] is missing; refusing to silently "
+                "drop PM marginalisation."
+            )
         V_observed = np.asarray(arrays["V_observed"], dtype=float)
         ra_star = np.asarray(arrays["RA_star"], dtype=float)
         dec_star = np.asarray(arrays["Dec_star"], dtype=float)

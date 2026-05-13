@@ -300,6 +300,17 @@ def run_inference(
             raise ValueError("marginalize_nuisances=True requires nuisance_priors dict")
         if (perspective is None) != (pm_prior is None):
             raise ValueError("perspective and pm_prior must be provided together")
+        if pm_prior is not None:
+            required = ("pmra_mean", "pmra_em", "pmra_ep",
+                        "pmdec_mean", "pmdec_em", "pmdec_ep")
+            missing = [k for k in required if k not in pm_prior]
+            if missing:
+                raise ValueError(f"pm_prior missing keys: {missing}")
+            for k in ("pmra_em", "pmra_ep", "pmdec_em", "pmdec_ep"):
+                if not (pm_prior[k] > 0.0):
+                    raise ValueError(
+                        f"pm_prior[{k!r}] must be > 0, got {pm_prior[k]!r}"
+                    )
         loglike = make_loglike_with_nuisances(
             Rad_arcmin=galaxy["Rad_arcmin"],
             V=galaxy["V"],
