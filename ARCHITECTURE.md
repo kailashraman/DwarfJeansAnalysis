@@ -118,10 +118,10 @@ DwarfJeansAnalysis/
   on 2026-05-08.
 
 - **`docs/writeup/`.** Single `pipeline.tex` covering all stages,
-  per CLAUDE.md. The `.tex` source lives in the repo; the compiled
-  PDF is built by `.github/workflows/writeup.yml` on changes to
-  `docs/writeup/**` and exposed as a workflow artifact (not
-  committed).
+  per CLAUDE.md. Both the `.tex` source and the compiled
+  `pipeline.pdf` live in the repo; the PDF is built locally and
+  committed alongside any `.tex` change (see CLAUDE.md "Pipeline
+  documentation").
 
 - **`jeans/priors.py` is its own module** because we run with multiple
   prior choices (loguniform vs. Jeffreys) and the Stage 2 MC and

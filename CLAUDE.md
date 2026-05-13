@@ -82,6 +82,8 @@ Delegate mock runs: **worker** to set up and execute, **test-runner** for the ru
 ## Pipeline documentation (LaTeX)
  
 Maintain a running `.tex` source and compiled PDF in the repo describing the pipeline and tests **as implemented**. Update whenever the pipeline changes.
+
+Compile locally and commit the PDF in the same commit as the `.tex` change — there is no CI build. On this machine, `module load texlive/2024` provides `pdflatex`/`latexmk`; build with `cd docs/writeup && latexmk -pdf pipeline.tex`. Surface the compile command (and any errors) to the user; do not skip the PDF rebuild on `.tex` changes.
  
 After non-trivial pipeline or test changes, run an adversarial review (use **deep-reviewer**) to verify the `.tex` faithfully reproduces what the code does — every equation, transformation, default, threshold, and test spec. Prose-vs-code drift is a high-stakes failure mode. Fix the prose (or the code, if the code is wrong) before declaring done.
 

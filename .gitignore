@@ -29,6 +29,8 @@ env/
 *.svg
 *.gif
 *.pdf
+# Writeup PDFs are committed (locally compiled from docs/writeup/*.tex)
+!docs/writeup/*.pdf
 
 # Outputs / chains
 outputs/
