@@ -152,6 +152,8 @@ def sanity_check(
     is the no-PM case (``pm_available = False``), in which there is
     nothing to compute.
     """
+    if np.asarray(ra_deg).size == 0:
+        raise ValueError("sanity_check: empty star array")
     if pm_alpha_star_masyr is None or pm_delta_masyr is None:
         return SanityReport(
             n_stars=int(np.asarray(ra_deg).size),

@@ -121,6 +121,26 @@ def test_full_formula_zero_at_center():
     assert abs(dv[0]) < 1e-12
 
 
+def test_sanity_raises_on_empty():
+    """Symmetric failure: PM-present and no-PM branches must both reject empty input."""
+    with pytest.raises(ValueError, match="empty"):
+        sanity_check(
+            ra_deg=np.array([]), dec_deg=np.array([]),
+            ra_center_deg=RA0, dec_center_deg=DEC0,
+            distance_kpc=D_KPC,
+            pm_alpha_star_masyr=PMRA, pm_delta_masyr=PMDEC,
+            v_sys_kms=V_SYS,
+        )
+    with pytest.raises(ValueError, match="empty"):
+        sanity_check(
+            ra_deg=np.array([]), dec_deg=np.array([]),
+            ra_center_deg=RA0, dec_center_deg=DEC0,
+            distance_kpc=D_KPC,
+            pm_alpha_star_masyr=None, pm_delta_masyr=None,
+            v_sys_kms=V_SYS,
+        )
+
+
 def test_sanity_reports_no_pm():
     rep = sanity_check(
         ra_deg=np.array([RA0, RA0 + 0.1]),
