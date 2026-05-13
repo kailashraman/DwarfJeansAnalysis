@@ -1368,22 +1368,46 @@ reflects the as-implemented pipeline.
 \subsection{Perspective-motion correction}
 \label{sec:open:perspective}
 
-For classical satellites with measured proper motions, the
-Kaplinghat--Strigari perspective correction (Walker et al.\ 2008,
-Appendix; Kaplinghat \& Strigari 2008) adjusts each per-star
-$v_\mathrm{los}$ by the projection of the galaxy's bulk
-three-dimensional velocity along the star's line of sight, which
-differs from the line of sight to the galaxy centre for stars far
-from the projected centre.  At the half-light radius of a classical
-dwarf the correction is ${\sim}0.01$--$0.04$\,km\,s$^{-1}$.  The
-plan-document seam for this correction is described in
-\code{docs/plan/stage2.md}; the LVDB ingest already exposes the
-required proper-motion columns (\code{pmra}, \code{pmdec}) and their
-covariance.  The current pipeline applies no correction; once
-implemented, the per-star $v_\mathrm{los}$ entering the Gaussian
-likelihood becomes $v_\mathrm{los} - v_\mathrm{persp}(R,\,\boldsymbol{\mu}_\mathrm{gal},\,d)$,
-with ultra-faints (no measured proper motions) skipped, matching
-P\&S 2018, \S3.
+For satellites with measured bulk proper motion the Kaplinghat--Strigari
+perspective correction (Walker et al.\ 2008, Appendix; Kaplinghat \&
+Strigari 2008) adjusts each per-star $v_\mathrm{los}$ by the projection
+of the galaxy's plane-of-sky bulk velocity onto the star's line of
+sight, which differs from the line of sight to the galaxy centre for
+stars at non-zero angular separation.  In the small-angle limit
+appropriate to our sample (fields of $\lesssim 1^\circ$ across),
+\begin{equation}
+\label{eq:persp}
+\Delta v_\mathrm{persp}(\alpha,\delta) = A\,d\,\bigl(\mu_{\alpha\ast}\,\Delta\alpha\cos\delta_0 + \mu_\delta\,\Delta\delta\bigr),
+\end{equation}
+with $A = 4.74047~\mathrm{km\,s^{-1}}\,(\mathrm{mas\,yr^{-1}\,kpc})^{-1}$,
+$d$ in kpc, $\mu_{\alpha\ast} = \mu_\alpha\cos\delta$ in the Gaia
+convention, and $(\Delta\alpha\cos\delta_0,\Delta\delta)$ the tangent-plane
+offset in radians; this is the limit of K\&S eq.~1 with the
+$-\tfrac{1}{2}v_\mathrm{sys}\rho^2$ contraction term (a subtractive
+correction for receding systemic velocities) dropped.  The
+corrected per-star velocity entering the Gaussian likelihood is
+$v_\mathrm{corr} = v_\mathrm{los} - \Delta v_\mathrm{persp}$.
+
+Across the 39-galaxy study sample (LVDB v1.0.5, Pace+ 2022 proper
+motions), peak per-star shifts evaluated on the ingested catalogues span
+${\sim}0.1$--$0.2$\,km\,s$^{-1}$ for compact classicals (Sculptor, Draco,
+Ursa Minor) and ${\sim}1$--$4$\,km\,s$^{-1}$ for wide-field classicals
+(Carina, Sextans) and for high-proper-motion ultra-faints (Coma
+Berenices, Segue~1, Boötes~II).  These are well above the per-star
+random uncertainties for the wider classicals and motivate applying the
+correction throughout the sample.  The dropped quadratic
+$\tfrac{1}{2}v_\mathrm{sys}\rho^2$ term remains below
+$0.05$\,km\,s$^{-1}$ at $\rho<0.5^\circ$ for $v_\mathrm{sys}\lesssim
+300$\,km\,s$^{-1}$, justifying the small-angle approximation; the helper
+\code{perspective\_correction\_full} retains the full K\&S expression as
+a cross-check.  Ingest now exposes $\mu_{\alpha\ast}$, $\mu_\delta$ and
+their asymmetric errors as registry columns (\code{pmra\_mas\_yr},
+\code{pmdec\_mas\_yr}, \code{pmra\_em\_mas\_yr}, \dots) and propagates
+them to the per-galaxy \code{\_meta}; the compute module is
+\code{dwarfjeans.jeans.perspective}.  Wiring of
+$v_\mathrm{los}\to v_\mathrm{corr}$ into \code{make\_loglike} and
+marginalisation over the proper-motion uncertainty are tracked
+alongside the velocity-gradient correction below.
 
 \subsection{Velocity gradients}
 \label{sec:open:gradients}

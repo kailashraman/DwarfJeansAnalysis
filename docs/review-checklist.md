@@ -46,3 +46,5 @@ Recurring bug classes for adversarial review. Reviewers consult this before sign
 ## Guard conditions
 
 - **Docstring quantifier wrong on a guard predicate.** When a flag or boolean (`perspective_correction_applicable`, `vlos_sigma_unresolved`, etc.) is set by checking N fields, the docstring must state the correct N. Off-by-one or wrong-count prose ("all four" when the code checks six) misleads future callers about what inputs are required to set the flag. Verify count of variables in the `all(...)` / `any(...)` call matches the prose.
+
+- **Proxy-variable gates re-introduce the bias the correction was meant to remove.** When deciding whether to apply a correction, gate on the actual quantity being corrected — not a structural correlate. A half-light-radius gate on the perspective-motion correction (R_h ≥ 5′) silently skips compact high-μ UFDs (Segue 1, Boötes II) whose peak |Δv| ≳ 1.5 km/s injects ~8% bias on σ_los². Defense: gate on `max|Δv_persp|` (or a per-star noise-floor ratio) directly. Reach for proxies only when the actual quantity is unavailable, and document the failure modes explicitly.
