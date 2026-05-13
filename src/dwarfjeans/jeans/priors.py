@@ -44,6 +44,52 @@ BETA_TILDE_BOUNDS = (-0.95, 1.0)     # uniform symmetrized anisotropy
 V_HALFWIDTH = 10.0                   # km/s, default per-galaxy override
 
 
+def split_normal_ppf(u, mu: float, sigma_lo: float, sigma_hi: float):
+    """Inverse-CDF for an asymmetric (split-)normal distribution.
+
+    The two half-Gaussians on either side of ``mu`` are reweighted so the
+    total density is normalised. Below the mode the slope is set by
+    ``sigma_lo``, above by ``sigma_hi``; the CDF reaches the mode at
+    ``u = sigma_lo / (sigma_lo + sigma_hi)``.
+    """
+    if sigma_lo <= 0.0 or sigma_hi <= 0.0:
+        raise ValueError(f"split_normal_ppf: scales must be > 0, got {sigma_lo}, {sigma_hi}")
+    frac = sigma_lo / (sigma_lo + sigma_hi)
+
+    def _scalar(uu):
+        if uu < frac:
+            return mu - sigma_lo * abs(norm.ppf(0.5 * uu / frac))
+        return mu + sigma_hi * norm.ppf(0.5 + 0.5 * (uu - frac) / (1.0 - frac))
+
+    if np.ndim(u) == 0:
+        return _scalar(float(u))
+    u_arr = np.asarray(u, dtype=float)
+    out = np.empty_like(u_arr)
+    lower = u_arr < frac
+    out[lower] = mu - sigma_lo * np.abs(norm.ppf(0.5 * u_arr[lower] / frac))
+    out[~lower] = mu + sigma_hi * norm.ppf(0.5 + 0.5 * (u_arr[~lower] - frac) / (1.0 - frac))
+    return out
+
+
+def wrap_with_pm_marginalization(
+    base_transform,
+    pmra_mean: float, pmra_em: float, pmra_ep: float,
+    pmdec_mean: float, pmdec_em: float, pmdec_ep: float,
+):
+    """Lift a 7D nuisance prior_transform to 9D by appending split-normal
+    priors on (μ_α*, μ_δ) using LVDB-published asymmetric 1σ errors.
+
+    Slot 7 → μ_α* (mas/yr), slot 8 → μ_δ (mas/yr).
+    """
+    def prior_transform(u: np.ndarray) -> np.ndarray:
+        x = np.empty_like(u)
+        x[:7] = base_transform(u[:7])
+        x[7] = split_normal_ppf(u[7], pmra_mean, pmra_em, pmra_ep)
+        x[8] = split_normal_ppf(u[8], pmdec_mean, pmdec_em, pmdec_ep)
+        return x
+    return prior_transform
+
+
 # ---------------------------------------------------------------------------
 # Loguniform prior transforms (the historical default)
 # ---------------------------------------------------------------------------

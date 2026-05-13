@@ -289,6 +289,40 @@ def run(lvdb_key: str,
         "truth": {"r_p": r_p_kpc_fid},
     }
 
+    # ----- Perspective-motion marginalisation setup -----
+    # If prepare_jeans_input already applied the central-value correction
+    # (audit["perspective"]["applied"] == True), we hand V_observed + RA/Dec
+    # to the 9D likelihood so it re-samples Δv at each (μ_α*, μ_δ) draw.
+    # PM split-normal priors come from the LVDB registry columns.
+    persp_meta = audit.get("perspective", {})
+    perspective_kwargs = {}
+    if persp_meta.get("applied") and "V_observed" in arrays:
+        V_observed = np.asarray(arrays["V_observed"], dtype=float)
+        ra_star = np.asarray(arrays["RA_star"], dtype=float)
+        dec_star = np.asarray(arrays["Dec_star"], dtype=float)
+        perspective_kwargs = dict(
+            perspective={
+                "V_observed": V_observed,
+                "RA_star": ra_star, "Dec_star": dec_star,
+                "ra_center": float(row["ra_deg"]),
+                "dec_center": float(row["dec_deg"]),
+            },
+            pm_prior={
+                "pmra_mean": float(row["pmra_mas_yr"]),
+                "pmra_em":   float(row["pmra_em_mas_yr"]),
+                "pmra_ep":   float(row["pmra_ep_mas_yr"]),
+                "pmdec_mean": float(row["pmdec_mas_yr"]),
+                "pmdec_em":   float(row["pmdec_em_mas_yr"]),
+                "pmdec_ep":   float(row["pmdec_ep_mas_yr"]),
+            },
+        )
+        logp(f"  PM marginalisation: μ_α* = {row['pmra_mas_yr']:+.3f} "
+             f"+{row['pmra_ep_mas_yr']:.3f}/-{row['pmra_em_mas_yr']:.3f}, "
+             f"μ_δ = {row['pmdec_mas_yr']:+.3f} "
+             f"+{row['pmdec_ep_mas_yr']:.3f}/-{row['pmdec_em_mas_yr']:.3f} mas/yr")
+    else:
+        logp(f"  PM marginalisation: skipped ({persp_meta.get('reason', 'no perspective audit')})")
+
     # ----- Walker+2006 constant-σ dispersion (data-only, model-free) -----
     cs = constant_sigma_inference(V, sigma_eps, p, V_center=V_center,
                                    V_halfwidth=V_halfwidth,
@@ -300,7 +334,8 @@ def run(lvdb_key: str,
          f"[{sigma_los_walker['q16']:.3f}, {sigma_los_walker['q84']:.3f}] km/s")
 
     # ----- Inference -----
-    logp(f"\n=== dynesty (7D, prior={prior_name}, nlive={nlive}, "
+    ndim = 9 if perspective_kwargs else 7
+    logp(f"\n=== dynesty ({ndim}D, prior={prior_name}, nlive={nlive}, "
          f"dlogz={dlogz}, npool={npool}) ===")
     t_inf = time.time()
     result = jeans_inference.run_inference(
@@ -315,6 +350,7 @@ def run(lvdb_key: str,
         nuisance_priors=nuisance_priors,
         prior_name=prior_name,
         npool=npool,
+        **perspective_kwargs,
     )
     dt_inf = time.time() - t_inf
     logp(f"  done in {dt_inf:.1f}s")
@@ -322,8 +358,13 @@ def run(lvdb_key: str,
     logp(f"  n_eq = {result['n_eq']}")
 
     samples_eq = result["samples_eq"]
-    V_chain, lr_chain, lp_chain, btilde_chain, d_chain, eps_chain, rhalf_arcmin_chain = (
-        samples_eq.T)
+    if perspective_kwargs:
+        (V_chain, lr_chain, lp_chain, btilde_chain, d_chain, eps_chain, rhalf_arcmin_chain,
+         pmra_chain, pmdec_chain) = samples_eq.T
+    else:
+        V_chain, lr_chain, lp_chain, btilde_chain, d_chain, eps_chain, rhalf_arcmin_chain = (
+            samples_eq.T)
+        pmra_chain = pmdec_chain = None
     r_s_chain = 10.0 ** lr_chain
     rho_s_chain = 10.0 ** lp_chain
     beta_chain = jeans_inference.beta_tilde_to_beta(btilde_chain)
@@ -458,6 +499,9 @@ def run(lvdb_key: str,
             sigma_los_walker["q16"], sigma_los_walker["median"], sigma_los_walker["q84"]),
         ("alpha_c_rad",          *_q(alpha_c_chain)),
     ]
+    if pmra_chain is not None:
+        summary_rows.append(("pmra_mas_yr",  *_q(pmra_chain)))
+        summary_rows.append(("pmdec_mas_yr", *_q(pmdec_chain)))
     for tag in (*fixed_J_angles, "alphac"):
         summary_rows.append((f"log10_J_{tag}_GeV2_cm5", *_q(log10_J[tag])))
     for tag in (*fixed_D_angles, "alphacover2"):

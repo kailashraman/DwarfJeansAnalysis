@@ -32,6 +32,7 @@ import numpy as np
 import dynesty
 
 from dwarfjeans.jeans import solver as jeans
+from dwarfjeans.jeans.perspective import A_KMS_PER_MASYR_KPC
 
 
 ARCMIN_TO_RAD = np.pi / (180.0 * 60.0)
@@ -45,8 +46,11 @@ def make_loglike_with_nuisances(
     Rad_arcmin: np.ndarray, V: np.ndarray, sigma_eps: np.ndarray, p: np.ndarray,
     prior,
     fix_r_p_arcmin: bool = False,
+    perspective: dict | None = None,
 ):
-    """7D Stage-2 log-likelihood with d, ε, rhalf_arcmin as nuisance parameters.
+    """7D (or 9D, with ``perspective``) Stage-2 log-likelihood.
+
+    Default 7D nuisances: d, ε, rhalf_arcmin.
 
     Per-draw derived quantities:
         r_p   = d · rhalf_arcmin · ARCMIN_TO_RAD · √(1 − ε)        [kpc]
@@ -63,6 +67,21 @@ def make_loglike_with_nuisances(
     ``prior.needs_T`` is True, σ_los is computed via
     ``jeans.sigma_los_with_T`` so the shape factor T is available for the
     log-correction term (e.g. Jeffreys ½ ln D).
+
+    **Perspective-motion marginalisation (optional).** When ``perspective``
+    is provided, theta extends to 9D with slots 7, 8 carrying (μ_α*, μ_δ)
+    in mas/yr. The Kaplinghat–Strigari correction
+    Δv = A · d · (μ_α* · Δα·cos δ_0 + μ_δ · Δδ)
+    is recomputed per draw at the *sampled distance* d (theta[4]) and
+    subtracted from ``perspective['V_observed']`` to form the residual.
+    The ``V`` argument is then ignored; ``V_observed`` is the data.
+
+    ``perspective`` keys (all required when present):
+      - 'V_observed'   per-star observed v_los (km/s)
+      - 'RA_star'      per-star RA (degrees)
+      - 'Dec_star'     per-star Dec (degrees)
+      - 'ra_center'    galaxy RA center (degrees)
+      - 'dec_center'   galaxy Dec center (degrees)
     """
     Rad_arcmin = np.asarray(Rad_arcmin, dtype=float)
     V = np.asarray(V, dtype=float)
@@ -74,8 +93,26 @@ def make_loglike_with_nuisances(
     needs_T = prior.needs_T
     log_correction = prior.log_correction
 
+    if perspective is not None:
+        V_obs = np.asarray(perspective["V_observed"], dtype=float)
+        ra_center = float(perspective["ra_center"])
+        dec_center = float(perspective["dec_center"])
+        cos_d0 = float(np.cos(np.deg2rad(dec_center)))
+        # Pre-compute the geometric coefficient per star.
+        dRA_rad = np.deg2rad(np.asarray(perspective["RA_star"], dtype=float) - ra_center) * cos_d0
+        dDec_rad = np.deg2rad(np.asarray(perspective["Dec_star"], dtype=float) - dec_center)
+    else:
+        V_obs = None
+        dRA_rad = dDec_rad = None
+
     def loglike(theta: np.ndarray) -> float:
-        V_sys, log_rs, log_rhos, btilde, d, eps, rhalf_arcmin = theta
+        if perspective is None:
+            V_sys, log_rs, log_rhos, btilde, d, eps, rhalf_arcmin = theta
+            V_data = V
+        else:
+            V_sys, log_rs, log_rhos, btilde, d, eps, rhalf_arcmin, pmra, pmdec = theta
+            dv = A_KMS_PER_MASYR_KPC * d * (pmra * dRA_rad + pmdec * dDec_rad)
+            V_data = V_obs - dv
         r_s = 10.0 ** log_rs
         rho_s = 10.0 ** log_rhos
         beta = beta_tilde_to_beta(btilde)
@@ -100,7 +137,7 @@ def make_loglike_with_nuisances(
         if not np.all(np.isfinite(sigma_los)):
             return -1e300
         sigma2 = sigma_los ** 2 + sigma_eps_sq
-        ln_li = -0.5 * (LN_2PI + np.log(sigma2)) - 0.5 * (V - V_sys) ** 2 / sigma2
+        ln_li = -0.5 * (LN_2PI + np.log(sigma2)) - 0.5 * (V_data - V_sys) ** 2 / sigma2
         ll = float(np.sum(p * ln_li))
         if needs_T:
             corr = log_correction(sigma_los ** 2, T, sigma_eps_sq, p)
@@ -228,6 +265,8 @@ def run_inference(
     fix_r_p_arcmin: bool = False,
     npool: int = 1,
     V_halfwidth: float | None = None,
+    perspective: dict | None = None,
+    pm_prior: dict | None = None,
 ) -> dict:
     """
     Run dynesty on the mock galaxy. Returns a dict with:
@@ -259,6 +298,8 @@ def run_inference(
             raise ValueError("marginalize_nuisances + asimov not implemented")
         if nuisance_priors is None:
             raise ValueError("marginalize_nuisances=True requires nuisance_priors dict")
+        if (perspective is None) != (pm_prior is None):
+            raise ValueError("perspective and pm_prior must be provided together")
         loglike = make_loglike_with_nuisances(
             Rad_arcmin=galaxy["Rad_arcmin"],
             V=galaxy["V"],
@@ -266,6 +307,7 @@ def run_inference(
             p=galaxy["p"],
             prior=prior,
             fix_r_p_arcmin=fix_r_p_arcmin,
+            perspective=perspective,
         )
         prior_transform = prior.make_transform_with_nuisances(
             V_center,
@@ -274,9 +316,23 @@ def run_inference(
             rhalf_mean=nuisance_priors["rhalf_mean"], rhalf_sigma=nuisance_priors["rhalf_sigma"],
             V_halfwidth=V_hw,
         )
-        ndim = 7
-        param_names = ("V", "log10_rs", "log10_rhos", "beta_tilde",
-                        "d_kpc", "eps", "rhalf_arcmin")
+        if perspective is not None:
+            from dwarfjeans.jeans.priors import wrap_with_pm_marginalization
+            prior_transform = wrap_with_pm_marginalization(
+                prior_transform,
+                pmra_mean=pm_prior["pmra_mean"],
+                pmra_em=pm_prior["pmra_em"], pmra_ep=pm_prior["pmra_ep"],
+                pmdec_mean=pm_prior["pmdec_mean"],
+                pmdec_em=pm_prior["pmdec_em"], pmdec_ep=pm_prior["pmdec_ep"],
+            )
+            ndim = 9
+            param_names = ("V", "log10_rs", "log10_rhos", "beta_tilde",
+                            "d_kpc", "eps", "rhalf_arcmin",
+                            "pmra_mas_yr", "pmdec_mas_yr")
+        else:
+            ndim = 7
+            param_names = ("V", "log10_rs", "log10_rhos", "beta_tilde",
+                            "d_kpc", "eps", "rhalf_arcmin")
     elif asimov:
         loglike = make_loglike_asimov(
             R=galaxy["R"],
