@@ -33,6 +33,7 @@ from typing import Any
 import numpy as np
 
 from dwarfjeans.ingest.combiners import CombinePolicy, get_combiner
+from dwarfjeans.jeans.perspective import perspective_correction, sanity_check
 from dwarfjeans.jeans.selection import SelectionPolicy, select_jeans_stars
 
 
@@ -146,6 +147,8 @@ def prepare_jeans_input(
         cat_for_selection, registry_row, selection_policy
     )
 
+    persp_audit = _apply_perspective(filtered, meta, registry_row)
+
     audit = {
         "granularity": granularity,
         "n_input_rows": n_input_rows,
@@ -164,5 +167,93 @@ def prepare_jeans_input(
             }
         ),
         "source_paper_bibcode": bibcode,
+        "perspective": persp_audit,
     }
     return filtered, audit
+
+
+def _registry_get(registry_row, key: str, default=None):
+    """Read a key from either a dict or an astropy Table row."""
+    try:
+        v = registry_row[key]
+    except (KeyError, IndexError):
+        return default
+    return v if v is not None else default
+
+
+def _apply_perspective(filtered: dict, meta: dict, registry_row) -> dict:
+    """Subtract Δv_persp from filtered['V'] in place; return audit sub-dict.
+
+    Skips silently (records `applied=False` with a reason) when PM
+    metadata is absent, when ``perspective_correction_applicable`` is
+    False, or when per-star RA/Dec are missing — so legacy npz files
+    (pre-PM-ingest) continue to flow through unmodified.
+    """
+    base = {
+        "applied": False,
+        "reason": "",
+        "pm_alpha_star_masyr": None,
+        "pm_delta_masyr": None,
+        "ref_proper_motion": None,
+        "rms_kms": 0.0,
+        "max_abs_kms": 0.0,
+        "quadratic_term_max_abs_kms": 0.0,
+        "small_vs_full_residual_kms": 0.0,
+    }
+
+    if not meta.get("perspective_correction_applicable", False):
+        base["reason"] = "_meta.perspective_correction_applicable is False or absent"
+        return base
+    if "RA_star" not in filtered or "Dec_star" not in filtered:
+        base["reason"] = "per-star RA_star/Dec_star not in catalog"
+        return base
+    if filtered["V"].size == 0:
+        base["reason"] = "empty post-selection sample"
+        return base
+
+    pmra = meta.get("lvdb_pmra_mas_yr")
+    pmdec = meta.get("lvdb_pmdec_mas_yr")
+    if pmra is None or pmdec is None:
+        base["reason"] = "_meta missing lvdb_pmra/pmdec"
+        return base
+
+    ra0 = _registry_get(registry_row, "ra_deg")
+    dec0 = _registry_get(registry_row, "dec_deg")
+    d_kpc = _registry_get(registry_row, "distance_kpc")
+    if ra0 is None or dec0 is None or d_kpc is None:
+        base["reason"] = "registry_row missing ra_deg/dec_deg/distance_kpc"
+        return base
+    ra0, dec0, d_kpc = float(ra0), float(dec0), float(d_kpc)
+    v_sys_raw = _registry_get(registry_row, "vlos_systemic_kms", 0.0)
+    v_sys = float(v_sys_raw) if v_sys_raw is not None else 0.0
+    if not np.isfinite(v_sys):  # NaN systemic → diagnostic only; don't propagate NaN
+        v_sys = 0.0
+
+    dv = perspective_correction(
+        ra_deg=filtered["RA_star"], dec_deg=filtered["Dec_star"],
+        ra_center_deg=ra0, dec_center_deg=dec0,
+        distance_kpc=d_kpc,
+        pm_alpha_star_masyr=float(pmra), pm_delta_masyr=float(pmdec),
+    )
+    filtered["V_observed"] = filtered["V"].copy()
+    filtered["V"] = filtered["V_observed"] - dv
+
+    rep = sanity_check(
+        ra_deg=filtered["RA_star"], dec_deg=filtered["Dec_star"],
+        ra_center_deg=ra0, dec_center_deg=dec0,
+        distance_kpc=d_kpc,
+        pm_alpha_star_masyr=float(pmra), pm_delta_masyr=float(pmdec),
+        v_sys_kms=v_sys,
+    )
+
+    return {
+        "applied": True,
+        "reason": "",
+        "pm_alpha_star_masyr": float(pmra),
+        "pm_delta_masyr": float(pmdec),
+        "ref_proper_motion": meta.get("lvdb_ref_proper_motion"),
+        "rms_kms": rep.rms_kms,
+        "max_abs_kms": rep.max_abs_kms,
+        "quadratic_term_max_abs_kms": rep.quadratic_term_max_abs_kms,
+        "small_vs_full_residual_kms": rep.small_vs_full_residual_kms,
+    }

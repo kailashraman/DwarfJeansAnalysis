@@ -18,13 +18,21 @@ PER_EPOCH_KEYS = (
 )
 
 
-def _per_star_npz(R, V, sigma_eps, p, **extras) -> np.lib.npyio.NpzFile:
-    """Build an in-memory per-star NpzFile with valid _meta."""
+def _per_star_npz(R, V, sigma_eps, p, *, pm_meta: dict | None = None, **extras) -> np.lib.npyio.NpzFile:
+    """Build an in-memory per-star NpzFile with valid _meta.
+
+    ``pm_meta`` (optional) is merged into ``_meta`` so tests can enable the
+    perspective-motion path (keys: ``lvdb_pmra_mas_yr``, ``lvdb_pmdec_mas_yr``,
+    ``perspective_correction_applicable``, …). Extras may include
+    ``RA_star``/``Dec_star`` arrays needed for the perspective code path.
+    """
     meta = {
         "catalog_granularity": "per_star",
         "R_unit": "kpc",
         "source_paper_bibcode": "fake2026Test",
     }
+    if pm_meta:
+        meta.update(pm_meta)
     buf = io.BytesIO()
     np.savez(buf,
              _meta=np.array(json.dumps(meta), dtype=object),
@@ -232,3 +240,83 @@ def test_per_epoch_real_catalog_round_trip(key):
     assert audit["selection"]["n_final"] >= 0
     assert "V" in arrays and "sigma_eps" in arrays and "R" in arrays
     assert len(arrays["V"]) == audit["selection"]["n_final"]
+
+
+# ---- perspective-motion correction integration into prepare_jeans_input ----
+
+_SCULPTOR_PM_META = {
+    "lvdb_pmra_mas_yr": 0.10,
+    "lvdb_pmdec_mas_yr": -0.158,
+    "lvdb_ref_proper_motion": "Pace2022ApJ...940..136P",
+    "perspective_correction_applicable": True,
+}
+
+_SCULPTOR_REG = {
+    "rhalf_major_pc": 273.0, "ellipticity": 0.0,
+    "ra_deg": 15.0183, "dec_deg": -33.7186,
+    "distance_kpc": 86.0, "vlos_systemic_kms": 111.4,
+}
+
+
+def test_perspective_pm_present_shifts_V():
+    """PM in _meta + RA/Dec → V is replaced by V_obs − Δv_persp; audit records it."""
+    import math
+    from dwarfjeans.jeans.perspective import A_KMS_PER_MASYR_KPC
+    # Two stars within R_h; one east of center, one north of center.
+    ra0, dec0 = _SCULPTOR_REG["ra_deg"], _SCULPTOR_REG["dec_deg"]
+    cos_d0 = math.cos(math.radians(dec0))
+    ra = np.array([ra0 + 0.1 / cos_d0, ra0])  # 0.1° east, then center
+    dec = np.array([dec0, dec0 + 0.1])         # center-RA, 0.1° north
+    npz = _per_star_npz(
+        R=[0.001, 0.001],
+        V=[100.0, 100.0],
+        sigma_eps=[1.0, 1.0],
+        p=[1.0, 1.0],
+        RA_star=ra, Dec_star=dec,
+        pm_meta=_SCULPTOR_PM_META,
+    )
+    arrays, audit = prepare_jeans_input(npz, _SCULPTOR_REG)
+    assert audit["perspective"]["applied"] is True
+    assert audit["perspective"]["pm_alpha_star_masyr"] == 0.10
+    assert audit["perspective"]["pm_delta_masyr"] == -0.158
+    assert audit["perspective"]["max_abs_kms"] > 0.0
+    # V_observed preserved; V is shifted.
+    assert "V_observed" in arrays
+    np.testing.assert_array_equal(arrays["V_observed"], [100.0, 100.0])
+    expected_dv = A_KMS_PER_MASYR_KPC * 86.0 * np.array([
+        0.10 * math.radians(0.1),     # east star: μ_α* · Δα*
+        -0.158 * math.radians(0.1),   # north star: μ_δ · Δδ
+    ])
+    np.testing.assert_allclose(arrays["V"], arrays["V_observed"] - expected_dv, rtol=1e-12)
+
+
+def test_perspective_skipped_when_no_pm_meta():
+    """Default fixture (no PM in _meta) → no shift, audit records skip reason."""
+    npz = _per_star_npz(
+        R=[0.001, 0.001],
+        V=[100.0, 101.0],
+        sigma_eps=[1.0, 1.0],
+        p=[1.0, 1.0],
+    )
+    reg = {"rhalf_major_pc": 100.0, "ellipticity": 0.0}
+    arrays, audit = prepare_jeans_input(npz, reg)
+    assert audit["perspective"]["applied"] is False
+    assert "applicable" in audit["perspective"]["reason"]
+    assert "V_observed" not in arrays
+    np.testing.assert_array_equal(arrays["V"], [100.0, 101.0])
+
+
+def test_perspective_skipped_when_RA_missing():
+    """PM-applicable in _meta but per-star RA/Dec missing → skip with reason, no shift."""
+    npz = _per_star_npz(
+        R=[0.001, 0.001],
+        V=[100.0, 101.0],
+        sigma_eps=[1.0, 1.0],
+        p=[1.0, 1.0],
+        pm_meta=_SCULPTOR_PM_META,
+    )
+    arrays, audit = prepare_jeans_input(npz, _SCULPTOR_REG)
+    assert audit["perspective"]["applied"] is False
+    assert "RA_star" in audit["perspective"]["reason"]
+    assert "V_observed" not in arrays
+    np.testing.assert_array_equal(arrays["V"], [100.0, 101.0])
