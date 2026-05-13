@@ -34,7 +34,11 @@ import numpy as np
 import pandas as pd
 from astropy.table import Table
 
-from dwarfjeans.ingest.staging import projected_radius_kpc, verify_checksums
+from dwarfjeans.ingest.staging import (
+    pm_meta_from_registry_row,
+    projected_radius_kpc,
+    verify_checksums,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 GEHA_DIR = REPO_ROOT / "data" / "geha2026"
@@ -153,6 +157,7 @@ def ingest_one(geha_df: pd.DataFrame, registry_row, *, build_utc: str, git_commi
                  "Table A1 N* counts. Selection downstream applies the §3.1 "
                  "R<2*r_½ cut using the sphericalized 3D Plummer half-mass "
                  "radius.",
+        **pm_meta_from_registry_row(registry_row),
     }
 
     STAR_CATALOG_DIR.mkdir(parents=True, exist_ok=True)

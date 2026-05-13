@@ -42,3 +42,7 @@ Recurring bug classes for adversarial review. Reviewers consult this before sign
 ## CLI arg vs. run metadata mismatch for output paths
 
 - **Script output path uses CLI arg instead of run's recorded metadata.** When a script accepts both `--run-dir` (explicit run) and a parameter flag (e.g. `--prior`), the output path must be derived from the *run's own metadata* (e.g. `audit["prior_name"]`), not from the CLI flag. Using the CLI flag silently places outputs in the wrong directory when the two disagree — e.g. `--run-dir results/production/X/loguniform/ --prior jeffreys` writes plots to `plots/X/jeffreys/`. Defense: after loading audit/metadata, resolve the effective parameter from the run record and use that for all downstream path construction.
+
+## Guard conditions
+
+- **Docstring quantifier wrong on a guard predicate.** When a flag or boolean (`perspective_correction_applicable`, `vlos_sigma_unresolved`, etc.) is set by checking N fields, the docstring must state the correct N. Off-by-one or wrong-count prose ("all four" when the code checks six) misleads future callers about what inputs are required to set the flag. Verify count of variables in the `all(...)` / `any(...)` call matches the prose.

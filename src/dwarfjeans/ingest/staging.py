@@ -64,6 +64,47 @@ def per_star_indices(names: np.ndarray) -> np.ndarray:
     return out
 
 
+def pm_meta_from_registry_row(registry_row) -> dict:
+    """Pull the seven PM-related columns out of a registry row into ``_meta``.
+
+    Returned keys are the per-galaxy proper-motion fields plus a precomputed
+    ``perspective_correction_applicable`` flag, set ``True`` iff all six
+    numeric PM fields (μ_α*, μ_δ, and both asymmetric errors per axis) are
+    finite. NaN registry values are stored as JSON-safe ``None`` so the
+    metadata round-trips through the ``_meta`` JSON in the per-galaxy npz.
+
+    LVDB ``pmra`` is the Gaia convention μ_α* = μ_α cos δ; do not re-apply
+    a cos δ factor downstream.
+    """
+    def _f(name: str) -> float | None:
+        try:
+            f = float(registry_row[name])
+        except (TypeError, ValueError):
+            return None
+        return None if math.isnan(f) else f
+
+    pmra = _f("pmra_mas_yr")
+    pmra_em = _f("pmra_em_mas_yr")
+    pmra_ep = _f("pmra_ep_mas_yr")
+    pmdec = _f("pmdec_mas_yr")
+    pmdec_em = _f("pmdec_em_mas_yr")
+    pmdec_ep = _f("pmdec_ep_mas_yr")
+    ref_raw = registry_row["ref_proper_motion"]
+    ref = str(ref_raw) if ref_raw not in (None, "") else None
+
+    applicable = all(v is not None for v in (pmra, pmra_em, pmra_ep, pmdec, pmdec_em, pmdec_ep))
+    return {
+        "lvdb_pmra_mas_yr": pmra,
+        "lvdb_pmra_em_mas_yr": pmra_em,
+        "lvdb_pmra_ep_mas_yr": pmra_ep,
+        "lvdb_pmdec_mas_yr": pmdec,
+        "lvdb_pmdec_em_mas_yr": pmdec_em,
+        "lvdb_pmdec_ep_mas_yr": pmdec_ep,
+        "lvdb_ref_proper_motion": ref,
+        "perspective_correction_applicable": applicable,
+    }
+
+
 def projected_radius_kpc(ra_deg: np.ndarray, dec_deg: np.ndarray,
                          ra_center_deg: float, dec_center_deg: float,
                          distance_kpc: float) -> np.ndarray:

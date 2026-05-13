@@ -234,6 +234,15 @@ def build_registry() -> Table:
             "vlos_systemic_ep": float(r["vlos_systemic_ep"]) if pd.notna(r["vlos_systemic_ep"]) else math.nan,
             "vlos_sigma_kms": float(r["vlos_sigma"]) if pd.notna(r["vlos_sigma"]) else math.nan,
             "vlos_sigma_unresolved": vlos_sigma_missing,
+            # LVDB pmra is the Gaia convention μ_α* = μ_α cos δ (verified against
+            # Pace+ 2022 for sculptor_1). NaN for galaxies without a published PM.
+            "pmra_mas_yr": float(r["pmra"]) if pd.notna(r["pmra"]) else math.nan,
+            "pmra_em_mas_yr": float(r["pmra_em"]) if pd.notna(r["pmra_em"]) else math.nan,
+            "pmra_ep_mas_yr": float(r["pmra_ep"]) if pd.notna(r["pmra_ep"]) else math.nan,
+            "pmdec_mas_yr": float(r["pmdec"]) if pd.notna(r["pmdec"]) else math.nan,
+            "pmdec_em_mas_yr": float(r["pmdec_em"]) if pd.notna(r["pmdec_em"]) else math.nan,
+            "pmdec_ep_mas_yr": float(r["pmdec_ep"]) if pd.notna(r["pmdec_ep"]) else math.nan,
+            "ref_proper_motion": str(r["ref_proper_motion"]) if pd.notna(r["ref_proper_motion"]) else "",
             "M_V": float(r["M_V"]) if pd.notna(r["M_V"]) else math.nan,
             "ref_vlos": str(r["ref_vlos"]) if pd.notna(r["ref_vlos"]) else "",
             "ref_structure": str(r["ref_structure"]) if pd.notna(r["ref_structure"]) else "",
@@ -261,6 +270,8 @@ def build_registry() -> Table:
         "rhalf_major_pc": u.pc, "r_half_2d_pc": u.pc, "plummer_radius_pc": u.pc,
         "vlos_systemic_kms": u.km / u.s, "vlos_systemic_em": u.km / u.s, "vlos_systemic_ep": u.km / u.s,
         "vlos_sigma_kms": u.km / u.s,
+        "pmra_mas_yr": u.mas / u.yr, "pmra_em_mas_yr": u.mas / u.yr, "pmra_ep_mas_yr": u.mas / u.yr,
+        "pmdec_mas_yr": u.mas / u.yr, "pmdec_em_mas_yr": u.mas / u.yr, "pmdec_ep_mas_yr": u.mas / u.yr,
         "M_V": u.mag,
     }
     for col, unit in units.items():

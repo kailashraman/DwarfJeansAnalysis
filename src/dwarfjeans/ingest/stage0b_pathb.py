@@ -31,7 +31,11 @@ import numpy as np
 import pandas as pd
 from astropy.table import Table
 
-from dwarfjeans.ingest.staging import projected_radius_kpc, verify_checksums
+from dwarfjeans.ingest.staging import (
+    pm_meta_from_registry_row,
+    projected_radius_kpc,
+    verify_checksums,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 REGISTRY_ECSV = REPO_ROOT / "data" / "registry" / "galaxies.ecsv"
@@ -125,6 +129,7 @@ def ingest_one(registry_row, *, build_utc: str, git_commit: str) -> Path:
         "lvdb_version": "v1.0.5",
         "git_commit": git_commit,
         "build_utc": build_utc,
+        **pm_meta_from_registry_row(registry_row),
     }
     meta.update(meta_extra)
 
