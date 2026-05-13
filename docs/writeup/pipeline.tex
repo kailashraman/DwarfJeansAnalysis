@@ -1403,7 +1403,15 @@ $\tfrac{1}{2}v_\mathrm{sys}\rho^2$ term remains below
 $0.05$\,km\,s$^{-1}$ at $\rho<0.5^\circ$ for $v_\mathrm{sys}\lesssim
 300$\,km\,s$^{-1}$, justifying the small-angle approximation; the helper
 \code{perspective\_correction\_full} retains the full K\&S expression as
-a cross-check.  Ingest now exposes $\mu_{\alpha\ast}$, $\mu_\delta$ and
+a cross-check.\footnote{Antlia~II is the one exception worth flagging:
+with $R_h \simeq 1.7^\circ$ the post-selection sample extends to
+$\rho \simeq 3.5^\circ$, where the dropped $\tfrac{1}{2}v_\mathrm{sys}\rho^2$
+term reaches ${\sim}0.21$\,km\,s$^{-1}$ — about $7\%$ of the linear
+shift's peak ($2.99$\,km\,s$^{-1}$) and the largest such fraction in
+the sample.  The correction itself shifts $\sigma_\mathrm{los}$ by
+$+0.65$\,km\,s$^{-1}$ ($+10\%$, ${\sim}2\sigma_\mathrm{stat}$) for
+Antlia~II, so any tightening of precision claims on this galaxy should
+switch to \code{perspective\_correction\_full}.}  Ingest now exposes $\mu_{\alpha\ast}$, $\mu_\delta$ and
 their asymmetric errors as registry columns (\code{pmra\_mas\_yr},
 \code{pmdec\_mas\_yr}, \code{pmra\_em\_mas\_yr}, \dots) and propagates
 them to the per-galaxy \code{\_meta}; the compute module is
