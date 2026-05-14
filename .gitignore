@@ -21,6 +21,11 @@ env/
 *.npz
 *.pkl
 *.pickle
+# Tracked exceptions: small input binaries under data/
+!data/**/*.npz
+!data/**/*.npy
+!data/**/*.fits
+!data/**/*.pkl
 
 # Images and PDFs
 *.png
@@ -34,8 +39,13 @@ env/
 
 # Outputs / chains
 outputs/
-results/
 chains/
+# results/ is mostly gitignored; allow only the audits subtree + Zenodo README
+results/*
+!results/audits/
+!results/production/
+results/production/*
+!results/production/README.md
 
 # LaTeX build artifacts
 *.aux
