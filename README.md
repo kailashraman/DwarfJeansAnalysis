@@ -62,7 +62,7 @@ bash scripts/submit_batch.sh --cohort ufd          # 29 light, pool=1
 
 ## Key features
 
-- **Pipeline stages.** Stage 0a (registry build from LVDB) → 0b (per-paper kinematic ingest) → 1 (Walker+2006 constant-σ inference) → 2 (full NFW Jeans posterior, 4D fixed-nuisance or 7D nuisance-marginalized) → 3 (J/D integrals from the halo posterior).
+- **Pipeline stages.** Stage 0a (registry build from LVDB) → 0b (per-paper kinematic ingest) → 1 (Walker+2006 constant-σ inference) → 2 (full NFW Jeans posterior; 4D fixed-nuisance, 7D nuisance-marginalised, or 9D with Kaplinghat–Strigari perspective + PM uncertainty marginalised) → 3 (J/D integrals from the halo posterior).
 - **NFW + Plummer + constant β** spherical Jeans solver with vectorized inner-integration on a 2048×512 log-spaced (R, u) grid; ≤ 5×10⁻³ error vs. adaptive quadrature at the production default.
 - **Three prior families** (`uniform`, `loguniform`, `jeffreys`) selectable per run; the Jeffreys variant adds the proper Fisher-determinant `½ ln D` correction (derivation in `docs/plan/jeffreys_jeans_derivation.md`).
 - **Per-paper multi-epoch combiner** (`ingest/combiners/`) for per-paper zero-point offsets, σ_sys floors, and χ² variability thresholds; `chiti2022`, `chiti2023`, `hansen2024`, `li2017`, `li2018`, `simon2020` handlers + a default IVW+χ² fallback.

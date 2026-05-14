@@ -123,19 +123,11 @@ For diagnostic outputs only (registry summary, plots), Monte-Carlo propagation g
 
 ## Proper-motion correlation
 
-The LVDB ships `pmra_pmdec_corr`, encoding the joint error correlation from the original astrometric fit (Gaia EDR3 / HST). We **ignore this correlation** and treat `pmra` and `pmdec` priors as independent split-normals.
+LVDB v1.0.5 carries the central proper motions and asymmetric errors (`pmra`, `pmra_em`, `pmra_ep`, `pmdec`, `pmdec_em`, `pmdec_ep`) but **does not** ship `pmra_pmdec_corr`. We treat `pmra` and `pmdec` priors as independent split-normals; with no correlation available in the input, this is the natural choice rather than an approximation.
 
-Justification (sketch — the bound is qualitative, not a calibrated figure):
+Empirical post-selection envelope across the 39-galaxy study sample (registry built `0c50e88`, Pace+ 2022 PMs covering every galaxy including UFDs): peak per-star $|\Delta v_\mathrm{persp}|$ spans **0.04–3.7 km/s** (median ~0.38), with Antlia II the outlier at +0.65 km/s on σ_los (~2σ_stat). The earlier "0.01–0.04 km/s at the half-light radius" estimate was an order-of-magnitude underestimate and is retracted.
 
-- The correlation only affects the **uncertainty** on the perspective-motion correction (Walker et al. 2008 Appendix; Kaplinghat & Strigari 2008).
-- The perspective correction itself reaches only ~0.01–0.04 km/s at the half-light radius for classical dwarfs.
-- The correlation can change σ(perspective correction) by up to ~25%, but in absolute terms that's a sub-mK shift to the per-star velocity error budget.
-- Propagated through the σ_los inference and then through the J-factor (`J ∝ σ_los^4`), the resulting shift in log J is far below the P&S reported per-galaxy errors of 0.05–0.3 dex — small enough to be observationally undetectable.
-- Ultra-faints don't get the perspective correction applied at all (no measured proper motions in P&S), so the choice is moot for half the sample.
-
-Operationally: independent priors match P&S 2018 exactly, simplify validation, avoid the technical complications of a true bivariate split-normal, and the deviation from a "more honest" treatment is observationally undetectable.
-
-`pmra_pmdec_corr` is stored in the registry as metadata so a future analysis can retrieve it without re-ingesting.
+Operationally: the perspective correction is now applied throughout the sample by `prepare_jeans_input` at the LVDB central PM values, and PM uncertainty is marginalised inside the Stage 2 9D nuisance likelihood (`make_loglike_with_nuisances` with split-normal priors). The bivariate-correlation approximation cannot be tightened until LVDB exposes the correlation column.
 
 ---
 
