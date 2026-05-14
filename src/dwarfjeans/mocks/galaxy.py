@@ -77,6 +77,12 @@ def make_mock_galaxy(
     sigma_eps: float | np.ndarray = 2.0,  # km/s; scalar or per-star
     R_max_factor: float = 5.0,  # truncate sampling at R_max = R_max_factor * r_p
     rng: np.random.Generator | None = None,
+    # Optional perspective-motion injection.
+    d_kpc: float | None = None,
+    ra_center_deg: float | None = None,
+    dec_center_deg: float | None = None,
+    pmra_true_mas_yr: float | None = None,
+    pmdec_true_mas_yr: float | None = None,
 ) -> dict:
     """
     Generate a mock galaxy and return a dict with:
@@ -87,6 +93,18 @@ def make_mock_galaxy(
     R_max_factor: enforce R_i <= R_max_factor * r_p by rejecting + redrawing,
     keeping the sample within a regime where Plummer-modeled membership
     cuts in real catalogs would also have already pruned outliers.
+
+    **Perspective-motion injection (optional).** When all five of
+    ``d_kpc``, ``ra_center_deg``, ``dec_center_deg``, ``pmra_true_mas_yr``,
+    ``pmdec_true_mas_yr`` are provided, the mock additionally:
+      * generates per-star (RA, Dec) by drawing azimuth uniformly and
+        converting the projected R to a tangent-plane offset (Δα·cos δ_0,
+        Δδ) at the given galaxy center;
+      * adds a true Kaplinghat–Strigari shift
+        Δv_persp = A·d·(μ_α*·Δα·cos δ_0 + μ_δ·Δδ) to each V_i, with the
+        Gaussian dispersion noise still on σ_los(R_i)² + σ_eps².
+    The output dict then also carries ``RA_star``, ``Dec_star``,
+    ``V_observed`` (= V), ``dv_persp_true``, plus PM truth keys.
     """
     if rng is None:
         rng = np.random.default_rng()
@@ -112,6 +130,40 @@ def make_mock_galaxy(
     # Step 4: V_i ~ Normal(V_sys, sqrt(sigma_los^2 + sigma_eps^2)).
     total_sigma = np.sqrt(sigma_los_true ** 2 + sigma_eps_arr ** 2)
     V = V_sys + rng.normal(0.0, total_sigma)
+
+    # Step 4b: optional perspective injection.
+    persp_inputs = (d_kpc, ra_center_deg, dec_center_deg,
+                    pmra_true_mas_yr, pmdec_true_mas_yr)
+    has_perspective = all(v is not None for v in persp_inputs)
+    if any(v is not None for v in persp_inputs) and not has_perspective:
+        raise ValueError(
+            "perspective injection requires all of d_kpc, ra_center_deg, "
+            "dec_center_deg, pmra_true_mas_yr, pmdec_true_mas_yr"
+        )
+    if has_perspective:
+        from dwarfjeans.jeans.perspective import (
+            A_KMS_PER_MASYR_KPC, perspective_correction,
+        )
+        # Per-star angular offsets: pick uniform azimuth, set radial offset
+        # so that the projected R matches the Plummer draw exactly.
+        theta = rng.uniform(0.0, 2.0 * np.pi, size=n_stars)
+        rho_rad = R / float(d_kpc)              # small-angle: ρ = R/d
+        cos_d0 = float(np.cos(np.deg2rad(dec_center_deg)))
+        dRA_deg = np.rad2deg(rho_rad * np.cos(theta)) / cos_d0
+        dDec_deg = np.rad2deg(rho_rad * np.sin(theta))
+        RA_star = ra_center_deg + dRA_deg
+        Dec_star = dec_center_deg + dDec_deg
+        dv_persp_true = perspective_correction(
+            ra_deg=RA_star, dec_deg=Dec_star,
+            ra_center_deg=ra_center_deg, dec_center_deg=dec_center_deg,
+            distance_kpc=d_kpc,
+            pm_alpha_star_masyr=pmra_true_mas_yr,
+            pm_delta_masyr=pmdec_true_mas_yr,
+        )
+        V_observed = V + dv_persp_true
+    else:
+        RA_star = Dec_star = dv_persp_true = None
+        V_observed = V
 
     p = np.ones(n_stars)
 
@@ -144,8 +196,16 @@ def make_mock_galaxy(
         "log10_M_half_2d": float(np.log10(M_half_2d)),
         "log10_M_half_3d": float(np.log10(M_half_3d)),
     }
+    if has_perspective:
+        truth.update({
+            "d_kpc":      float(d_kpc),
+            "ra_center":  float(ra_center_deg),
+            "dec_center": float(dec_center_deg),
+            "pmra":       float(pmra_true_mas_yr),
+            "pmdec":      float(pmdec_true_mas_yr),
+        })
 
-    return {
+    out = {
         "R": R,
         "V": V,
         "sigma_eps": sigma_eps_arr,
@@ -153,6 +213,12 @@ def make_mock_galaxy(
         "sigma_los_true": sigma_los_true,
         "truth": truth,
     }
+    if has_perspective:
+        out["RA_star"] = RA_star
+        out["Dec_star"] = Dec_star
+        out["V_observed"] = V_observed
+        out["dv_persp_true"] = dv_persp_true
+    return out
 
 
 def make_asimov_galaxy(

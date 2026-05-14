@@ -74,25 +74,24 @@ if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
 
     # Sampler/prior CLI flags. These get baked into the sbatch --export so
     # the array tasks see them regardless of the submitting shell's env.
+    # Flag order is irrelevant: keys (including those expanded from
+    # --cohort) accumulate into KEYS rather than mutating $@ mid-parse, so
+    # `--cohort classical --prior jeffreys` and `--prior jeffreys --cohort
+    # classical` are equivalent.
     PRIOR_ARG=jeffreys
     NLIVE_ARG=1500
     DLOGZ_ARG=0.05
     POOL_OVERRIDE=
+    COHORT=
+    KEYS=()
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --prior) PRIOR_ARG="$2"; shift 2 ;;
-            --nlive) NLIVE_ARG="$2"; shift 2 ;;
-            --dlogz) DLOGZ_ARG="$2"; shift 2 ;;
-            --pool)  POOL_OVERRIDE="$2"; shift 2 ;;
-            --cohort)
-                case "${2:-}" in
-                    classical) shift 2; set -- "${CLASSICALS[@]}" "$@" ;;
-                    ufd)       POOL_OVERRIDE="${POOL_OVERRIDE:-1}"
-                               shift 2; set -- "${UFDS[@]}" "$@" ;;
-                    *) echo "ERROR: --cohort must be 'classical' or 'ufd'" >&2
-                       exit 1 ;;
-                esac ;;
-            --) shift; break ;;
+            --prior)  PRIOR_ARG="$2"; shift 2 ;;
+            --nlive)  NLIVE_ARG="$2"; shift 2 ;;
+            --dlogz)  DLOGZ_ARG="$2"; shift 2 ;;
+            --pool)   POOL_OVERRIDE="$2"; shift 2 ;;
+            --cohort) COHORT="$2"; shift 2 ;;
+            --) shift; while [[ $# -gt 0 ]]; do KEYS+=("$1"); shift; done ;;
             -h|--help)
                 cat >&2 <<EOF
 Usage:
@@ -101,26 +100,40 @@ Usage:
   bash $0 [flags] --cohort ufd        # 29 UFDs at pool=1
   bash $0 [flags] KEY [KEY ...]       # explicit galaxy list
 
-Flags:
+Flags (order-independent):
   --prior {jeffreys|loguniform|uniform}   default: jeffreys
   --nlive INT                             default: 1500
   --dlogz FLOAT                           default: 0.05
   --pool INT                              override --cpus-per-task
+  --cohort {classical|ufd}                expand into the cohort key list
 EOF
                 exit 0 ;;
             -*) echo "ERROR: unknown flag $1" >&2; exit 1 ;;
-            *) break ;;
+            *)  KEYS+=("$1"); shift ;;
         esac
     done
 
+    # Expand --cohort into the KEYS list.
+    if [[ -n "$COHORT" ]]; then
+        case "$COHORT" in
+            classical) KEYS=("${CLASSICALS[@]}" "${KEYS[@]}") ;;
+            ufd)
+                POOL_OVERRIDE="${POOL_OVERRIDE:-1}"
+                KEYS=("${UFDS[@]}" "${KEYS[@]}")
+                ;;
+            *) echo "ERROR: --cohort must be 'classical' or 'ufd' (got '$COHORT')" >&2
+               exit 1 ;;
+        esac
+    fi
+
     mapfile -t ALL_KEYS < <(ls data/star_catalogs/*.npz | xargs -n1 basename | sed 's/.npz$//' | sort)
-    if [[ $# -eq 0 ]]; then
+    if [[ ${#KEYS[@]} -eq 0 ]]; then
         # Full sweep — all staged catalogs.
         INDICES=()
         for i in "${!ALL_KEYS[@]}"; do INDICES+=("$i"); done
     else
         INDICES=()
-        for want in "$@"; do
+        for want in "${KEYS[@]}"; do
             found=
             for i in "${!ALL_KEYS[@]}"; do
                 if [[ "${ALL_KEYS[$i]}" == "$want" ]]; then
