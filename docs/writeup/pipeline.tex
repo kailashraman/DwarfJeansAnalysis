@@ -1358,12 +1358,14 @@ the headline numbers in Section~\ref{sec:stage3:asimov} come from
 this run.
 
 % ===================================================================
-\section{Open issues}
-\label{sec:open-issues}
+\section{Stage 2 systematic corrections}
+\label{sec:stage2-corrections}
 
-Two corrections to the Stage~2 per-star likelihood are planned but not
-yet implemented.  They are listed here so the writeup faithfully
-reflects the as-implemented pipeline.
+Two corrections to the Stage~2 per-star likelihood live in this
+section.  The Kaplinghat--Strigari perspective-motion correction
+(\S\ref{sec:open:perspective}) is implemented end-to-end, with PM
+uncertainty marginalised inside Stage~2.  Velocity gradients
+(\S\ref{sec:open:gradients}) remain an open issue.
 
 \subsection{Perspective-motion correction}
 \label{sec:open:perspective}
@@ -1422,10 +1424,34 @@ of precision claims on Antlia~II.}  Ingest now exposes $\mu_{\alpha\ast}$, $\mu_
 their asymmetric errors as registry columns (\code{pmra\_mas\_yr},
 \code{pmdec\_mas\_yr}, \code{pmra\_em\_mas\_yr}, \dots) and propagates
 them to the per-galaxy \code{\_meta}; the compute module is
-\code{dwarfjeans.jeans.perspective}.  Wiring of
-$v_\mathrm{los}\to v_\mathrm{corr}$ into \code{make\_loglike} and
-marginalisation over the proper-motion uncertainty are tracked
-alongside the velocity-gradient correction below.
+\code{dwarfjeans.jeans.perspective}.  \code{prepare\_jeans\_input}
+subtracts $\Delta v_\mathrm{persp}$ at the LVDB-published $(\mu_{\alpha\ast},
+\mu_\delta)$ after the Stage~2 selection cut, stashes the observed
+$v_\mathrm{los}$ as \code{V\_observed}, and emits the diagnostics into
+\code{audit['perspective']}.  Stage~2 then marginalises over the
+proper-motion uncertainty: \code{make\_loglike\_with\_nuisances}
+extends the nuisance vector from 7D to 9D by sampling
+$(\mu_{\alpha\ast,\mathrm{draw}}, \mu_{\delta,\mathrm{draw}})$ from
+split-normal priors built from the LVDB asymmetric errors, and
+recomputes $\Delta v_\mathrm{persp}$ per draw using the \emph{sampled}
+distance $d$ so that the distance prior propagates correctly through
+both the geometric and perspective terms.
+
+A mock-data calibration on an Antlia-II-like configuration ($N_\star =
+50$, $d = 124$\,kpc, $R_h \approx 1.4^\circ$, $|\mu| \approx
+0.14$\,mas\,yr$^{-1}$; $N = 8$ realisations at \code{nlive}$=100$)
+detects no $\sigma_\mathrm{los}(R_h)$ bias from the perspective + PM
+pipeline at the standard-error sensitivity the run achieves:
+median-of-medians $= 12.246$\,km\,s$^{-1}$ vs truth $12.232$\,km\,s$^{-1}$,
+$\mathrm{SE} \approx 0.51$\,km\,s$^{-1}$ ($\approx 4\%$ of truth) from
+the realisation-to-realisation dispersion of $1.45$\,km\,s$^{-1}$.
+This isolates the correction itself: nuisance priors are pinned at
+truth and the PM truth equals the prior central, so this run tests the
+perspective + PM \emph{plumbing}, not the full production end-to-end
+recovery under realistic nuisance priors or under a data-vs-prior PM
+disagreement.  A wider sweep (more realisations, offset PM truth,
+production-realistic nuisance priors) is left as a follow-up before
+any tightened precision claim.
 
 \subsection{Velocity gradients}
 \label{sec:open:gradients}
@@ -1436,7 +1462,7 @@ $\langle v_\mathrm{los}\rangle$.  Several classical dwarfs
 (e.g.\ Carina, Fornax, Sculptor) show measurable line-of-sight
 gradients from a mix of intrinsic rotation, tidal streaming, and
 the perspective-motion signal of \S\ref{sec:open:perspective}.
-Once \S\ref{sec:open:perspective} is in place, the residual
+With the perspective correction now in place, the residual
 gradient is the rotation/streaming component and the two
 contributions must not be double-counted.  Three options are
 under consideration --- ingest-time subtraction of a measured
