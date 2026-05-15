@@ -69,3 +69,6 @@ results/production/*
 # SLURM logs and per-run keyfiles
 logs/
 
+# Local sanity-check scripts and figures
+scratch/
+
