@@ -736,7 +736,11 @@ the key \code{prior\_name}:
     Jeffreys log-determinant correction $\tfrac{1}{2}\ln D$ added
     to the log-posterior on every likelihood evaluation.
   \item[\code{satgen}] a $\Lambda$CDM-conditioned prior built from
-    the SatGen semi-analytic subhalo catalog (Section~\ref{sec:satgen-prior}).
+    the SatGen semi-analytic subhalo catalog with a Gaussian conditional
+    on $\log_{10}\rho_s\mid\log_{10} r_s$ (Section~\ref{sec:satgen-prior}).
+  \item[\code{satgen\_box}] same SatGen catalog but uniform-in-log inside
+    the per-bin envelope of populated halos rather than a Gaussian
+    conditional (Section~\ref{sec:satgen-box-prior}).
 \end{description}
 The production default is \code{jeffreys}
 (\code{scripts/run\_production.py}).
@@ -796,10 +800,14 @@ We then build a one-dimensional inverse-CDF table for the SatGen
 marginal $p(\log_{10} r_s)$ on a $1024$-node grid, and tabulate
 $\mu(\log_{10} r_s)$ and $\sigma(\log_{10} r_s)$ as the per-bin
 sample mean and sample standard deviation (\code{ddof=1}) of
-$\log_{10}\rho_s$ in $30$ equal-width bins
+$\log_{10}\rho_s$ in $300$ \emph{quantile-cut} bins
 (\code{scripts/build\_satgen\_prior\_table.py}; cached at
-\code{data/satgen\_prior/m12res8\_diemer\_scatter.npz}).  The
-prior transform draws
+\code{data/satgen\_prior/m12res8\_diemer\_scatter.npz}).  Bin edges
+are placed at equally-spaced quantiles of the empirical
+$\log_{10} r_s$ distribution, so every bin contains
+$\sim N_\mathrm{total}/N_\mathrm{bins}\approx 8\times 10^3$ halos by
+construction; no threshold-based extrapolation or moment-flooring is
+needed.  The prior transform draws
 \begin{align}
   \log_{10} r_s &\sim F_\mathrm{SatGen}^{-1}(u_1),
         \label{eq:satgen-rs-draw}\\
@@ -812,26 +820,66 @@ numerical guard (a $\pm 7.94\sigma$ envelope on the conditional Gaussian
 whose excluded mass is $\sim 10^{-15}$).  The conditional tails extend
 beyond the registry box on $\rho_s$, but the per-bin scatter is
 $\sigma\lesssim 0.5$ so the box edge is reached only on
-$\lesssim 10^{-9}$ of draws in the bulk. \code{log10\_rs\_min} (the $r_s>r_{1/2}$ floor)
-is implemented by re-truncating $F_\mathrm{SatGen}$ to
-$[\,\code{log10\_rs\_min},\,1\,]$ and renormalising.  $V$ and
-$\tilde\beta$ priors are unchanged.
+$\lesssim 10^{-9}$ of draws in the bulk.  An optional
+\code{log10\_rs\_min} kwarg re-truncates $F_\mathrm{SatGen}$ to
+$[\,\code{log10\_rs\_min},\,1\,]$ and renormalises; it is honoured by
+the 4-D builder \code{make\_satgen\_prior\_transform} but \emph{not}
+by the 7-D \code{make\_satgen\_prior\_transform\_with\_nuisances}
+used in production (hard-coded \code{None}).  $V$ and $\tilde\beta$
+priors are unchanged.
 
 The lognormal-in-$\rho_s$ approximation is justified by numerical
 diagnostics on the catalog itself, regeneratable via
 \code{scripts/build\_satgen\_prior\_table.py}: pooled standardised
 residuals across the 2.4M halos have skewness $+0.13$ and excess
-kurtosis $+0.17$, with the corresponding QQ relation tracking
+kurtosis $+0.21$, with the corresponding QQ relation tracking
 $\mathcal{N}(0,1)$ to within $\lesssim 0.1$ in $z$ across $\pm 4\sigma$.
-Per-bin moments reach $|\mathrm{skew}|\sim 0.65$ in a handful of
-sparsely populated edge bins, but the bulk of the prior mass lies
-in bins where the Gaussian fit is faithful.  Per-bin $\mu$, $\sigma$,
+With quantile-cut bins every bin has $\sim 8\times 10^4$ halos, so
+per-bin $(\mu,\sigma)$ estimates carry negligible sampling noise and
+no bin sits at the unfaithful edge.  Per-bin $\mu$, $\sigma$,
 skewness, excess kurtosis, and counts are stored alongside the
 lookup arrays in \code{data/satgen\_prior/m12res8\_diemer\_scatter.npz}
 (\code{skew\_per\_bin}, \code{kurt\_per\_bin}, \code{n\_per\_bin}); the
 top-level \code{metadata} JSON records the pooled moments and the
 source-file SHA.  A 2D KDE form is the natural escalation if a future
 analysis becomes sensitive to higher-moment structure.
+
+\paragraph{SatGen envelope (box) prior.}
+\label{sec:satgen-box-prior}
+The \code{satgen\_box} family shares the same SatGen catalog and the
+same $(v_\mathrm{max},r_\mathrm{max})\!\to\!(r_s,\rho_s)$ mapping
+(eq.~\ref{eq:satgen-rs}, \ref{eq:satgen-rhos}) and the same per-bin
+machinery, but replaces the Gaussian conditional in
+eq.~\ref{eq:satgen-rhos-draw} with a uniform-in-log envelope.  For
+each of the same $300$ quantile-cut $\log_{10} r_s$ bins we record the
+empirical extrema
+\begin{equation}
+  \rho_\mathrm{lo}(k) = \min_{i\in\mathrm{bin}\,k}\log_{10}\rho_{s,i},
+  \quad
+  \rho_\mathrm{hi}(k) = \max_{i\in\mathrm{bin}\,k}\log_{10}\rho_{s,i}.
+\end{equation}
+Quantile-cut binning guarantees every bin holds
+$\sim 8\times 10^4$ halos, so the empirical $(\rho_\mathrm{lo},\rho_\mathrm{hi})$
+are well-defined in every bin and the prior marginal on
+$\log_{10} r_s$ is uniform per unit support length across the bins,
+\begin{align}
+  \log_{10} r_s &\sim \mathrm{Uniform}\!\Big(
+        \bigcup_{k:\mathrm{good}} \,[\,\mathrm{edge}_k,\,\mathrm{edge}_{k+1}\,]
+        \Big),\\
+  \log_{10}\rho_s\mid\log_{10} r_s &\sim
+        \mathrm{Uniform}\big(\rho_\mathrm{lo}(k),\,\rho_\mathrm{hi}(k)\big),
+\end{align}
+where $k$ is the bin containing the drawn $\log_{10} r_s$.  Hard
+truncation: no draws land outside the empirical SatGen support, so
+no Gaussian-tail leakage past the registry box and no extrapolation
+into bins with zero halos.  $V$ and $\tilde\beta$ priors are unchanged.
+The new lookup fields \code{bin\_edges\_log10\_rs},
+\code{rho\_lo\_log10\_rhos}, \code{rho\_hi\_log10\_rhos}, and the
+scalars \code{log10\_rs\_min\_data}, \code{log10\_rs\_max\_data} are
+stored in the same cache file alongside the Gaussian-prior fields.
+The \code{satgen\_box} family is intended as the closer point of
+comparison to importance-reweighted SatGen analyses, which carry
+the empirical halo distribution rather than a per-bin Gaussian fit.
 
 \paragraph{Anisotropy and systemic priors.}
 $\tilde\beta$ is flat on $[-0.95,\,1)$ (eq.~\ref{eq:beta-tilde}); the

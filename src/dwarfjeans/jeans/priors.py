@@ -382,6 +382,123 @@ def make_satgen_prior_transform_with_nuisances(
 
 
 # ---------------------------------------------------------------------------
+# SatGen "box" prior on (r_s, rho_s) — uniform-in-log on the per-bin envelope
+# ---------------------------------------------------------------------------
+#
+# Same SatGen halo catalog as ``make_satgen_prior_transform``, but instead of
+# a Gaussian conditional on log10 rho_s | log10 r_s, the prior is uniform on
+# [rho_lo_bin, rho_hi_bin] within each populated r_s bin (rho_lo/hi are the
+# empirical min/max of log10 rho_s among halos in that bin). The marginal on
+# log10 r_s is uniform per unit support length across bins. Quantile-cut
+# binning in the builder guarantees every bin contains N_total/N_bins halos
+# (so the "bins with <2 halos" defense in this module is provably inert for
+# the shipped table; the ``good`` mask still gates malformed external tables).
+
+@lru_cache(maxsize=4)
+def _load_satgen_box_table(path: str):
+    """Load the per-bin envelope fields for the box prior. Returns
+    (bin_edges, rho_lo, rho_hi, good_mask) where good_mask flags bins with
+    finite (rho_lo, rho_hi).
+    """
+    d = np.load(path, allow_pickle=False)
+    edges = d["bin_edges_log10_rs"].astype(float)
+    rho_lo = d["rho_lo_log10_rhos"].astype(float)
+    rho_hi = d["rho_hi_log10_rhos"].astype(float)
+    good = np.isfinite(rho_lo) & np.isfinite(rho_hi) & (rho_hi > rho_lo)
+    return edges, rho_lo, rho_hi, good
+
+
+def _satgen_box_inverse_cdf(table_path: str | Path):
+    """Build a piecewise-uniform inverse-CDF on the union of populated bins.
+
+    Returns (cum, edges_lo, edges_hi, good) where ``cum`` is the
+    width-weighted cumulative distribution over bins, ``edges_lo``/``edges_hi``
+    are the left/right bin edges, and ``good`` is the populated-bin mask.
+    For u ∈ [0,1]:
+        k        = bin index where cum[k] <= u < cum[k+1]
+        log10_rs = edges_lo[k] + (u - cum[k]) / w_norm[k]
+    where w_norm[k] = (u_breaks[k+1] - u_breaks[k]) / (edges_hi[k] - edges_lo[k]).
+    """
+    edges, _, _, good = _load_satgen_box_table(str(table_path))
+    if not good.any():
+        raise ValueError("satgen_box prior: no populated bins")
+    widths = (edges[1:] - edges[:-1]) * good
+    total = widths.sum()
+    cum = np.concatenate(([0.0], np.cumsum(widths))) / total
+    return cum, edges[:-1], edges[1:], good
+
+
+def make_satgen_box_prior_transform(V_center: float,
+                                     V_halfwidth: float = V_HALFWIDTH,
+                                     table_path: str | Path = SATGEN_PRIOR_TABLE):
+    """4D unit-cube → (V, log10 r_s, log10 rho_s, β̃) with the SatGen-box
+    prior: uniform-in-log on the per-bin envelope of the SatGen halo catalog.
+
+    Hard-truncated to bins with ≥2 halos; r_s draws never land outside the
+    empirical SatGen support. V and β̃ priors match the loguniform variant.
+    """
+    V_lo = V_center - V_halfwidth
+    V_hi = V_center + V_halfwidth
+    cum, edges_lo, edges_hi, good = _satgen_box_inverse_cdf(table_path)
+    _, rho_lo, rho_hi, _ = _load_satgen_box_table(str(table_path))
+
+    def prior_transform(u: np.ndarray) -> np.ndarray:
+        x = np.empty_like(u)
+        x[0] = V_lo + (V_hi - V_lo) * u[0]
+        # Find the bin: cum is non-decreasing with repeats at gaps; searchsorted
+        # with side='right' lands strictly past the bin's start mass.
+        k = int(np.searchsorted(cum, u[1], side="right")) - 1
+        k = max(0, min(k, edges_lo.size - 1))
+        while not good[k] and k + 1 < edges_lo.size:
+            k += 1
+        span = cum[k + 1] - cum[k]
+        frac = (u[1] - cum[k]) / span if span > 0 else 0.0
+        x[1] = edges_lo[k] + frac * (edges_hi[k] - edges_lo[k])
+        x[2] = rho_lo[k] + u[2] * (rho_hi[k] - rho_lo[k])
+        x[3] = BETA_TILDE_BOUNDS[0] + (BETA_TILDE_BOUNDS[1] - BETA_TILDE_BOUNDS[0]) * u[3]
+        return x
+
+    return prior_transform
+
+
+def make_satgen_box_prior_transform_with_nuisances(
+    V_center: float,
+    d_mean: float, d_sigma: float,
+    eps_mean: float, eps_sigma: float,
+    rhalf_mean: float, rhalf_sigma: float,
+    V_halfwidth: float = V_HALFWIDTH,
+    table_path: str | Path = SATGEN_PRIOR_TABLE,
+):
+    """7D analogue of make_satgen_box_prior_transform with the same nuisance
+    block as the loguniform variant."""
+    V_lo = V_center - V_halfwidth
+    V_hi = V_center + V_halfwidth
+    cum, edges_lo, edges_hi, good = _satgen_box_inverse_cdf(table_path)
+    _, rho_lo, rho_hi, _ = _load_satgen_box_table(str(table_path))
+    eps_a = (0.0 - eps_mean) / eps_sigma
+    eps_b = (1.0 - eps_mean) / eps_sigma
+
+    def prior_transform(u: np.ndarray) -> np.ndarray:
+        x = np.empty_like(u)
+        x[0] = V_lo + (V_hi - V_lo) * u[0]
+        k = int(np.searchsorted(cum, u[1], side="right")) - 1
+        k = max(0, min(k, edges_lo.size - 1))
+        while not good[k] and k + 1 < edges_lo.size:
+            k += 1
+        span = cum[k + 1] - cum[k]
+        frac = (u[1] - cum[k]) / span if span > 0 else 0.0
+        x[1] = edges_lo[k] + frac * (edges_hi[k] - edges_lo[k])
+        x[2] = rho_lo[k] + u[2] * (rho_hi[k] - rho_lo[k])
+        x[3] = BETA_TILDE_BOUNDS[0] + (BETA_TILDE_BOUNDS[1] - BETA_TILDE_BOUNDS[0]) * u[3]
+        x[4] = norm.ppf(u[4], loc=d_mean, scale=d_sigma)
+        x[5] = truncnorm.ppf(u[5], eps_a, eps_b, loc=eps_mean, scale=eps_sigma)
+        x[6] = norm.ppf(u[6], loc=rhalf_mean, scale=rhalf_sigma)
+        return x
+
+    return prior_transform
+
+
+# ---------------------------------------------------------------------------
 # Jeffreys log-determinant correction
 # ---------------------------------------------------------------------------
 
@@ -484,6 +601,13 @@ PRIOR_REGISTRY: dict[str, Prior] = {
         name="satgen",
         make_transform=make_satgen_prior_transform,
         make_transform_with_nuisances=make_satgen_prior_transform_with_nuisances,
+        log_correction=_zero_correction,
+        needs_T=False,
+    ),
+    "satgen_box": Prior(
+        name="satgen_box",
+        make_transform=make_satgen_box_prior_transform,
+        make_transform_with_nuisances=make_satgen_box_prior_transform_with_nuisances,
         log_correction=_zero_correction,
         needs_T=False,
     ),

@@ -136,3 +136,81 @@ def test_zero_correction_for_satgen():
     sigma_eps_sq = np.array([0.5, 0.5])
     pp = np.array([1.0, 0.8])
     assert p.log_correction(sigma_los_sq, T, sigma_eps_sq, pp) == 0.0
+
+
+# ---------------------------------------------------------------------------
+# satgen_box prior
+# ---------------------------------------------------------------------------
+
+def _box_table():
+    from dwarfjeans.jeans.priors import _load_satgen_box_table
+    return _load_satgen_box_table(str(SATGEN_PRIOR_TABLE))
+
+
+def test_box_registry_and_loader():
+    from dwarfjeans.jeans.priors import (
+        make_satgen_box_prior_transform,
+        make_satgen_box_prior_transform_with_nuisances,
+    )
+    p = get_prior("satgen_box")
+    assert p.name == "satgen_box"
+    assert p.needs_T is False
+    assert p.make_transform is make_satgen_box_prior_transform
+    assert p.make_transform_with_nuisances is make_satgen_box_prior_transform_with_nuisances
+
+
+def test_box_loader_envelope_well_formed():
+    edges, rho_lo, rho_hi, good = _box_table()
+    assert edges.size == rho_lo.size + 1
+    assert rho_lo.size == rho_hi.size
+    # Where populated, rho_hi > rho_lo and both lie inside the physical box.
+    assert np.all((rho_hi[good] > rho_lo[good]))
+    assert np.all(rho_lo[good] >= LOG10_RHOS_BOUNDS[0])
+    assert np.all(rho_hi[good] <= LOG10_RHOS_BOUNDS[1])
+    # At least one bin must be populated.
+    assert good.any()
+
+
+def test_box_transform_stays_in_envelope():
+    from dwarfjeans.jeans.priors import make_satgen_box_prior_transform
+    edges, rho_lo, rho_hi, good = _box_table()
+    pt = make_satgen_box_prior_transform(V_center=0.0)
+    rng = np.random.default_rng(3)
+    U = rng.random((20_000, 4))
+    out = np.array([pt(u) for u in U])
+    # Every draw must land inside some populated bin's envelope.
+    bin_idx = np.clip(np.searchsorted(edges, out[:, 1], side="right") - 1,
+                       0, rho_lo.size - 1)
+    # No draw in a non-populated bin.
+    assert good[bin_idx].all()
+    assert np.all(out[:, 2] >= rho_lo[bin_idx] - 1e-12)
+    assert np.all(out[:, 2] <= rho_hi[bin_idx] + 1e-12)
+    # And every draw lies inside the empirical r_s support: at least the
+    # left edge of the first populated bin and at most the right edge of
+    # the last populated bin.
+    first_good = int(np.flatnonzero(good)[0])
+    last_good = int(np.flatnonzero(good)[-1])
+    assert out[:, 1].min() >= edges[first_good] - 1e-9
+    assert out[:, 1].max() <= edges[last_good + 1] + 1e-9
+    # β̃ and V respect their physical bounds.
+    assert np.all((out[:, 3] >= BETA_TILDE_BOUNDS[0])
+                   & (out[:, 3] <= BETA_TILDE_BOUNDS[1]))
+
+
+def test_box_transform_with_nuisances_matches_4d_halo_block():
+    from dwarfjeans.jeans.priors import (
+        make_satgen_box_prior_transform,
+        make_satgen_box_prior_transform_with_nuisances,
+    )
+    pt4 = make_satgen_box_prior_transform(V_center=0.0)
+    pt7 = make_satgen_box_prior_transform_with_nuisances(
+        V_center=0.0,
+        d_mean=30.0, d_sigma=2.0,
+        eps_mean=0.3, eps_sigma=0.05,
+        rhalf_mean=4.0, rhalf_sigma=0.3,
+    )
+    rng = np.random.default_rng(7)
+    for _ in range(50):
+        u4 = rng.random(4)
+        u7 = np.concatenate([u4, [0.5, 0.5, 0.5]])
+        np.testing.assert_allclose(pt7(u7)[:4], pt4(u4))

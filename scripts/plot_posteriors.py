@@ -333,7 +333,7 @@ def main() -> int:
     p.add_argument("--all", action="store_true",
                    help="Iterate every staged catalog with a completed posterior.")
     p.add_argument("--prior", default="jeffreys",
-                   choices=("uniform", "loguniform", "jeffreys", "satgen"))
+                   choices=("uniform", "loguniform", "jeffreys", "satgen", "satgen_box"))
     p.add_argument("--run-dir", default=None,
                    help="Override the auto-discovered latest run dir "
                         "(only valid with --lvdb-key)")

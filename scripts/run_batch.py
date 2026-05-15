@@ -68,7 +68,7 @@ def _run_one(lvdb_key: str, batch_dir: Path, common_args: list[str]) -> dict:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     p.add_argument("--prior", default="jeffreys",
-                   choices=("uniform", "loguniform", "jeffreys", "satgen"))
+                   choices=("uniform", "loguniform", "jeffreys", "satgen", "satgen_box"))
     p.add_argument("--nlive", type=int, default=500)
     p.add_argument("--dlogz", type=float, default=0.1)
     p.add_argument("--only", default=None,

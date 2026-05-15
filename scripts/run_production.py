@@ -567,7 +567,7 @@ def _cli() -> argparse.Namespace:
     p.add_argument("--lvdb-key", required=True,
                    help="Galaxy key in data/registry/galaxies.ecsv")
     p.add_argument("--prior", default="jeffreys",
-                   choices=("uniform", "loguniform", "jeffreys", "satgen"),
+                   choices=("uniform", "loguniform", "jeffreys", "satgen", "satgen_box"),
                    help="Base halo prior on (ln ρ_s, ln r_s)")
     p.add_argument("--nlive", type=int, default=500)
     p.add_argument("--dlogz", type=float, default=0.1)

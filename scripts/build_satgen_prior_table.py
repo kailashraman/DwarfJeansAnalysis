@@ -36,9 +36,8 @@ OUT_DIR = Path(__file__).resolve().parent.parent / "data" / "satgen_prior"
 
 # Match the registry bounds.
 LOG10_RS_BOUNDS = (-2.0, 1.0)
-N_BINS = 30
+N_BINS = 300
 N_CDF = 1024
-MIN_BIN_COUNT = 200
 
 # Derived from x_max ≈ 2.16258 solving the NFW v_c maximum.
 RS_OVER_RMAX = 0.46241029979236
@@ -79,8 +78,19 @@ def main() -> None:
     log10_rhos = log10_rhos[in_range]
     n_outside = int((~in_range).sum())
 
-    bin_edges = np.linspace(LOG10_RS_BOUNDS[0], LOG10_RS_BOUNDS[1], N_BINS + 1)
-    bin_centers = 0.5 * (bin_edges[:-1] + bin_edges[1:])
+    # Quantile-cut bin edges over the empirical log10_rs. Each bin then contains
+    # ~N_total / N_BINS halos by construction, removing the need for a
+    # MIN_BIN_COUNT threshold or end-of-range extrapolation of (μ, σ).
+    bin_edges = np.quantile(log10_rs, np.linspace(0.0, 1.0, N_BINS + 1))
+    # Tiny epsilons at the endpoints so np.digitize bin assignment doesn't
+    # exclude the extrema halos.
+    bin_edges[0] = np.nextafter(bin_edges[0], -np.inf)
+    bin_edges[-1] = np.nextafter(bin_edges[-1], +np.inf)
+    # Anchor at the per-bin sample mean of log10_rs rather than the geometric
+    # midpoint. With quantile-cut bins, sparse-tail bins are wider in log10_rs;
+    # the sample mean follows the local density and is a more faithful anchor
+    # for np.interp(log10_rs, bin_centers, ·) than the geometric midpoint.
+    bin_centers = np.zeros(N_BINS)
     mu_log10_rhos = np.full(N_BINS, np.nan)
     sigma_log10_rhos = np.full(N_BINS, np.nan)
     skew_per_bin = np.full(N_BINS, np.nan)
@@ -90,27 +100,32 @@ def main() -> None:
     bin_idx = np.clip(
         np.digitize(log10_rs, bin_edges) - 1, 0, N_BINS - 1
     )
+    # Per-bin envelope: min/max of log10_rhos. Used by the satgen_box prior,
+    # which is uniform-in-log on a per-bin band rather than Gaussian-conditional.
+    rho_lo_log10_rhos = np.full(N_BINS, np.nan)
+    rho_hi_log10_rhos = np.full(N_BINS, np.nan)
     for k in range(N_BINS):
         sel = bin_idx == k
         n_per_bin[k] = int(sel.sum())
         if n_per_bin[k] >= 2:
             y = log10_rhos[sel]
+            bin_centers[k] = float(np.mean(log10_rs[sel]))
             mu_log10_rhos[k] = float(np.mean(y))
             sigma_log10_rhos[k] = float(np.std(y, ddof=1))
+            rho_lo_log10_rhos[k] = float(y.min())
+            rho_hi_log10_rhos[k] = float(y.max())
             if n_per_bin[k] >= 8:
                 skew_per_bin[k] = float(stats.skew(y))
                 kurt_per_bin[k] = float(stats.kurtosis(y, fisher=True))
 
-    # Fill any low-count bins by nearest-neighbour interpolation of μ, σ over
-    # the bins that meet MIN_BIN_COUNT — keeps the runtime interpolant defined
-    # everywhere in LOG10_RS_BOUNDS even at the edges.
-    good = n_per_bin >= MIN_BIN_COUNT
-    if good.sum() < 2:
+    # Quantile-cut binning guarantees N_total/N_BINS halos per bin (~80k for
+    # the current SatGen catalog at N_BINS=30), so every bin's (μ, σ) is
+    # well-estimated. No MIN_BIN_COUNT threshold or extrapolation is needed.
+    if not np.all(n_per_bin >= 2):
         raise RuntimeError(
-            f"Too few bins with >={MIN_BIN_COUNT} halos: {good.sum()}"
+            f"Quantile-cut binning produced bins with <2 halos: "
+            f"{(n_per_bin < 2).sum()} bins"
         )
-    mu_log10_rhos = np.interp(bin_centers, bin_centers[good], mu_log10_rhos[good])
-    sigma_log10_rhos = np.interp(bin_centers, bin_centers[good], sigma_log10_rhos[good])
 
     # Marginal CDF of log10 r_s on a fine grid.
     sorted_rs = np.sort(log10_rs)
@@ -145,9 +160,11 @@ def main() -> None:
         "log10_rs_bounds": list(LOG10_RS_BOUNDS),
         "n_bins": N_BINS,
         "n_cdf": N_CDF,
-        "min_bin_count": MIN_BIN_COUNT,
+        "binning": "quantile",
         "pooled_skew": pooled_skew,
         "pooled_excess_kurtosis": pooled_kurt,
+        "log10_rs_min_data": float(log10_rs.min()),
+        "log10_rs_max_data": float(log10_rs.max()),
     }
 
     np.savez(
@@ -155,8 +172,11 @@ def main() -> None:
         log10_rs_grid=log10_rs_grid,
         cdf_log10_rs=cdf_log10_rs,
         bin_centers_log10_rs=bin_centers,
+        bin_edges_log10_rs=bin_edges,
         mu_log10_rhos=mu_log10_rhos,
         sigma_log10_rhos=sigma_log10_rhos,
+        rho_lo_log10_rhos=rho_lo_log10_rhos,
+        rho_hi_log10_rhos=rho_hi_log10_rhos,
         n_per_bin=n_per_bin,
         skew_per_bin=skew_per_bin,
         kurt_per_bin=kurt_per_bin,
@@ -228,10 +248,7 @@ def main() -> None:
     axes[1].axhline(0, color="gray", lw=0.5)
     axes[1].set_ylabel("excess kurtosis")
     axes[2].plot(bin_centers, n_per_bin, "o-")
-    axes[2].set_yscale("log")
     axes[2].set_ylabel("N halos / bin")
-    axes[2].axhline(MIN_BIN_COUNT, color="r", lw=0.5, ls="--", label=f"MIN={MIN_BIN_COUNT}")
-    axes[2].legend(fontsize=8)
     axes[2].set_xlabel(r"$\log_{10}(r_s/\mathrm{kpc})$")
     fig.tight_layout()
     fig.savefig(OUT_DIR / "diagnostics_skew_kurt_N.png", dpi=120)
