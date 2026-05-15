@@ -88,6 +88,11 @@ def test_conditional_rhos_gaussian_at_fixed_rs():
     sample = out[:, 2]
     assert abs(sample.mean() - mu_expected) < 0.02
     assert abs(sample.std(ddof=1) - sigma_expected) < 0.03
+    # Guard against the boundary-pinning regression: no draw should
+    # equal LOG10_RHOS_BOUNDS exactly. (Past bug: a hard clip to the
+    # registry box pinned tail draws to {4, 14}; cf. review-checklist.)
+    assert (sample == LOG10_RHOS_BOUNDS[0]).sum() == 0
+    assert (sample == LOG10_RHOS_BOUNDS[1]).sum() == 0
 
 
 def test_log10_rs_min_override_truncates():

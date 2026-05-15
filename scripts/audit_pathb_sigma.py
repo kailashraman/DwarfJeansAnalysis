@@ -23,6 +23,9 @@ RESULTS = REPO / "results" / "production"
 OUT_CSV = REPO / "results" / "audits" / "pathb_sigma_comparison.csv"
 OUT_MD = REPO / "docs" / "path_b_sigma_audit.md"
 
+# Pairwise σ_los audit is scoped to (jeffreys, loguniform) — the two
+# σ_los Walker-baseline priors with side-by-side production runs.
+# `uniform` and `satgen` runs (if present) are not compared here.
 PRIORS = ("jeffreys", "loguniform")
 
 # arXiv preprint IDs for Path B `ref_vlos` papers. Verified by WebSearch +

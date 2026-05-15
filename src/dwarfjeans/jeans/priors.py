@@ -298,10 +298,12 @@ def _satgen_marginal_inverse_cdf(log10_rs_min: float | None,
     sub_cdf = np.maximum.accumulate(sub_cdf)
     u_grid = (sub_cdf - cdf_lo) / span
     u_grid = np.clip(u_grid, 0.0, 1.0)
-    # np.interp requires strictly-increasing xp; nudge any ties by a
-    # tiny epsilon so the inverse-CDF lookup is unambiguous.
+    # np.interp tolerates non-strictly-increasing xp but ties produce
+    # ambiguous lookups. Nudge interior ties (not the final element) by
+    # a tiny epsilon, then force the final element to 1.0. Capping the
+    # nudge at u_grid.size - 1 guarantees no collision with that pin.
     eps = np.finfo(float).eps
-    for i in range(1, u_grid.size):
+    for i in range(1, u_grid.size - 1):
         if u_grid[i] <= u_grid[i - 1]:
             u_grid[i] = u_grid[i - 1] + eps
     u_grid[-1] = 1.0

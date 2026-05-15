@@ -58,3 +58,7 @@ Recurring bug classes for adversarial review. Reviewers consult this before sign
 ## Inverse-CDF / sampler boundary handling
 
 - **Hard-clip of a Gaussian (or other unbounded) conditional to a box produces a delta at the boundary.** When a prior_transform synthesises a Gaussian conditional `mu + sigma * ndtri(u)` and then `np.clip`s the result to `[lo, hi]`, draws whose tail crosses the boundary pile up *exactly at the boundary* — a point mass that (i) is not the truncated Gaussian one would get from `truncnorm.ppf`, and (ii) biases marginals toward the bound without surfacing. Tests that filter out the boundary-pinned draws before checking moments cannot detect drift. Defense: use `truncnorm` so the conditional is properly renormalised on the box, or instrument a counter and abort if the boundary-clip fraction exceeds a small tolerance over a representative draw set.
+
+## Monotonicity fixes
+
+- **Nudge-loop + forced terminal assignment re-introduces a tie.** When enforcing strict monotonicity by nudging ties upward in a loop (`for i in range(1, n): if a[i] <= a[i-1]: a[i] = a[i-1] + eps`) and then unconditionally setting `a[-1] = constant`, a cascade that advances `a[-2]` to ≥ `constant` produces a non-monotone endpoint. Fix: stop the loop at `n-1` (exclude the last element) before the forced assignment, so the terminal pin is always the last write.
