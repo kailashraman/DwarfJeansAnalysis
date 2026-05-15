@@ -8,6 +8,7 @@ Guidance for Claude Code (claude.ai/code) when working with code in this reposit
 - State assumptions explicitly; ask if uncertain.
 - If multiple interpretations exist, present them — don't pick silently.
 - Push back when a simpler approach exists.
+- Surface semantic fallbacks and scope decisions before shipping. Mapping prior A → prior B in a code path with no analog, leaving a hardcoded list untouched on grounds it "looks scoped to something else", deciding which files an enum sweep covers — these are choices, not implementation details. Name them in the response or the plan; don't make them silently.
 ### Simplicity first
 - No features, abstractions, or error handling beyond what was asked.
 - If 200 lines could be 50, rewrite it.
@@ -19,6 +20,8 @@ Guidance for Claude Code (claude.ai/code) when working with code in this reposit
 - Transform tasks into verifiable goals with success criteria.
 - For multi-step work, state a brief plan with verification checks.
 - Loop until verified — don't declare success without checking.
+- When a change touches code called >10⁵ times per run (likelihoods, `prior_transform`, integrands, inner integrators), the plan must include a runtime/complexity bullet — table-lookups vs. scipy.stats overhead, vectorisation, allocation in the inner loop. Don't add it only when prompted.
+- After fixing a bug, the fix lands with a regression test that fails on the pre-fix code and passes after. "Manually reran and the symptom is gone" is not verification — the test suite did not catch the bug, so a new test is needed to keep it caught.
 
 ### Shared compute
 Never submit jobs to SLURM or any cluster scheduler. Prepare the script, surface its parameters, and stop. The user runs it.
@@ -48,7 +51,7 @@ Rules:
  
 After any non-trivial code change or numerical result the user is likely to act on, run an **adversarial code review**. Assume there is a bug; hunt for sign errors, off-by-ones, unit/coordinate slips, boundary handling, silent fallbacks, and biased defaults. Report findings before declaring final.
  
-Routing: **reviewer** for routine passes; **deep-reviewer** when the change touches the analysis pipeline, numerical methods, calibration, or anything where a subtle bug propagates into results. Do this *unprompted* whenever the cost of being wrong exceeds a few minutes of agent time. Skip only for trivial edits (typo, rename, doc).
+Routing: **reviewer** for routine passes; **deep-reviewer** when the change touches the analysis pipeline, numerical methods, calibration, or anything where a subtle bug propagates into results. Concretely: deep-reviewer if the diff touches `src/dwarfjeans/jeans/` (priors, solver, inference, perspective, constant_sigma), `src/dwarfjeans/jfactor/`, anything that flows into `results/` or `docs/writeup/`, or anything the user flagged as critical. Reviewer for ingest adapters, plotting, audit scripts, batch drivers, and similar. **analyst** is read-only fresh-context reasoning — use it for orthogonal investigations or to classify failure modes, not as a substitute for reviewer. Do all of the above *unprompted* whenever the cost of being wrong exceeds a few minutes of agent time. Skip only for trivial edits (typo, rename, doc).
  
 Reviewers consult `docs/review-checklist.md` for recurring bug classes in this repo. When adversarial review (or a user) catches a bug whose class isn't already listed, append it.
  
@@ -78,6 +81,12 @@ Delegate mock runs: **worker** to set up and execute, **test-runner** for the ru
 - Commit messages explain *why*, not just *what*. Reference issue numbers where applicable.
 - Pipeline changes and the LaTeX writeup (below) must land in the same commit or PR.
 - Never `git push`. Stage and commit locally, then surface that the branch is ready to push — the user runs `git push`.
+- **Before each commit on non-cosmetic code** (this is a gate, not a suggestion):
+  1. reviewer / deep-reviewer dispatched on this diff (route by the rule under "Adversarial review");
+  2. test-runner green on the affected tests;
+  3. `git diff --cached --name-only | grep -E '\.(png|jpg|svg|pdf)$'` returns nothing (or every hit is under `docs/writeup/` for the rebuilt PDF);
+  4. if `.tex` is staged, the corresponding `.pdf` is also staged and recently rebuilt;
+  5. fixes ship with a regression test (per "Goal-driven execution").
 
 ## Pipeline documentation (LaTeX)
  
