@@ -74,6 +74,12 @@ def _walker_posterior(audit: dict) -> dict:
     lvdb_key = audit["lvdb_key"]
     sel = audit["selection_policy"]
     prior = audit.get("prior_name", "jeffreys")
+    # The σ_los Walker baseline has its own prior namespace
+    # ({uniform, loguniform, jeffreys}); the (r_s, ρ_s) `satgen` prior
+    # has no σ_los counterpart, so use the production-default `jeffreys`
+    # σ_los prior when the Jeans-side run used satgen.
+    if prior == "satgen":
+        prior = "jeffreys"
     catalog = np.load(REPO / "data" / "star_catalogs" / f"{lvdb_key}.npz",
                       allow_pickle=True)
     registry_row = _read_registry_row(lvdb_key)
@@ -327,7 +333,7 @@ def main() -> int:
     p.add_argument("--all", action="store_true",
                    help="Iterate every staged catalog with a completed posterior.")
     p.add_argument("--prior", default="jeffreys",
-                   choices=("uniform", "loguniform", "jeffreys"))
+                   choices=("uniform", "loguniform", "jeffreys", "satgen"))
     p.add_argument("--run-dir", default=None,
                    help="Override the auto-discovered latest run dir "
                         "(only valid with --lvdb-key)")

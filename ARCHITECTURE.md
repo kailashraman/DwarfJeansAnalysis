@@ -34,10 +34,10 @@ DwarfJeansAnalysis/
 │       │   ├── inference.py         dynesty driver (4D, 7D, and 9D with PM marginalisation)
 │       │   ├── solver.py            σ_los(R) Jeans integrator
 │       │   ├── perspective.py       Kaplinghat–Strigari Δv_persp computation
-│       │   ├── priors.py            three-prior registry (uniform,
-│       │   │                         loguniform, jeffreys); Fisher-
-│       │   │                         determinant log term; split-normal
-│       │   │                         PM PPF + 7D→9D wrapper
+│       │   ├── priors.py            four-prior registry (uniform,
+│       │   │                         loguniform, jeffreys, satgen);
+│       │   │                         Fisher-determinant log term;
+│       │   │                         split-normal PM PPF + 7D→9D wrapper
 │       │   ├── constant_sigma.py    Walker+2006 constant-σ baseline
 │       │   ├── selection.py         per-star cuts (p, R, var)
 │       │   └── preprocess.py        per-epoch → per-star → selection +

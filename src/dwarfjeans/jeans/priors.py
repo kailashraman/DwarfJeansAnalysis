@@ -31,9 +31,12 @@ affects (r_s, rho_s).
 from __future__ import annotations
 
 from dataclasses import dataclass
+from functools import lru_cache
+from pathlib import Path
 from typing import Callable
 
 import numpy as np
+from scipy.special import ndtri
 from scipy.stats import norm, truncnorm
 
 
@@ -237,6 +240,146 @@ def make_uniform_prior_transform_with_nuisances(
 
 
 # ---------------------------------------------------------------------------
+# SatGen-conditioned prior on (r_s, rho_s)
+# ---------------------------------------------------------------------------
+#
+# Draws log10 r_s from the SatGen marginal CDF (inverted via np.interp) and
+# log10 rho_s | log10 r_s as a Gaussian with mean mu(log r_s) and scatter
+# sigma(log r_s), both tabulated from the SatGen subhalo catalog (see
+# scripts/build_satgen_prior_table.py). The chain still records
+# (V, log10 r_s, log10 rho_s, beta_tilde) so summary code is unchanged.
+
+SATGEN_PRIOR_TABLE = (
+    Path(__file__).resolve().parents[3]
+    / "data" / "satgen_prior" / "m12res8_diemer_scatter.npz"
+)
+
+
+@lru_cache(maxsize=4)
+def _load_satgen_table(path: str):
+    """Load and cache the SatGen prior lookup table.
+
+    Returns (log10_rs_grid, cdf_log10_rs, bin_centers, mu_log10_rhos,
+    sigma_log10_rhos).
+    """
+    d = np.load(path, allow_pickle=False)
+    return (
+        d["log10_rs_grid"].astype(float),
+        d["cdf_log10_rs"].astype(float),
+        d["bin_centers_log10_rs"].astype(float),
+        d["mu_log10_rhos"].astype(float),
+        d["sigma_log10_rhos"].astype(float),
+    )
+
+
+def _satgen_marginal_inverse_cdf(log10_rs_min: float | None,
+                                  table_path: str | Path = SATGEN_PRIOR_TABLE):
+    """Return arrays (cdf, log10_rs) for inverse-CDF sampling on the marginal,
+    restricted to [log10_rs_min, LOG10_RS_BOUNDS[1]] and renormalised to [0,1]."""
+    grid, cdf, _, _, _ = _load_satgen_table(str(table_path))
+    lo = LOG10_RS_BOUNDS[0] if log10_rs_min is None else float(log10_rs_min)
+    hi = LOG10_RS_BOUNDS[1]
+    cdf_lo = float(np.interp(lo, grid, cdf))
+    cdf_hi = float(np.interp(hi, grid, cdf))
+    span = cdf_hi - cdf_lo
+    if not np.isfinite(span) or span <= 0.0:
+        raise ValueError(
+            f"satgen prior: empty support in log10(r_s)∈[{lo}, {hi}]; "
+            f"raise log10_rs_min or rebuild table"
+        )
+    mask = (grid >= lo) & (grid <= hi)
+    sub_grid = np.concatenate(([lo], grid[mask], [hi]))
+    sub_cdf = np.concatenate((
+        [cdf_lo],
+        cdf[mask],
+        [cdf_hi],
+    ))
+    # Strip duplicates and enforce monotonicity at the spliced endpoints.
+    sub_cdf = np.maximum.accumulate(sub_cdf)
+    u_grid = (sub_cdf - cdf_lo) / span
+    u_grid = np.clip(u_grid, 0.0, 1.0)
+    # np.interp requires strictly-increasing xp; nudge any ties by a
+    # tiny epsilon so the inverse-CDF lookup is unambiguous.
+    eps = np.finfo(float).eps
+    for i in range(1, u_grid.size):
+        if u_grid[i] <= u_grid[i - 1]:
+            u_grid[i] = u_grid[i - 1] + eps
+    u_grid[-1] = 1.0
+    return u_grid, sub_grid
+
+
+def make_satgen_prior_transform(V_center: float,
+                                 log10_rs_min: float | None = None,
+                                 V_halfwidth: float = V_HALFWIDTH,
+                                 table_path: str | Path = SATGEN_PRIOR_TABLE):
+    """4D unit-cube → (V, log10 r_s, log10 rho_s, β̃) with the SatGen-
+    conditioned (r_s, ρ_s) prior.
+
+    u[1] is mapped through the SatGen marginal CDF of log10 r_s; u[2] is
+    mapped through a Gaussian with bin-interpolated mean and scatter
+    conditional on log10 r_s. V and β̃ priors match the loguniform
+    variant. log10_rs_min truncates the marginal CDF.
+    """
+    V_lo = V_center - V_halfwidth
+    V_hi = V_center + V_halfwidth
+    u_grid, rs_grid = _satgen_marginal_inverse_cdf(log10_rs_min, table_path)
+    _, _, bin_centers, mu_grid, sigma_grid = _load_satgen_table(str(table_path))
+
+    def prior_transform(u: np.ndarray) -> np.ndarray:
+        x = np.empty_like(u)
+        x[0] = V_lo + (V_hi - V_lo) * u[0]
+        log10_rs = float(np.interp(u[1], u_grid, rs_grid))
+        mu = float(np.interp(log10_rs, bin_centers, mu_grid))
+        sigma = float(np.interp(log10_rs, bin_centers, sigma_grid))
+        # ndtri is the bare inverse-normal CDF; ~10-50× faster than norm.ppf.
+        # Clip u away from {0,1} to avoid ±inf at the extremes.
+        u2 = min(max(float(u[2]), 1e-15), 1.0 - 1e-15)
+        log10_rhos = mu + sigma * ndtri(u2)
+        x[1] = log10_rs
+        x[2] = log10_rhos
+        x[3] = BETA_TILDE_BOUNDS[0] + (BETA_TILDE_BOUNDS[1] - BETA_TILDE_BOUNDS[0]) * u[3]
+        return x
+
+    return prior_transform
+
+
+def make_satgen_prior_transform_with_nuisances(
+    V_center: float,
+    d_mean: float, d_sigma: float,
+    eps_mean: float, eps_sigma: float,
+    rhalf_mean: float, rhalf_sigma: float,
+    V_halfwidth: float = V_HALFWIDTH,
+    table_path: str | Path = SATGEN_PRIOR_TABLE,
+):
+    """7D analogue of make_satgen_prior_transform with the same nuisance
+    block as the loguniform variant."""
+    V_lo = V_center - V_halfwidth
+    V_hi = V_center + V_halfwidth
+    u_grid, rs_grid = _satgen_marginal_inverse_cdf(None, table_path)
+    _, _, bin_centers, mu_grid, sigma_grid = _load_satgen_table(str(table_path))
+    eps_a = (0.0 - eps_mean) / eps_sigma
+    eps_b = (1.0 - eps_mean) / eps_sigma
+
+    def prior_transform(u: np.ndarray) -> np.ndarray:
+        x = np.empty_like(u)
+        x[0] = V_lo + (V_hi - V_lo) * u[0]
+        log10_rs = float(np.interp(u[1], u_grid, rs_grid))
+        mu = float(np.interp(log10_rs, bin_centers, mu_grid))
+        sigma = float(np.interp(log10_rs, bin_centers, sigma_grid))
+        u2 = min(max(float(u[2]), 1e-15), 1.0 - 1e-15)
+        log10_rhos = mu + sigma * ndtri(u2)
+        x[1] = log10_rs
+        x[2] = log10_rhos
+        x[3] = BETA_TILDE_BOUNDS[0] + (BETA_TILDE_BOUNDS[1] - BETA_TILDE_BOUNDS[0]) * u[3]
+        x[4] = norm.ppf(u[4], loc=d_mean, scale=d_sigma)
+        x[5] = truncnorm.ppf(u[5], eps_a, eps_b, loc=eps_mean, scale=eps_sigma)
+        x[6] = norm.ppf(u[6], loc=rhalf_mean, scale=rhalf_sigma)
+        return x
+
+    return prior_transform
+
+
+# ---------------------------------------------------------------------------
 # Jeffreys log-determinant correction
 # ---------------------------------------------------------------------------
 
@@ -334,6 +477,13 @@ PRIOR_REGISTRY: dict[str, Prior] = {
         make_transform_with_nuisances=make_loguniform_prior_transform_with_nuisances,
         log_correction=jeffreys_log_term,
         needs_T=True,
+    ),
+    "satgen": Prior(
+        name="satgen",
+        make_transform=make_satgen_prior_transform,
+        make_transform_with_nuisances=make_satgen_prior_transform_with_nuisances,
+        log_correction=_zero_correction,
+        needs_T=False,
     ),
 }
 

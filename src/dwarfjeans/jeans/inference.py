@@ -8,8 +8,8 @@ Free parameters (matching stage2.md, modulo nuisances):
   beta_tilde — symmetrized anisotropy              uniform [-0.95, 1)
 
 Prior choice is selected by ``prior_name`` ∈ {uniform, loguniform,
-jeffreys} via the registry in ``dwarfjeans.jeans.priors``. Default is
-``jeffreys`` to preserve previous behavior.
+jeffreys, satgen} via the registry in ``dwarfjeans.jeans.priors``.
+Default is ``jeffreys`` to preserve previous behavior.
 
 For these mock-recovery tests we KEEP THE NUISANCES FIXED at the truth:
   r_p, d, eps, mu_alpha, mu_delta — the goal is to test halo-parameter
@@ -284,7 +284,7 @@ def run_inference(
     pseudo-likelihood on real data).
 
     prior_name selects from ``PRIOR_REGISTRY`` in
-    ``dwarfjeans.jeans.priors`` ({uniform, loguniform, jeffreys}).
+    ``dwarfjeans.jeans.priors`` ({uniform, loguniform, jeffreys, satgen}).
     Default ``jeffreys`` matches the previous ``use_jeffreys_prior=True``
     default.
     """

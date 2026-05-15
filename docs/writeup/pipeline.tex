@@ -723,7 +723,7 @@ All prior bounds and family choices are in
 \code{src/dwarfjeans/jeans/priors.py}.
 
 \paragraph{Halo base prior.}
-Three base families for $(\ln\rho_s,\ln r_s)$ are registered under
+Four base families for $(\ln\rho_s,\ln r_s)$ are registered under
 the key \code{prior\_name}:
 \begin{description}
   \item[\code{uniform}] linear-uniform on the physical values
@@ -735,6 +735,8 @@ the key \code{prior\_name}:
   \item[\code{jeffreys}] the loguniform base transform plus the
     Jeffreys log-determinant correction $\tfrac{1}{2}\ln D$ added
     to the log-posterior on every likelihood evaluation.
+  \item[\code{satgen}] a $\Lambda$CDM-conditioned prior built from
+    the SatGen semi-analytic subhalo catalog (Section~\ref{sec:satgen-prior}).
 \end{description}
 The production default is \code{jeffreys}
 (\code{scripts/run\_production.py}).
@@ -763,6 +765,70 @@ $-\infty$ and the draw is rejected.  The correction requires $T_i$,
 obtained by calling \code{jeans.sigma\_los\_with\_T} instead of
 \code{jeans.sigma\_los}; this approximately doubles the cost of each
 likelihood evaluation.
+
+\paragraph{SatGen-conditioned prior.}
+\label{sec:satgen-prior}
+The \code{satgen} family draws $(\log_{10} r_s,\log_{10}\rho_s)$ from
+the $\Lambda$CDM-with-tidal-stripping subhalo catalog
+\code{m12res8\_10k\_Diemer+scatter\_sim.h5} in the companion
+\code{SatGen\_Dwarf} repository ($\sim$$2.4\times 10^6$ surviving and
+disrupted subhalos).  Each halo's
+$(v_\mathrm{max},r_\mathrm{max})$ is mapped to NFW
+$(r_s,\rho_s)$ analytically: the peak of $v_c(r)$ for an NFW profile
+occurs at $x_\mathrm{max}\!\equiv\!r_\mathrm{max}/r_s\approx 2.16258$,
+the root of $\ln(1+x)=x(1+2x)/[2(1+x)^2]$, so
+\begin{align}
+  r_s &= r_\mathrm{max}/x_\mathrm{max}
+       = 0.46241\,r_\mathrm{max},
+       \label{eq:satgen-rs}\\
+  \rho_s &= \frac{x_\mathrm{max}^3}{4\pi G\,\mu(x_\mathrm{max})}
+            \left(\frac{v_\mathrm{max}}{r_\mathrm{max}}\right)^2
+        = 1.72126\,\frac{(v_\mathrm{max}/r_\mathrm{max})^2}{G},
+        \label{eq:satgen-rhos}
+\end{align}
+with $\mu(x)=\ln(1+x)-x/(1+x)$, $v_\mathrm{max}$ converted from
+$\kpc\,\mathrm{Gyr}^{-1}$ (SatGen's native units) to $\kms$, and
+$G$ in $(\kms)^2\,\kpc/\Msun$.  Halos outside the registry box
+$\log_{10}(r_s/\kpc)\in[-2,1]$ are discarded ($\sim$$1.4\times 10^3$
+rows of $\sim$$2.4\times 10^6$).
+
+We then build a one-dimensional inverse-CDF table for the SatGen
+marginal $p(\log_{10} r_s)$ on a $1024$-node grid, and tabulate
+$\mu(\log_{10} r_s)$ and $\sigma(\log_{10} r_s)$ in $30$ equal-width
+bins as Gaussian fits to $\log_{10}\rho_s$ within each bin
+(\code{scripts/build\_satgen\_prior\_table.py}; cached at
+\code{data/satgen\_prior/m12res8\_diemer\_scatter.npz}).  The
+prior transform draws
+\begin{align}
+  \log_{10} r_s &\sim F_\mathrm{SatGen}^{-1}(u_1),
+        \label{eq:satgen-rs-draw}\\
+  \log_{10}\rho_s \mid \log_{10} r_s
+   &\sim \mathcal{N}\big(\mu(\log_{10} r_s),\,\sigma(\log_{10} r_s)\big),
+        \label{eq:satgen-rhos-draw}
+\end{align}
+with $\log_{10}\rho_s$ left unbounded (the conditional Gaussian's
+tails extend beyond the registry box, but the per-bin scatter is
+$\sigma\lesssim 0.5$ so the box is reached only on $\lesssim 10^{-9}$
+of draws in the bulk). \code{log10\_rs\_min} (the $r_s>r_{1/2}$ floor)
+is implemented by re-truncating $F_\mathrm{SatGen}$ to
+$[\,\code{log10\_rs\_min},\,1\,]$ and renormalising.  $V$ and
+$\tilde\beta$ priors are unchanged.
+
+The lognormal-in-$\rho_s$ approximation is justified by numerical
+diagnostics on the catalog itself, regeneratable via
+\code{scripts/build\_satgen\_prior\_table.py}: pooled standardised
+residuals across the 2.4M halos have skewness $+0.13$ and excess
+kurtosis $+0.17$, with the corresponding QQ relation tracking
+$\mathcal{N}(0,1)$ to within $\lesssim 0.1$ in $z$ across $\pm 4\sigma$.
+Per-bin moments reach $|\mathrm{skew}|\sim 0.65$ in a handful of
+sparsely populated edge bins, but the bulk of the prior mass lies
+in bins where the Gaussian fit is faithful.  Per-bin $\mu$, $\sigma$,
+skewness, excess kurtosis, and counts are stored alongside the
+lookup arrays in \code{data/satgen\_prior/m12res8\_diemer\_scatter.npz}
+(\code{skew\_per\_bin}, \code{kurt\_per\_bin}, \code{n\_per\_bin}); the
+top-level \code{metadata} JSON records the pooled moments and the
+source-file SHA.  A 2D KDE form is the natural escalation if a future
+analysis becomes sensitive to higher-moment structure.
 
 \paragraph{Anisotropy and systemic priors.}
 $\tilde\beta$ is flat on $[-0.95,\,1)$ (eq.~\ref{eq:beta-tilde}); the

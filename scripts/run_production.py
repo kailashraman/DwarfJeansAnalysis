@@ -334,12 +334,16 @@ def run(lvdb_key: str,
         logp(f"  PM marginalisation: skipped ({persp_meta.get('reason', 'no perspective audit')})")
 
     # ----- Walker+2006 constant-σ dispersion (data-only, model-free) -----
+    # The σ_los Walker baseline accepts {uniform, loguniform, jeffreys};
+    # the (r_s, ρ_s) `satgen` prior has no σ_los counterpart, so fall
+    # back to the production-default `jeffreys` σ prior in that case.
+    sigma_prior_name = "jeffreys" if prior_name == "satgen" else prior_name
     cs = constant_sigma_inference(V, sigma_eps, p, V_center=V_center,
                                    V_halfwidth=V_halfwidth,
-                                   prior=prior_name)
+                                   prior=sigma_prior_name)
     sigma_los_walker = cs["sigma_int"]                 # (V̄, σ) joint marginal
     logp(f"\n=== Constant-σ inference (Walker+2006, radius-independent, "
-         f"prior={prior_name}) ===")
+         f"prior={sigma_prior_name}) ===")
     logp(f"  σ_los (Bayes,  median): {sigma_los_walker['median']:.3f} "
          f"[{sigma_los_walker['q16']:.3f}, {sigma_los_walker['q84']:.3f}] km/s")
 
@@ -563,7 +567,7 @@ def _cli() -> argparse.Namespace:
     p.add_argument("--lvdb-key", required=True,
                    help="Galaxy key in data/registry/galaxies.ecsv")
     p.add_argument("--prior", default="jeffreys",
-                   choices=("uniform", "loguniform", "jeffreys"),
+                   choices=("uniform", "loguniform", "jeffreys", "satgen"),
                    help="Base halo prior on (ln ρ_s, ln r_s)")
     p.add_argument("--nlive", type=int, default=500)
     p.add_argument("--dlogz", type=float, default=0.1)

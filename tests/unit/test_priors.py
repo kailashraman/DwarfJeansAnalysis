@@ -17,7 +17,7 @@ from dwarfjeans.jeans.priors import (
 
 
 def test_registry_keys():
-    assert set(PRIOR_REGISTRY.keys()) == {"uniform", "loguniform", "jeffreys"}
+    assert set(PRIOR_REGISTRY.keys()) == {"uniform", "loguniform", "jeffreys", "satgen"}
 
 
 def test_get_prior_unknown():
