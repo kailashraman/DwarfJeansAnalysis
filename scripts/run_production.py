@@ -335,9 +335,10 @@ def run(lvdb_key: str,
 
     # ----- Walker+2006 constant-σ dispersion (data-only, model-free) -----
     # The σ_los Walker baseline accepts {uniform, loguniform, jeffreys};
-    # the (r_s, ρ_s) `satgen` prior has no σ_los counterpart, so fall
-    # back to the production-default `jeffreys` σ prior in that case.
-    sigma_prior_name = "jeffreys" if prior_name == "satgen" else prior_name
+    # the (r_s, ρ_s) `satgen` / `satgen_box` priors have no σ_los counterpart,
+    # so fall back to the production-default `jeffreys` σ prior in that case.
+    sigma_prior_name = ("jeffreys" if prior_name in ("satgen", "satgen_box")
+                        else prior_name)
     cs = constant_sigma_inference(V, sigma_eps, p, V_center=V_center,
                                    V_halfwidth=V_halfwidth,
                                    prior=sigma_prior_name)

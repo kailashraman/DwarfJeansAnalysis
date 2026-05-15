@@ -75,10 +75,11 @@ def _walker_posterior(audit: dict) -> dict:
     sel = audit["selection_policy"]
     prior = audit.get("prior_name", "jeffreys")
     # The σ_los Walker baseline has its own prior namespace
-    # ({uniform, loguniform, jeffreys}); the (r_s, ρ_s) `satgen` prior
-    # has no σ_los counterpart, so use the production-default `jeffreys`
-    # σ_los prior when the Jeans-side run used satgen.
-    if prior == "satgen":
+    # ({uniform, loguniform, jeffreys}); the (r_s, ρ_s) `satgen` /
+    # `satgen_box` priors have no σ_los counterpart, so use the
+    # production-default `jeffreys` σ_los prior when the Jeans-side run
+    # used one of them.
+    if prior in ("satgen", "satgen_box"):
         prior = "jeffreys"
     catalog = np.load(REPO / "data" / "star_catalogs" / f"{lvdb_key}.npz",
                       allow_pickle=True)
