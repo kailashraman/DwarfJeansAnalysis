@@ -794,8 +794,9 @@ rows of $\sim$$2.4\times 10^6$).
 
 We then build a one-dimensional inverse-CDF table for the SatGen
 marginal $p(\log_{10} r_s)$ on a $1024$-node grid, and tabulate
-$\mu(\log_{10} r_s)$ and $\sigma(\log_{10} r_s)$ in $30$ equal-width
-bins as Gaussian fits to $\log_{10}\rho_s$ within each bin
+$\mu(\log_{10} r_s)$ and $\sigma(\log_{10} r_s)$ as the per-bin
+sample mean and sample standard deviation (\code{ddof=1}) of
+$\log_{10}\rho_s$ in $30$ equal-width bins
 (\code{scripts/build\_satgen\_prior\_table.py}; cached at
 \code{data/satgen\_prior/m12res8\_diemer\_scatter.npz}).  The
 prior transform draws
@@ -806,10 +807,12 @@ prior transform draws
    &\sim \mathcal{N}\big(\mu(\log_{10} r_s),\,\sigma(\log_{10} r_s)\big),
         \label{eq:satgen-rhos-draw}
 \end{align}
-with $\log_{10}\rho_s$ left unbounded (the conditional Gaussian's
-tails extend beyond the registry box, but the per-bin scatter is
-$\sigma\lesssim 0.5$ so the box is reached only on $\lesssim 10^{-9}$
-of draws in the bulk). \code{log10\_rs\_min} (the $r_s>r_{1/2}$ floor)
+with $\log_{10}\rho_s$ unbounded apart from a $u_2\in[10^{-15},\,1-10^{-15}]$
+numerical guard (a $\pm 7.94\sigma$ envelope on the conditional Gaussian
+whose excluded mass is $\sim 10^{-15}$).  The conditional tails extend
+beyond the registry box on $\rho_s$, but the per-bin scatter is
+$\sigma\lesssim 0.5$ so the box edge is reached only on
+$\lesssim 10^{-9}$ of draws in the bulk. \code{log10\_rs\_min} (the $r_s>r_{1/2}$ floor)
 is implemented by re-truncating $F_\mathrm{SatGen}$ to
 $[\,\code{log10\_rs\_min},\,1\,]$ and renormalising.  $V$ and
 $\tilde\beta$ priors are unchanged.
