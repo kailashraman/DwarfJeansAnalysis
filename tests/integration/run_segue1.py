@@ -529,7 +529,7 @@ def main():
     sig_med = np.nanpercentile(sigma_profile, 50, axis=0)
     sig_hi = np.nanpercentile(sigma_profile, 84, axis=0)
 
-    # J/D chains: thin + loop (matches summarize_jd cost)
+    # J/D chains: thin + loop
     THIN_JD = 500
     if N_chain > THIN_JD:
         idx_jd = rng.choice(N_chain, size=THIN_JD, replace=False)

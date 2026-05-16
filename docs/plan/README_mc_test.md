@@ -31,8 +31,9 @@ entries in **`pipeline_overview.md`**.
 
 **Stage-3 J/D MC recovery: pending under Jeffreys.** The current
 `run_ufd_population.py` runs only the halo recovery; per-realization J/D
-summaries (formerly produced by `run_jd_summary.py`, since removed) need
-to be reinstated as a `summarize_jd` call inside the MC loop.
+summaries (formerly produced by the removed `run_jd_summary.py` /
+`summarize_jd` helper) need to be reinstated as an inline J/D push inside
+the MC loop, mirroring the `J_D_factors` usage in `scripts/run_production.py`.
 
 Historical loguniform baseline: D-factor recovery was clean at all four
 reporting angles (median bias ≤ 0.03 dex, std(z) ≤ 1.15). J-factor recovery
@@ -109,21 +110,21 @@ compare *both* median and MAP to truth.
 - `src/dwarfjeans/jeans/inference.py` — likelihood, prior_transform, dynesty wrapper.
   Standard `make_loglike` plus `make_loglike_asimov` (substitutes
   `(V_i − V_sys)² → σ_tot,truth²(R_i)`). `run_inference(..., asimov=True)`
-  routes to the Asimov likelihood. Two summary functions:
+  routes to the Asimov likelihood. Halo-side summary:
     - `summarize_posterior(samples_eq, truth, asimov=False)` → V, log r_s,
       log ρ_s, β̃, log(ρ_s·r_s³), log M(r_½, 2D), log M(r_½, 3D). When
       `asimov=True`, V is flagged `prior_only` and its z-score is `nan`.
-    - `summarize_jd(samples_eq, truth, d_kpc, r_t_kpc)` → log J / log D
-      at the four reporting angles each (Stage 3). Imports `dwarfjeans.jd.factors`
-      lazily.
+  J/D push is not in this module; live callers compute it inline via
+  `dwarfjeans.jd.factors` (see `scripts/run_production.py`).
 - `src/dwarfjeans/jd/factors.py` — Stage-3 J/D integrals for an NFW halo with hard
   truncation at r_t. Small-angle approximation (R = d·θ).
   Includes Msun/kpc → GeV/cm unit conversion factors.
-- `tests/integration/run_ufd_population.py` — runs 15 UFD seeds, computes inline
-  J/D push via `summarize_jd`, prints running table with TRUTH row, computes
-  population diagnostics. `--asimov` flag runs the single Asimov realization
-  instead. (The original standalone `run_jd_summary.py` was not migrated; J/D
-  is now computed inline here.)
+- `tests/integration/run_ufd_population.py` — runs 15 UFD seeds, prints running
+  table with TRUTH row, computes population diagnostics for halo recovery.
+  `--asimov` flag runs the single Asimov realization instead. (The original
+  standalone `run_jd_summary.py` was not migrated and has been removed; the
+  inline J/D push inside the MC loop is a pending follow-up — see
+  **Stage-3 J/D MC recovery** above.)
 - `tests/integration/analyze_asimov.py` — Asimov J-bias source diagnostic. Reads
   `compact_ufd_asimov.npz`, pushes the full chain through J/D at the
   four reporting angles, computes the chain-MAP-vs-median-vs-truth

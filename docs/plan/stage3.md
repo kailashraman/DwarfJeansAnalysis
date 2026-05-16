@@ -46,13 +46,13 @@ I_n(R; r_t) = 2 ∫_0^{u_max(R)} ρ^n(√(R² + u²)) du,    u_max(R) = √(r_t�
 
 For NFW `ρ(r) = ρ_s / [(r/r_s)(1 + r/r_s)²]` both integrands are smooth on `u ∈ [0, u_max]`.
 
-**Reporting units.** The pipeline keeps `(M⊙, kpc)` internally and converts to `(GeV²/cm⁵)` for J and `(GeV/cm²)` for D at output (P&S 2018 convention). Conversion factors are module-level constants in `j_d_factors.py`.
+**Reporting units.** The pipeline keeps `(M⊙, kpc)` internally and converts to `(GeV²/cm⁵)` for J and `(GeV/cm²)` for D at output (P&S 2018 convention). Conversion factors are module-level constants in `dwarfjeans.jd.factors`.
 
 ---
 
 ## Numerical implementation
 
-(See `j_d_factors.py` for the implementation; this is the design rationale.)
+(See `dwarfjeans.jd.factors` for the implementation; this is the design rationale.)
 
 **u-grid for the column integrals.** Per impact parameter `R`, log-spaced from `u_min = 1e-6 · r_s` to `u_max(R)`, plus an explicit `u = 0` endpoint where the column integrand is largest. Vectorized as a 2D `(n_R, n_u)` array. Trapezoid rule on log-spaced points.
 
@@ -60,7 +60,7 @@ For NFW `ρ(r) = ρ_s / [(r/r_s)(1 + r/r_s)²]` both integrands are smooth on `u
 
 **Default knobs and their cost.** `n_R = 128, n_u = 512` is the validated production setting, calibrated against `scipy.integrate.quad` to better than ~10⁻³ relative error over the parameter range relevant for MW dwarfs. A single `(J, D)` evaluation across all four reporting angles takes a few ms; a 4000-sample chain pushes through in a few seconds.
 
-`tests/integration/analyze_asimov.py` runs the J/D push at `(n_R=96, n_u=256)`; `summarize_jd` defaults to `(n_R=64, n_u=128, thin_to=500)`. The production driver `scripts/run_production.py` calls `J_D_factors` directly per chain draw at the validated production setting `(n_R=128, n_u=512)`.
+`tests/integration/analyze_asimov.py` runs the J/D push at `(n_R=96, n_u=256)`. The production driver `scripts/run_production.py` calls `J_D_factors` directly per chain draw at the validated production setting `(n_R=128, n_u=512)`.
 
 ---
 
@@ -86,9 +86,9 @@ python tests/integration/run_ufd_population.py --asimov  # single Asimov realiza
 python tests/integration/analyze_asimov.py       # Asimov J/D bias decomposition
 ```
 
-(The original standalone `run_jd_summary.py` was not migrated; J/D is now computed inline by `run_ufd_population.py` via `summarize_jd`, and the Asimov decomposition lives in `analyze_asimov.py`.)
+(The original standalone `run_jd_summary.py` was not migrated and has been removed, along with the `summarize_jd` helper; the Asimov decomposition lives in `analyze_asimov.py`, and production J/D is computed inline by `scripts/run_production.py` via `dwarfjeans.jd.factors.J_D_factors`.)
 
-**Population-level J/D MC numbers are pending under the Jeffreys-prior MC.** The historical loguniform numbers below were produced by the former `run_jd_summary.py`; the current `run_ufd_population.py` runs only the halo recovery. Reinstating per-realization J/D summaries (a `summarize_jd` call inside the MC loop, writing `ufd_pop_jd_diagnostics.json`) is a follow-up.
+**Population-level J/D MC numbers are pending under the Jeffreys-prior MC.** The historical loguniform numbers below were produced by the former `run_jd_summary.py`; the current `run_ufd_population.py` runs only the halo recovery. Reinstating per-realization J/D summaries (an inline `J_D_factors` push inside the MC loop, writing `ufd_pop_jd_diagnostics.json`) is a follow-up.
 
 Historical loguniform baseline: **D-factor recovery was clean** at all four angles: median bias ≤ 0.03 dex, std(z) ≤ 1.15, max `|z|` ≈ 2.1, KS p ∈ [0.37, 0.79], with mean 1σ widths 0.15–0.36 dex.
 

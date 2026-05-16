@@ -79,7 +79,7 @@ print("=" * 70)
 print("(1) M(r_1/2) RECOVERY")
 print("=" * 70)
 # Compute M(r_1/2, 3D) at fixed r_half_3d = truth value, evaluated at each
-# chain (r_s, rho_s).  This is what `summarize_jd` and the Asimov summary use.
+# chain (r_s, rho_s).
 r_s_chain = 10.0 ** log_rs
 rho_s_chain = 10.0 ** log_rhos
 M3_chain = jeans.nfw_M(r_half_3d_t, r_s_chain, rho_s_chain)
