@@ -34,21 +34,6 @@ def verify_checksums(folder: Path) -> None:
 
 
 def per_star_indices(names: np.ndarray) -> np.ndarray:
-    """Map each per-epoch row to a stable per-star integer index.
-
-    Two rows that share the same `names[i]` value receive the same int.
-    Indices are assigned in encounter order so the ordering is stable
-    across runs.
-    """
-    seen: dict = {}
-    out = np.empty(len(names), dtype=np.int64)
-    for i, name in enumerate(names):
-        idx = seen.setdefault(name, len(seen))
-        out[i] = idx
-    return out
-
-
-def per_star_indices(names: np.ndarray) -> np.ndarray:
     """Map per-epoch row names to a stable per-star integer index.
 
     For per-epoch catalogs, `data_sources.md` requires `star_id` to be a

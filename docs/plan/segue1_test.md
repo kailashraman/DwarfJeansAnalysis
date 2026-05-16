@@ -3,7 +3,13 @@
 A single-galaxy end-to-end test of the Jeans inference pipeline on Segue 1, the
 ultra-faint dwarf. Purpose: validate the pipeline on real data and compare against
 Pace & Strigari 2018 (P&S 2018). Script: `tests/integration/run_segue1.py`, importing
-from `docs/plan/` (the live working copy of the pipeline modules).
+from the `dwarfjeans.*` package.
+
+**Note:** `run_segue1.py` is the legacy single-galaxy driver, retained as a
+fixed-config smoke test with toggles (`SOURCE`, `USE_P_WEIGHTS`, `FIX_R_P_ARCMIN`)
+that the production driver does not expose. Production runs now go through
+`scripts/run_production.py`, which loops over galaxies via the registry and
+writes to `results/production/<lvdb_key>/<prior>/`.
 
 ---
 
@@ -151,7 +157,7 @@ logZ = −209.61 ± 0.13; n_eq = 5227 equal-weight samples. Wall time 479 s.
 |---|---|---|
 | Observational inputs | LVDB v1.0.5 | **Hardcoded priors**: distance from P&S 2018 (`d ~ N(23.0, 2.0)` kpc); ellipticity from Martin+2008 (`ε ~ N(0.47, 0.11)` truncated to `[0, 1)`); `rhalf_arcmin` reverse-engineered to give `r_p = 21 ± 5 pc` (P&S 2018) at fiducial `(d, ε)`. LVDB v1.0.5 is loaded for diagnostic logging only. |
 | Nuisance marginalization | d, r_p, ε marginalized via split-normal priors | **Implemented** as 7D dynesty with symmetric-Gaussian priors: d ~ N(23.0, 2.0) kpc, ε ~ N(0.47, 0.11) trunc [0,1), rhalf ~ N(4.31, 1.03) arcmin; r_p derived per draw |
-| r_s > r_p constraint | Median-r_1/2 from LVDB (stage2.md §) | **Per-draw rejection** inside the likelihood (compares against the sampled r_p) — see `make_loglike_with_nuisances` in `jeans_inference.py` |
+| r_s > r_p constraint | Median-r_1/2 from LVDB (stage2.md §) | **Per-draw rejection** inside the likelihood (compares against the sampled r_p) — see `make_loglike_with_nuisances` in `dwarfjeans.jeans.inference` |
 | Membership probabilities | Full p_i treatment | Implemented — Bpr used as soft weights |
 | Perspective-motion correction | Applied where proper motions available | **Not applied** |
 | Constant-σ cross-check | Not in plan | **Added** — Walker+2006 likelihood with proper Jeffreys (Fisher det) prior on σ, plus a profile-likelihood Δlnℒ=½ interval as prior-independent cross-check. Both match to 2 decimals. |

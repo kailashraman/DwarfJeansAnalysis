@@ -1,10 +1,16 @@
 """
-Quick Segue 1 Jeans run using docs/original-plan scripts.
+Legacy single-galaxy Segue 1 smoke test.
+
+Superseded for production by ``scripts/run_production.py``; retained as a
+fixed-config end-to-end check with toggles (``SOURCE``, ``USE_P_WEIGHTS``,
+``FIX_R_P_ARCMIN``) that the production driver does not expose. Imports from
+``dwarfjeans.*`` (the docstring previously referenced ``docs/original-plan``,
+which is now a read-only snapshot, not an import path).
 
 Reads global Segue 1 properties from LVDB v1.0.5 (cached locally),
 applies a membership cut on the per-star catalog, runs Stage-2 dynesty
-inference via jeans_inference.run_inference, then derives σ_los, M_half,
-J, D posterior chains and writes plots + summary.
+inference via ``dwarfjeans.jeans.inference.run_inference``, then derives
+σ_los, M_half, J, D posterior chains and writes plots + summary.
 
 Per-star source options (SOURCE toggle):
   'simon': Simon+2011 VizieR Table 1, Bpr > 0.8

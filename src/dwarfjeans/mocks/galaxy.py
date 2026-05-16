@@ -244,7 +244,7 @@ def make_asimov_galaxy(
       * V_i — placeholder, set to V_sys.
       * p_i = 1.
 
-    The Asimov likelihood (`make_loglike_asimov` in jeans_inference) replaces
+    The Asimov likelihood (`make_loglike_asimov` in dwarfjeans.jeans.inference) replaces
     each (V_i - V_sys)² in the Gaussian likelihood with its expectation value
     σ_tot,truth²(R_i) = sigma_los_truth(R_i)² + sigma_eps_i², so the V_i array
     is *not consumed* by the Asimov inference. We populate V = V_sys so the
