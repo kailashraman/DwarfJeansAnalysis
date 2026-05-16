@@ -25,7 +25,6 @@ from pathlib import Path
 
 import astropy.constants as const
 import astropy.units as u
-import h5py
 import numpy as np
 import yaml
 
@@ -70,6 +69,7 @@ def _load_halos():
     log10 r_s lies within LOG10_RS_BOUNDS. The returned log10_rs and
     log10_rhos are the masked sub-arrays.
     """
+    import h5py  # build-time-only; not installed on CI
     with h5py.File(SATGEN_H5, "r") as fh:
         v_max_kpcGyr = fh["v_max"][()]
         r_max_kpc = fh["r_max"][()]
