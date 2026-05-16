@@ -117,3 +117,5 @@ For an evolving plan, maintain a working copy at `docs/plan/`. When referencing 
 Routine code edits inside an existing module do not require an update. If you find yourself adding code-level detail to ARCHITECTURE.md, that content belongs in a docstring or `docs/plan/` instead.
 
 `README.md` is the new-user orientation. Update it when an install dep changes (`pyproject.toml`), a quickstart command's CLI surface changes, or a section marked "to be filled in" becomes fillable.
+
+**Live code vs. inert paths.** Codebase searches (`grep`, `Glob`, agent dispatches) default to `src/`, `scripts/`, and `tests/`. `docs/original-plan/` is a read-only legacy snapshot; `docs/plan/` and `docs/writeup/` are prose; `.ipynb_checkpoints/` are inert. Hits in those paths are noise — a stale `import j_d_factors` in `docs/original-plan/` is not evidence the module is reachable from live code. Widen scope only when the task is explicitly about docs or a "where is X referenced anywhere" sweep.
