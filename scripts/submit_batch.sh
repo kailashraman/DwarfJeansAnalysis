@@ -18,7 +18,10 @@
 # results/production/<key>/<prior>/ and overwrite the previous run.
 #
 # Sampler / prior config (env overrides, exported through sbatch):
-#   PRIOR  (default: jeffreys)   — one of {jeffreys, loguniform, uniform}
+#   PRIOR  (default: jeffreys)   — one of {jeffreys, loguniform, uniform,
+#                                  satgen, satgen_box, satgen_shmr}
+#   SHMR   (default: <unset>)    — required iff PRIOR=satgen_shmr; one of
+#                                  the choices in run_production.py --shmr
 #   NLIVE  (default: 1500)       — dynesty nlive (dense production)
 #   DLOGZ  (default: 0.05)       — dynesty dlogz stop (dense production)
 # To reproduce the prior 500/0.1 sampling: NLIVE=500 DLOGZ=0.1 sbatch ...
@@ -79,6 +82,7 @@ if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
     # `--cohort classical --prior jeffreys` and `--prior jeffreys --cohort
     # classical` are equivalent.
     PRIOR_ARG=jeffreys
+    SHMR_ARG=
     NLIVE_ARG=1500
     DLOGZ_ARG=0.05
     POOL_OVERRIDE=
@@ -87,6 +91,7 @@ if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --prior)  PRIOR_ARG="$2"; shift 2 ;;
+            --shmr)   SHMR_ARG="$2"; shift 2 ;;
             --nlive)  NLIVE_ARG="$2"; shift 2 ;;
             --dlogz)  DLOGZ_ARG="$2"; shift 2 ;;
             --pool)   POOL_OVERRIDE="$2"; shift 2 ;;
@@ -101,7 +106,9 @@ Usage:
   bash $0 [flags] KEY [KEY ...]       # explicit galaxy list
 
 Flags (order-independent):
-  --prior {jeffreys|loguniform|uniform}   default: jeffreys
+  --prior {jeffreys|loguniform|uniform|satgen|satgen_box|satgen_shmr}
+                                          default: jeffreys
+  --shmr  {fattahi18|...}                 required iff --prior satgen_shmr
   --nlive INT                             default: 1500
   --dlogz FLOAT                           default: 0.05
   --pool INT                              override --cpus-per-task
@@ -146,13 +153,23 @@ EOF
             fi
         done
     fi
+    if [[ "$PRIOR_ARG" == "satgen_shmr" && -z "$SHMR_ARG" ]]; then
+        echo "ERROR: --prior satgen_shmr requires --shmr" >&2; exit 1
+    fi
+    if [[ -n "$SHMR_ARG" && "$PRIOR_ARG" != "satgen_shmr" ]]; then
+        echo "ERROR: --shmr is only valid with --prior satgen_shmr" >&2; exit 1
+    fi
     array_arg=$(IFS=,; echo "${INDICES[*]}")
-    sbatch_args=(--array="$array_arg"
-                 --export="ALL,PRIOR=$PRIOR_ARG,NLIVE=$NLIVE_ARG,DLOGZ=$DLOGZ_ARG")
+    export_list="ALL,PRIOR=$PRIOR_ARG,NLIVE=$NLIVE_ARG,DLOGZ=$DLOGZ_ARG"
+    if [[ -n "$SHMR_ARG" ]]; then
+        export_list+=",SHMR=$SHMR_ARG"
+    fi
+    sbatch_args=(--array="$array_arg" --export="$export_list")
     if [[ -n "$POOL_OVERRIDE" ]]; then
         sbatch_args+=(--cpus-per-task="$POOL_OVERRIDE")
     fi
-    echo "Submitting: prior=$PRIOR_ARG nlive=$NLIVE_ARG dlogz=$DLOGZ_ARG" \
+    echo "Submitting: prior=$PRIOR_ARG${SHMR_ARG:+ shmr=$SHMR_ARG}" \
+         "nlive=$NLIVE_ARG dlogz=$DLOGZ_ARG" \
          "pool=${POOL_OVERRIDE:-<header default>} array=$array_arg"
     exec sbatch "${sbatch_args[@]}" "$0"
 fi
@@ -180,13 +197,20 @@ NPOOL="${SLURM_CPUS_PER_TASK:-1}"
 # production setting; the original (500, 0.1) is recoverable by exporting
 # NLIVE/DLOGZ at submit time.
 PRIOR="${PRIOR:-jeffreys}"
+SHMR="${SHMR:-}"
 NLIVE="${NLIVE:-1500}"
 DLOGZ="${DLOGZ:-0.05}"
-echo "Task $SLURM_ARRAY_TASK_ID: lvdb_key=$KEY  npool=$NPOOL  prior=$PRIOR  nlive=$NLIVE  dlogz=$DLOGZ"
+echo "Task $SLURM_ARRAY_TASK_ID: lvdb_key=$KEY  npool=$NPOOL  prior=$PRIOR${SHMR:+  shmr=$SHMR}  nlive=$NLIVE  dlogz=$DLOGZ"
+
+shmr_flag=()
+if [[ -n "$SHMR" ]]; then
+    shmr_flag=(--shmr "$SHMR")
+fi
 
 python scripts/run_production.py \
     --lvdb-key "$KEY" \
     --prior "$PRIOR" \
+    "${shmr_flag[@]}" \
     --nlive "$NLIVE" \
     --dlogz "$DLOGZ" \
     --npool "$NPOOL"

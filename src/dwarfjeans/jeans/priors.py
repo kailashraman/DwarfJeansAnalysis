@@ -31,7 +31,7 @@ affects (r_s, rho_s).
 from __future__ import annotations
 
 from dataclasses import dataclass
-from functools import lru_cache
+from functools import lru_cache, partial
 from pathlib import Path
 from typing import Callable
 
@@ -499,6 +499,70 @@ def make_satgen_box_prior_transform_with_nuisances(
 
 
 # ---------------------------------------------------------------------------
+# SHMR-weighted SatGen prior on (r_s, rho_s) — per-dwarf
+# ---------------------------------------------------------------------------
+#
+# Identical functional form to ``make_satgen_prior_transform`` (Gaussian
+# conditional log10 ρ_s | log10 r_s with bin-interpolated mean/scatter), but
+# the lookup table is built per-dwarf by reweighting the Diemer halo catalog
+# with precomputed Fattahi+18 (or other) SHMR weights from the SatGen_Dwarf
+# sibling repo. Those weights also include a geometric prior that zeroes any
+# halo whose galactocentric distance lies outside a factor of 2 of the
+# observed value, so the table reflects a galaxy-specific posterior over
+# halos. See ``scripts/build_satgen_shmr_prior_tables.py`` for the builder.
+
+SATGEN_SHMR_DIR = (
+    Path(__file__).resolve().parents[3] / "data" / "satgen_prior"
+)
+
+
+def _shmr_table_path(shmr: str, lvdb_key: str) -> Path:
+    return SATGEN_SHMR_DIR / shmr / f"{lvdb_key}.npz"
+
+
+def make_satgen_shmr_prior_transform(
+    V_center: float,
+    log10_rs_min: float | None = None,
+    V_halfwidth: float = V_HALFWIDTH,
+    *,
+    shmr: str,
+    lvdb_key: str,
+):
+    """4D unit-cube → (V, log10 r_s, log10 rho_s, β̃) with the SHMR-weighted
+    per-dwarf SatGen-conditioned (r_s, ρ_s) prior.
+
+    ``shmr`` and ``lvdb_key`` are required and select the per-dwarf table.
+    """
+    return make_satgen_prior_transform(
+        V_center,
+        log10_rs_min=log10_rs_min,
+        V_halfwidth=V_halfwidth,
+        table_path=_shmr_table_path(shmr, lvdb_key),
+    )
+
+
+def make_satgen_shmr_prior_transform_with_nuisances(
+    V_center: float,
+    d_mean: float, d_sigma: float,
+    eps_mean: float, eps_sigma: float,
+    rhalf_mean: float, rhalf_sigma: float,
+    V_halfwidth: float = V_HALFWIDTH,
+    *,
+    shmr: str,
+    lvdb_key: str,
+):
+    """7D analogue of ``make_satgen_shmr_prior_transform``."""
+    return make_satgen_prior_transform_with_nuisances(
+        V_center,
+        d_mean=d_mean, d_sigma=d_sigma,
+        eps_mean=eps_mean, eps_sigma=eps_sigma,
+        rhalf_mean=rhalf_mean, rhalf_sigma=rhalf_sigma,
+        V_halfwidth=V_halfwidth,
+        table_path=_shmr_table_path(shmr, lvdb_key),
+    )
+
+
+# ---------------------------------------------------------------------------
 # Jeffreys log-determinant correction
 # ---------------------------------------------------------------------------
 
@@ -611,11 +675,46 @@ PRIOR_REGISTRY: dict[str, Prior] = {
         log_correction=_zero_correction,
         needs_T=False,
     ),
+    "satgen_shmr": Prior(
+        name="satgen_shmr",
+        make_transform=make_satgen_shmr_prior_transform,
+        make_transform_with_nuisances=make_satgen_shmr_prior_transform_with_nuisances,
+        log_correction=_zero_correction,
+        needs_T=False,
+    ),
 }
 
 
-def get_prior(name: str) -> Prior:
+# Priors that require per-galaxy selectors baked into the factory before
+# inference can use them. ``get_prior`` pre-binds these via functools.partial.
+_PRIOR_REQUIRED_KWARGS: dict[str, tuple[str, ...]] = {
+    "satgen_shmr": ("shmr", "lvdb_key"),
+}
+
+
+def get_prior(name: str, **kwargs) -> Prior:
     if name not in PRIOR_REGISTRY:
         valid = ", ".join(sorted(PRIOR_REGISTRY.keys()))
         raise KeyError(f"unknown prior {name!r}; valid: {valid}")
-    return PRIOR_REGISTRY[name]
+    required = _PRIOR_REQUIRED_KWARGS.get(name, ())
+    missing = [k for k in required if kwargs.get(k) is None]
+    if missing:
+        raise ValueError(
+            f"prior {name!r} requires kwargs {required}; missing {missing}"
+        )
+    extras = {k: kwargs[k] for k in required}
+    unknown = set(kwargs) - set(required)
+    if unknown:
+        raise ValueError(
+            f"prior {name!r} got unexpected kwargs: {sorted(unknown)}"
+        )
+    p = PRIOR_REGISTRY[name]
+    if not extras:
+        return p
+    return Prior(
+        name=p.name,
+        make_transform=partial(p.make_transform, **extras),
+        make_transform_with_nuisances=partial(p.make_transform_with_nuisances, **extras),
+        log_correction=p.log_correction,
+        needs_T=p.needs_T,
+    )

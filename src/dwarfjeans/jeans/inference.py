@@ -267,6 +267,8 @@ def run_inference(
     V_halfwidth: float | None = None,
     perspective: dict | None = None,
     pm_prior: dict | None = None,
+    shmr: str | None = None,
+    lvdb_key: str | None = None,
 ) -> dict:
     """
     Run dynesty on the mock galaxy. Returns a dict with:
@@ -284,13 +286,22 @@ def run_inference(
     pseudo-likelihood on real data).
 
     prior_name selects from ``PRIOR_REGISTRY`` in
-    ``dwarfjeans.jeans.priors`` ({uniform, loguniform, jeffreys, satgen}).
-    Default ``jeffreys`` matches the previous ``use_jeffreys_prior=True``
+    ``dwarfjeans.jeans.priors`` ({uniform, loguniform, jeffreys, satgen,
+    satgen_box, satgen_shmr}). ``satgen_shmr`` additionally requires
+    ``shmr=`` and ``lvdb_key=`` to select the per-dwarf table. Default
+    ``jeffreys`` matches the previous ``use_jeffreys_prior=True``
     default.
     """
     from dwarfjeans.jeans.priors import V_HALFWIDTH, get_prior
 
-    prior = get_prior(prior_name)
+    prior_kwargs: dict = {}
+    if prior_name == "satgen_shmr":
+        if shmr is None or lvdb_key is None:
+            raise ValueError(
+                "prior_name='satgen_shmr' requires both shmr= and lvdb_key="
+            )
+        prior_kwargs = {"shmr": shmr, "lvdb_key": lvdb_key}
+    prior = get_prior(prior_name, **prior_kwargs)
     V_hw = V_HALFWIDTH if V_halfwidth is None else float(V_halfwidth)
 
     if marginalize_nuisances:

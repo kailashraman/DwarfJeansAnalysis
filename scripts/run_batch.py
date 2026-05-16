@@ -68,7 +68,11 @@ def _run_one(lvdb_key: str, batch_dir: Path, common_args: list[str]) -> dict:
 def main() -> int:
     p = argparse.ArgumentParser(description=__doc__.strip().splitlines()[0])
     p.add_argument("--prior", default="jeffreys",
-                   choices=("uniform", "loguniform", "jeffreys", "satgen", "satgen_box"))
+                   choices=("uniform", "loguniform", "jeffreys",
+                            "satgen", "satgen_box", "satgen_shmr"))
+    p.add_argument("--shmr", default=None,
+                   choices=("fattahi18",),
+                   help="SHMR for satgen_shmr (required iff --prior satgen_shmr)")
     p.add_argument("--nlive", type=int, default=500)
     p.add_argument("--dlogz", type=float, default=0.1)
     p.add_argument("--only", default=None,
@@ -78,6 +82,11 @@ def main() -> int:
     p.add_argument("--jobs", type=int, default=1,
                    help="Galaxies to run in parallel (default 1)")
     args = p.parse_args()
+
+    if args.prior == "satgen_shmr" and args.shmr is None:
+        raise SystemExit("--prior satgen_shmr requires --shmr")
+    if args.shmr is not None and args.prior != "satgen_shmr":
+        raise SystemExit("--shmr is only valid with --prior satgen_shmr")
 
     keys = _list_keys()
     if args.only:
@@ -98,6 +107,8 @@ def main() -> int:
 
     common = ["--prior", args.prior, "--nlive", str(args.nlive),
               "--dlogz", str(args.dlogz)]
+    if args.shmr is not None:
+        common += ["--shmr", args.shmr]
 
     results: list[dict] = []
     t_batch = time.time()

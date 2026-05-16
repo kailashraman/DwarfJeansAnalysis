@@ -741,6 +741,11 @@ the key \code{prior\_name}:
   \item[\code{satgen\_box}] same SatGen catalog but uniform-in-log inside
     the per-bin envelope of populated halos rather than a Gaussian
     conditional (Section~\ref{sec:satgen-box-prior}).
+  \item[\code{satgen\_shmr}] per-dwarf SatGen prior obtained by
+    reweighting the same halo catalog with precomputed stellar-to-halo-mass-relation
+    (SHMR) weights from \code{SatGen\_Dwarf}; same Gaussian-conditional
+    functional form as \code{satgen} but with weighted bin moments and
+    bin edges (Section~\ref{sec:satgen-shmr-prior}).
 \end{description}
 The production default is \code{jeffreys}
 (\code{scripts/run\_production.py}).
@@ -880,6 +885,81 @@ stored in the same cache file alongside the Gaussian-prior fields.
 The \code{satgen\_box} family is intended as the closer point of
 comparison to importance-reweighted SatGen analyses, which carry
 the empirical halo distribution rather than a per-bin Gaussian fit.
+
+\paragraph{SHMR-weighted SatGen prior.}
+\label{sec:satgen-shmr-prior}
+The \code{satgen\_shmr} family is the per-dwarf refinement of
+\code{satgen}: the same Diemer halo catalog
+(eq.~\ref{eq:satgen-rs}, \ref{eq:satgen-rhos}) is reweighted by
+precomputed importance weights $w_i$ tied to a specific dwarf,
+producing one cached lookup table per (SHMR, dwarf) pair instead of
+the single galaxy-agnostic table used by \code{satgen}.  The weight
+files live in the companion \code{SatGen\_Dwarf} repository under
+\code{data/additional/weights\_gc/Diemer/<dwarf>.npz} and are
+row-aligned to the halo catalog.  We default to the Fattahi et al.\
+(2018) SHMR; the file contains ten SHMRs and the CLI selects which
+via the \code{--shmr} flag.
+
+Each weight $w_i$ is the product of an SHMR likelihood term — a
+Bayesian score of the halo's MC-sampled stellar mass against the
+dwarf's observed $M_\star$ distribution — and a geometric gate that
+zeroes any halo whose galactocentric distance lies outside a factor of
+two (in either direction) of the dwarf's observed value.  We consume
+the precomputed weight arrays directly; the SHMR formulae,
+scatter conventions, and the geometric cut are defined in
+\code{SatGen\_Dwarf/python/halo\_weights.py} and not re-derived here.
+The geometric gate is dominant: across the 39-dwarf study sample it
+zeroes between $28\%$ and $94\%$ of the catalog, leaving
+$\sim$$10^5$--$10^6$ non-zero halos per dwarf.  Zero-weight halos
+are discarded before any binning, so the weighted moments and
+quantile-cut bin edges operate strictly on the geometrically- and
+SHMR-consistent sub-population.
+
+The functional form of the prior is identical to \code{satgen}
+(eq.~\ref{eq:satgen-rs-draw}--\ref{eq:satgen-rhos-draw}), but every
+ingredient is computed with weights.  Bin edges in $\log_{10} r_s$
+are placed at uniform quantiles of cumulative weight,
+\begin{equation}
+  F^{(w)}(x) = \frac{\sum_{i:\,x_i\le x} w_i}{\sum_i w_i},
+  \qquad
+  \mathrm{edge}_k = (F^{(w)})^{-1}\!\Big(\tfrac{k}{N_\mathrm{bins}}\Big),
+\end{equation}
+and per-bin moments use the reliability-weighted mean and the
+reliability-weight Bessel-corrected variance,
+\begin{equation}
+  \mu_k = \frac{\sum_{i\in k} w_i\, y_i}{\sum_{i\in k} w_i},
+  \quad
+  \sigma_k^2 = \frac{\sum_{i\in k} w_i\,(y_i-\mu_k)^2}
+                    {\sum_{i\in k} w_i - \sum_{i\in k} w_i^2/\sum_{i\in k} w_i},
+  \label{eq:shmr-bessel}
+\end{equation}
+where $y_i\equiv\log_{10}\rho_{s,i}$.  Eq.~\ref{eq:shmr-bessel}
+reduces to \code{np.std(..., ddof=1)} when all weights are equal, and
+inflates the denominator by the effective sample size for unequal
+weights, matching the \code{satgen} convention.
+
+We compute the global effective sample size
+$\mathrm{ESS} = (\sum_i w_i)^2/\sum_i w_i^2$ for each dwarf and
+default to $N_\mathrm{bins}=300$; if $\mathrm{ESS}/N_\mathrm{bins}<30$
+we adaptively reduce $N_\mathrm{bins}$ to
+$\max(50,\lfloor\mathrm{ESS}/30\rfloor)$ so each bin retains at least
+$\sim 30$ effective halos.  In the Fattahi+18 build of the
+39-dwarf sample only Hydrus~I triggered the fallback
+($N_\mathrm{bins}=292$); ESS ranged from $\sim$$9\times 10^3$ to
+$\sim$$1.3\times 10^5$.  Tables and per-dwarf metadata
+(\code{n\_halos\_nonzero}, \code{zero\_weight\_fraction},
+\code{ess}, \code{n\_bins}) are cached at
+\code{data/satgen\_prior/<shmr>/<lvdb\_key>.npz}; the builder is
+\code{scripts/build\_satgen\_shmr\_prior\_tables.py} and the loader
+shares the \code{satgen} code path
+(\code{make\_satgen\_shmr\_prior\_transform} in
+\code{src/dwarfjeans/jeans/priors.py} is a thin wrapper that
+resolves the per-dwarf table path and delegates to
+\code{make\_satgen\_prior\_transform}).  The
+\code{satgen\_shmr} prior has no Walker constant-$\sigma$ analog on
+$\sigma_\mathrm{los}$, so the companion in
+\code{run\_production.py} falls back to \code{jeffreys} for that
+inference, as for \code{satgen}/\code{satgen\_box}.
 
 \paragraph{Anisotropy and systemic priors.}
 $\tilde\beta$ is flat on $[-0.95,\,1)$ (eq.~\ref{eq:beta-tilde}); the

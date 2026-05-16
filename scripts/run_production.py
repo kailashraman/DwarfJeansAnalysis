@@ -131,6 +131,7 @@ def _registry_nuisance_priors(row: dict) -> dict:
 def run(lvdb_key: str,
         *,
         prior_name: str = "jeffreys",
+        shmr: str | None = None,
         nlive: int = 500,
         dlogz: float = 0.1,
         rseed: int = 0,
@@ -150,7 +151,13 @@ def run(lvdb_key: str,
     # Canonical, single-output-per-(galaxy, prior). Each run overwrites
     # the previous one — wrong results are not preserved for provenance,
     # to keep the central results tree from ballooning over re-runs.
-    out_dir = output_base / lvdb_key / prior_name
+    # satgen_shmr is sub-folded by SHMR so different SHMR choices coexist.
+    if prior_name == "satgen_shmr":
+        if shmr is None:
+            raise ValueError("prior_name='satgen_shmr' requires --shmr")
+        out_dir = output_base / lvdb_key / f"{prior_name}_{shmr}"
+    else:
+        out_dir = output_base / lvdb_key / prior_name
     out_dir.mkdir(parents=True, exist_ok=True)
     timestamp = _dt.datetime.utcnow().strftime("%Y%m%dT%H%M%SZ")
 
@@ -335,10 +342,13 @@ def run(lvdb_key: str,
 
     # ----- Walker+2006 constant-σ dispersion (data-only, model-free) -----
     # The σ_los Walker baseline accepts {uniform, loguniform, jeffreys};
-    # the (r_s, ρ_s) `satgen` / `satgen_box` priors have no σ_los counterpart,
-    # so fall back to the production-default `jeffreys` σ prior in that case.
-    sigma_prior_name = ("jeffreys" if prior_name in ("satgen", "satgen_box")
-                        else prior_name)
+    # the (r_s, ρ_s) `satgen` / `satgen_box` / `satgen_shmr` priors have no
+    # σ_los counterpart, so fall back to the production-default `jeffreys`
+    # σ prior in that case.
+    sigma_prior_name = (
+        "jeffreys" if prior_name in ("satgen", "satgen_box", "satgen_shmr")
+        else prior_name
+    )
     cs = constant_sigma_inference(V, sigma_eps, p, V_center=V_center,
                                    V_halfwidth=V_halfwidth,
                                    prior=sigma_prior_name)
@@ -364,6 +374,8 @@ def run(lvdb_key: str,
         marginalize_nuisances=True,
         nuisance_priors=nuisance_priors,
         prior_name=prior_name,
+        shmr=shmr,
+        lvdb_key=lvdb_key,
         npool=npool,
         **perspective_kwargs,
     )
@@ -531,6 +543,7 @@ def run(lvdb_key: str,
     audit_payload = {
         "lvdb_key": lvdb_key,
         "prior_name": prior_name,
+        "shmr": shmr,
         "timestamp_utc": timestamp,
         "registry_row": {k: (v if not isinstance(v, float)
                               or np.isfinite(v) else None)
@@ -568,8 +581,12 @@ def _cli() -> argparse.Namespace:
     p.add_argument("--lvdb-key", required=True,
                    help="Galaxy key in data/registry/galaxies.ecsv")
     p.add_argument("--prior", default="jeffreys",
-                   choices=("uniform", "loguniform", "jeffreys", "satgen", "satgen_box"),
+                   choices=("uniform", "loguniform", "jeffreys",
+                            "satgen", "satgen_box", "satgen_shmr"),
                    help="Base halo prior on (ln ρ_s, ln r_s)")
+    p.add_argument("--shmr", default=None,
+                   choices=("fattahi18",),
+                   help="SHMR for satgen_shmr (required iff --prior satgen_shmr)")
     p.add_argument("--nlive", type=int, default=500)
     p.add_argument("--dlogz", type=float, default=0.1)
     p.add_argument("--rseed", type=int, default=0)
@@ -598,9 +615,14 @@ def _cli() -> argparse.Namespace:
 
 if __name__ == "__main__":
     args = _cli()
+    if args.prior == "satgen_shmr" and args.shmr is None:
+        raise SystemExit("--prior satgen_shmr requires --shmr")
+    if args.shmr is not None and args.prior != "satgen_shmr":
+        raise SystemExit("--shmr is only valid with --prior satgen_shmr")
     out = run(
         args.lvdb_key,
         prior_name=args.prior,
+        shmr=args.shmr,
         nlive=args.nlive,
         dlogz=args.dlogz,
         rseed=args.rseed,

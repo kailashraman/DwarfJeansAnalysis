@@ -50,18 +50,21 @@ from run_production import _read_registry_row  # noqa: E402
 import plot_config  # noqa: F401,E402  — applies rcParams on import
 
 
-def _latest_run(lvdb_key: str, prior: str) -> Path:
-    """Return the canonical run dir for (lvdb_key, prior).
+def _latest_run(lvdb_key: str, prior: str, shmr: str | None = None) -> Path:
+    """Return the canonical run dir for (lvdb_key, prior[, shmr]).
 
     Production results live at the fixed path
     ``results/production/<lvdb_key>/<prior>/`` (overwritten on each run);
-    no timestamp/jobid layer.
+    no timestamp/jobid layer. For the per-dwarf SHMR-weighted family
+    ``satgen_shmr`` the sub-dir is ``<prior>_<shmr>`` so different SHMR
+    choices coexist.
     """
-    run_dir = REPO / "results" / "production" / lvdb_key / prior
+    leaf = f"{prior}_{shmr}" if prior == "satgen_shmr" and shmr else prior
+    run_dir = REPO / "results" / "production" / lvdb_key / leaf
     if not (run_dir / "posterior_samples.npz").exists():
         raise FileNotFoundError(
             f"No posterior_samples.npz at {run_dir} — has the production "
-            f"run for {lvdb_key} ({prior}) completed?"
+            f"run for {lvdb_key} ({leaf}) completed?"
         )
     return run_dir
 
@@ -76,10 +79,10 @@ def _walker_posterior(audit: dict) -> dict:
     prior = audit.get("prior_name", "jeffreys")
     # The σ_los Walker baseline has its own prior namespace
     # ({uniform, loguniform, jeffreys}); the (r_s, ρ_s) `satgen` /
-    # `satgen_box` priors have no σ_los counterpart, so use the
-    # production-default `jeffreys` σ_los prior when the Jeans-side run
-    # used one of them.
-    if prior in ("satgen", "satgen_box"):
+    # `satgen_box` / `satgen_shmr` priors have no σ_los counterpart,
+    # so use the production-default `jeffreys` σ_los prior when the
+    # Jeans-side run used one of them.
+    if prior in ("satgen", "satgen_box", "satgen_shmr"):
         prior = "jeffreys"
     catalog = np.load(REPO / "data" / "star_catalogs" / f"{lvdb_key}.npz",
                       allow_pickle=True)
@@ -334,7 +337,11 @@ def main() -> int:
     p.add_argument("--all", action="store_true",
                    help="Iterate every staged catalog with a completed posterior.")
     p.add_argument("--prior", default="jeffreys",
-                   choices=("uniform", "loguniform", "jeffreys", "satgen", "satgen_box"))
+                   choices=("uniform", "loguniform", "jeffreys",
+                            "satgen", "satgen_box", "satgen_shmr"))
+    p.add_argument("--shmr", default=None,
+                   choices=("fattahi18",),
+                   help="SHMR for satgen_shmr (required iff --prior satgen_shmr)")
     p.add_argument("--run-dir", default=None,
                    help="Override the auto-discovered latest run dir "
                         "(only valid with --lvdb-key)")
@@ -344,6 +351,10 @@ def main() -> int:
         p.error("specify exactly one of --lvdb-key or --all")
     if args.run_dir and not args.lvdb_key:
         p.error("--run-dir requires --lvdb-key")
+    if args.prior == "satgen_shmr" and args.shmr is None:
+        p.error("--prior satgen_shmr requires --shmr")
+    if args.shmr is not None and args.prior != "satgen_shmr":
+        p.error("--shmr is only valid with --prior satgen_shmr")
 
     if args.lvdb_key:
         keys = [args.lvdb_key]
@@ -354,18 +365,23 @@ def main() -> int:
     for key in keys:
         try:
             run_dir = (Path(args.run_dir).resolve()
-                       if args.run_dir else _latest_run(key, args.prior))
+                       if args.run_dir else _latest_run(key, args.prior, args.shmr))
         except FileNotFoundError as e:
             print(f"  skip  {key}: {e}")
             continue
         # The plot subdir must reflect the prior of the *run* (read from
         # audit.json), not the CLI flag, otherwise --run-dir pointing at
         # a run whose prior differs from --prior silently overwrites
-        # plots in the wrong directory.
-        effective_prior = json.loads(
-            (run_dir / "audit.json").read_text()
-        ).get("prior_name", args.prior)
-        out_dir = PLOTS_DIR / key / effective_prior
+        # plots in the wrong directory. For satgen_shmr the leaf also
+        # encodes the SHMR (matches the results-dir convention), since
+        # audit.json stores only prior_name and not the shmr selector.
+        audit = json.loads((run_dir / "audit.json").read_text())
+        effective_prior = audit.get("prior_name", args.prior)
+        effective_shmr = audit.get("shmr") or args.shmr
+        leaf = effective_prior
+        if effective_prior == "satgen_shmr" and effective_shmr:
+            leaf = f"{effective_prior}_{effective_shmr}"
+        out_dir = PLOTS_DIR / key / leaf
         for p in make_plots(run_dir, out_dir):
             print(p)
         n_done += 1
