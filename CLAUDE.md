@@ -53,7 +53,9 @@ After any non-trivial code change or numerical result the user is likely to act 
  
 Routing: **reviewer** for routine passes; **deep-reviewer** when the change touches the analysis pipeline, numerical methods, calibration, or anything where a subtle bug propagates into results. Concretely: deep-reviewer if the diff touches `src/dwarfjeans/jeans/` (priors, solver, inference, perspective, constant_sigma), `src/dwarfjeans/jfactor/`, anything that flows into `results/` or `docs/writeup/`, or anything the user flagged as critical. Reviewer for ingest adapters, plotting, audit scripts, batch drivers, and similar. **analyst** is read-only fresh-context reasoning — use it for orthogonal investigations or to classify failure modes, not as a substitute for reviewer. Do all of the above *unprompted* whenever the cost of being wrong exceeds a few minutes of agent time. Skip only for trivial edits (typo, rename, doc).
  
-Reviewers consult `docs/review-checklist.md` for recurring bug classes in this repo. When adversarial review (or a user) catches a bug whose class isn't already listed, append it.
+Reviewers consult `docs/review-checklist.md` for recurring bug classes in this repo. **Only the main session writes to this file**. When a reviewer (or any subagent) catches a bug whose class isn't already listed, it must surface the proposed class in its findings — a one-line class name, where the bug typically appears, what goes wrong when it slips through, and what reviewers should flag going forward — and leave the file edit to the main session. Serializing writes through the main session keeps framing consistent and entries general enough to catch near-misses, not just the exact bug that triggered them.
+
+Entries describe the class, not the instance: name the failure mode, its consequences, the symptoms, and the review-time signals. Do not put the triggering file:line in the "what to flag" body.
  
 ### When the gate fires
  
