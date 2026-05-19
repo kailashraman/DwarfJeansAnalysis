@@ -20,12 +20,22 @@ from dwarfjeans.jeans.priors import (
 )
 
 REPO = Path(__file__).resolve().parents[2]
-SEGUE1_TABLE = SATGEN_SHMR_DIR / "fattahi18" / "segue_1.npz"
 
-pytestmark = pytest.mark.skipif(
-    not SEGUE1_TABLE.exists(),
-    reason="SHMR table not built; run scripts/build_satgen_shmr_prior_tables.py",
-)
+SHMRS = ("fattahi18", "moster18", "danieli23_const", "kim24")
+
+
+def _table_for(shmr: str) -> Path:
+    return SATGEN_SHMR_DIR / shmr / "segue_1.npz"
+
+
+def _require_table(shmr: str) -> Path:
+    path = _table_for(shmr)
+    if not path.exists():
+        pytest.skip(
+            f"SHMR table {path} not built; run "
+            f"scripts/build_satgen_shmr_prior_tables.py --shmr {shmr}"
+        )
+    return path
 
 
 def _load_builder_module():
@@ -44,8 +54,9 @@ def _load_builder_module():
 
 # ---------- registry & basic plumbing ----------
 
-def test_registry_includes_satgen_shmr():
-    p = get_prior("satgen_shmr", shmr="fattahi18", lvdb_key="segue_1")
+@pytest.mark.parametrize("shmr", SHMRS)
+def test_registry_includes_satgen_shmr(shmr):
+    p = get_prior("satgen_shmr", shmr=shmr, lvdb_key="segue_1")
     assert p.name == "satgen_shmr"
     assert p.needs_T is False
 
@@ -59,9 +70,10 @@ def test_get_prior_requires_kwargs():
         get_prior("jeffreys", shmr="fattahi18", lvdb_key="segue_1")
 
 
-def test_shmr_table_path():
-    p = _shmr_table_path("fattahi18", "segue_1")
-    assert p == SEGUE1_TABLE
+@pytest.mark.parametrize("shmr", SHMRS)
+def test_shmr_table_path(shmr):
+    p = _shmr_table_path(shmr, "segue_1")
+    assert p == _table_for(shmr)
 
 
 # ---------- weighted statistics in the builder ----------
@@ -125,8 +137,10 @@ def test_weighted_quantile_bin_edges_concentrate_weight():
 
 # ---------- loader + transform ----------
 
-def test_table_loader_finite_and_monotone():
-    grid, cdf, centers, mu, sigma = _load_satgen_table(str(SEGUE1_TABLE))
+@pytest.mark.parametrize("shmr", SHMRS)
+def test_table_loader_finite_and_monotone(shmr):
+    table = _require_table(shmr)
+    grid, cdf, centers, mu, sigma = _load_satgen_table(str(table))
     assert grid.ndim == cdf.ndim == 1
     assert np.all(np.isfinite(cdf))
     assert np.all(np.diff(cdf) >= -1e-12)
@@ -137,9 +151,11 @@ def test_table_loader_finite_and_monotone():
     assert np.all(sigma > 0.0)
 
 
-def test_transform_midpoint_in_bounds():
+@pytest.mark.parametrize("shmr", SHMRS)
+def test_transform_midpoint_in_bounds(shmr):
+    _require_table(shmr)
     pt = make_satgen_shmr_prior_transform(
-        V_center=210.0, shmr="fattahi18", lvdb_key="segue_1",
+        V_center=210.0, shmr=shmr, lvdb_key="segue_1",
     )
     x = pt(np.array([0.5, 0.5, 0.5, 0.5]))
     assert np.isfinite(x).all()
@@ -148,9 +164,11 @@ def test_transform_midpoint_in_bounds():
     assert LOG10_RHOS_BOUNDS[0] <= x[2] <= LOG10_RHOS_BOUNDS[1]
 
 
-def test_transform_samples_finite_across_cube():
+@pytest.mark.parametrize("shmr", SHMRS)
+def test_transform_samples_finite_across_cube(shmr):
+    _require_table(shmr)
     pt = make_satgen_shmr_prior_transform(
-        V_center=210.0, shmr="fattahi18", lvdb_key="segue_1",
+        V_center=210.0, shmr=shmr, lvdb_key="segue_1",
     )
     rng = np.random.default_rng(0)
     U = rng.random((2000, 4))
@@ -160,23 +178,27 @@ def test_transform_samples_finite_across_cube():
     assert X[:, 1].max() <= LOG10_RS_BOUNDS[1] + 1e-9
 
 
-def test_transform_inverse_cdf_monotone_in_u1():
+@pytest.mark.parametrize("shmr", SHMRS)
+def test_transform_inverse_cdf_monotone_in_u1(shmr):
     """Holding u[2]=u[0]=u[3]=0.5, log10 r_s must be non-decreasing in u[1]."""
+    _require_table(shmr)
     pt = make_satgen_shmr_prior_transform(
-        V_center=210.0, shmr="fattahi18", lvdb_key="segue_1",
+        V_center=210.0, shmr=shmr, lvdb_key="segue_1",
     )
     u1_grid = np.linspace(1e-6, 1 - 1e-6, 200)
     log10_rs = np.array([pt(np.array([0.5, u, 0.5, 0.5]))[1] for u in u1_grid])
     assert np.all(np.diff(log10_rs) >= -1e-9)
 
 
-def test_nuisance_transform_runs():
+@pytest.mark.parametrize("shmr", SHMRS)
+def test_nuisance_transform_runs(shmr):
+    _require_table(shmr)
     pt = make_satgen_shmr_prior_transform_with_nuisances(
         V_center=210.0,
         d_mean=23.0, d_sigma=2.0,
         eps_mean=0.5, eps_sigma=0.1,
         rhalf_mean=4.0, rhalf_sigma=0.5,
-        shmr="fattahi18", lvdb_key="segue_1",
+        shmr=shmr, lvdb_key="segue_1",
     )
     x = pt(np.full(7, 0.5))
     assert x.shape == (7,)

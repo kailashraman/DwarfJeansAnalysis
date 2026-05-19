@@ -896,9 +896,16 @@ producing one cached lookup table per (SHMR, dwarf) pair instead of
 the single galaxy-agnostic table used by \code{satgen}.  The weight
 files live in the companion \code{SatGen\_Dwarf} repository under
 \code{data/additional/weights\_gc/Diemer/<dwarf>.npz} and are
-row-aligned to the halo catalog.  We default to the Fattahi et al.\
-(2018) SHMR; the file contains ten SHMRs and the CLI selects which
-via the \code{--shmr} flag.
+row-aligned to the halo catalog.  The upstream file contains ten
+precomputed SHMRs; the production CLIs
+(\code{run\_production.py}, \code{run\_batch.py},
+\code{plot\_posteriors.py}) currently wire four of them through the
+\code{--shmr} flag: Fattahi et al.\ (2018), Moster et al.\ (2018),
+Danieli et al.\ (2023, constant-slope variant), and Kim et al.\
+(2024).  The remaining six (Behroozi+13, Moster+13,
+Rodriguez-Puebla+17, Behroozi+19, Munshi+21, and the
+growing-slope Danieli+23 variant) are available in the build script
+but not exposed at the CLI by default.
 
 Each weight $w_i$ is the product of an SHMR likelihood term — a
 Bayesian score of the halo's MC-sampled stellar mass against the

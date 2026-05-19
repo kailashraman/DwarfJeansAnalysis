@@ -71,7 +71,7 @@ def main() -> int:
                    choices=("uniform", "loguniform", "jeffreys",
                             "satgen", "satgen_box", "satgen_shmr"))
     p.add_argument("--shmr", default=None,
-                   choices=("fattahi18",),
+                   choices=("fattahi18", "moster18", "danieli23_const", "kim24"),
                    help="SHMR for satgen_shmr (required iff --prior satgen_shmr)")
     p.add_argument("--nlive", type=int, default=500)
     p.add_argument("--dlogz", type=float, default=0.1)

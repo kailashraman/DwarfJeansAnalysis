@@ -108,7 +108,8 @@ Usage:
 Flags (order-independent):
   --prior {jeffreys|loguniform|uniform|satgen|satgen_box|satgen_shmr}
                                           default: jeffreys
-  --shmr  {fattahi18|...}                 required iff --prior satgen_shmr
+  --shmr  {fattahi18|moster18|danieli23_const|kim24}
+                                          required iff --prior satgen_shmr
   --nlive INT                             default: 1500
   --dlogz FLOAT                           default: 0.05
   --pool INT                              override --cpus-per-task
