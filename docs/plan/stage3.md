@@ -88,7 +88,7 @@ python tests/integration/analyze_asimov.py       # Asimov J/D bias decomposition
 
 (The original standalone `run_jd_summary.py` was not migrated and has been removed, along with the `summarize_jd` helper; the Asimov decomposition lives in `analyze_asimov.py`, and production J/D is computed inline by `scripts/run_production.py` via `dwarfjeans.jd.factors.J_D_factors`.)
 
-**Population-level J/D MC numbers are pending under the Jeffreys-prior MC.** The historical loguniform numbers below were produced by the former `run_jd_summary.py`; the current `run_ufd_population.py` runs only the halo recovery. Reinstating per-realization J/D summaries (an inline `J_D_factors` push inside the MC loop, writing `ufd_pop_jd_diagnostics.json`) is a follow-up.
+**Population-level J/D MC numbers are pending under the Jeffreys-prior MC.** The historical loguniform numbers below were produced by the former `run_jd_summary.py`; the current `run_ufd_population.py` runs only the halo recovery. Reinstating per-realization J/D summaries (an inline `J_D_factors` push inside the MC loop, writing `ufd_pop_jd_diagnostics.json`) is a follow-up (tracked in [`docs/open-issues.md`](../open-issues.md) #4).
 
 Historical loguniform baseline: **D-factor recovery was clean** at all four angles: median bias ≤ 0.03 dex, std(z) ≤ 1.15, max `|z|` ≈ 2.1, KS p ∈ [0.37, 0.79], with mean 1σ widths 0.15–0.36 dex.
 

@@ -421,7 +421,7 @@ The 39-galaxy study sample, routed by the rule above. Path A entries cite the sy
 | Crater II | B | — | `crater_2` | Not in DEIMOS sample (Dec < −40°). |
 | Eridanus II | B | — | `eridanus_2` | Most distant MW dwarf (~350 kpc); per-star data sparse. |
 | Grus I | B | — | `grus_1` | Likely DES-era discovery paper as `ref_vlos`. |
-| Leo VI | B | — | TBD on cluster | Very recent discovery — **verify presence in LVDB v1.0.5**; if absent, this galaxy may need to be deferred to a v1.1.0 bump or sourced from its discovery paper directly with a per-galaxy override of the LVDB lookup. |
+| Leo VI | B | — | TBD on cluster | Very recent discovery — **verify presence in LVDB v1.0.5** (tracked in [`../open-issues.md`](../open-issues.md) #6); if absent, defer to a v1.1.0 bump or source from the discovery paper directly with a per-galaxy override. |
 | Pisces II | B | — | `pisces_2` | |
 | Tucana II | B | — | `tucana_2` | Not in DEIMOS sample (Dec < −40°). |
 | Tucana IV | B | — | `tucana_4` | Not in DEIMOS sample (Dec < −40°). |
