@@ -15,6 +15,8 @@ This document is the canonical Stage 3 reference. The high-level role in the pip
 - `θ_max ∈ {0.1°, 0.2°, 0.5°, α_c}` for J, where `α_c = 2 r_½,3D / d` is the Wolf+2010 critical angle.
 - `θ_max ∈ {0.1°, 0.2°, 0.5°, α_c/2}` for D. (D's natural angle is α_c/2; the J convention follows P&S 2018.)
 
+Plus the **95% J-factor angular containment** chain `θ₉₅(J)` — the half-angle of the cone containing 95% of the J-factor integrated out to `r_t` — and the per-draw chains for the tidal radius `r_t` and the galactocentric distance `D_GC`. `θ₉₅` is computed with **exact** line-of-sight geometry (not the small-angle approximation; see "Angular containment" below), ported from the SatGen `compute_J_and_containment`.
+
 When Stage 2 is run in nuisance-marginalized mode (e.g., the Segue 1 test, see `segue1_test.md`), `α_c` is a per-draw chain computed from the sampled `(d, r_½,3D)` of each posterior sample; the J/D integrals at `α_c` and `α_c/2` therefore inherit the marginalized uncertainty in `d` and `r_½,3D`. The fixed angles `{0.1°, 0.2°, 0.5°}` remain scalar across draws (only `d` varies in the integrand).
 
 Reported per galaxy as median + q16/q84 + 1D-KDE MAP for each angle (see `pipeline_overview.md` Stage 4 outputs and the Stage 4 reporting decision-log entry).
@@ -66,13 +68,23 @@ For NFW `ρ(r) = ρ_s / [(r/r_s)(1 + r/r_s)²]` both integrands are smooth on `u
 
 ## Tidal-radius computation
 
-Per posterior draw, `r_t` is computed from Springel et al. 2008 eq. 12 using the host's enclosed-mass profile and the satellite's instantaneous distance from the host:
+**Implemented** in `src/dwarfjeans/jd/tidal.py` (`tidal_radius`). Per posterior draw, `r_t` solves the Tormen, Diaferio & Syer (1998) / Springel et al. (2008) radial tidal-radius condition:
 
-- **MW satellites (default).** Eadie & Harris 2016 host mass profile. The pipeline scope is MW satellites only, so this is the default for every galaxy.
-- **LMC- and SMC-hosted satellites.** Use the LMC/SMC enclosed-mass profile at the appropriate level of the host chain (i.e., compute the satellite's `r_t` in the LMC/SMC potential, not the MW potential). Falls back to MW if the LMC/SMC profile is not yet implemented — acceptable approximation given the small contribution of the satellite-host's mass to `r_t`.
-- **Unresolved-σ_los systems.** Fixed `r_t = 1 kpc` independent of host. The Stage 1 classification flags the galaxy and the production runner reads the flag and forces this value, since for unresolved systems the kinematic data don't constrain the halo well enough for the host-orbit dependence of `r_t` to matter.
+```
+r_t = D · [ M_sub(<r_t) / ((κ − dlnM_host/dlnr) · M_host(<D)) ]^(1/3)
+```
 
-`r_t` is finite for every angle of interest (`R_max ≪ r_t` for all four reporting angles in MW-satellite parameter space), so the truncation only affects the column integrals' upper limits, not the regime where the integrand is large.
+with `κ = 2` (radial tidal field; Tormen/Springel, default) or `κ = 3` (circular-orbit Jacobi/Hill, → D(m/3M)^⅓ for a point-mass host) — a swappable knob (`factor`). `M_sub(<r_t) = 4π ρ_s r_s³ g(r_t/r_s)` is the NFW subhalo mass; the equation is implicit and solved by a 1-D bracketed root find. `D` is the **galactocentric** distance from the registry `(ra, dec)` + heliocentric distance chain via astropy `Galactocentric` (`galactocentric_distance`).
+
+- **Host: SatGen m12.** The host is the SatGen `m12res8-Diemer` MW halo (`Mvir = 1e12 M⊙`, `Rvir = 258.9 kpc`, `c ≈ 11.5`; NFW, z=0), matching the satgen prior catalog — **not** Eadie & Harris 2016. For an NFW, `dlnM_host/dlnr = h(x)/g(x)` with `x = D/rs` (reuses `nfw_g`/`nfw_h`). The host is a swappable `HostNFW`.
+- **No kinematic dependence.** `r_t` is a function of `(r_s, ρ_s, D, host)` only, so it is computed for **every** dwarf regardless of σ_los resolution. The former `r_t = 1 kpc` placeholder and the unresolved-σ_los fallback are **dropped** — unresolved systems get a physical per-draw `r_t` from their `(r_s, ρ_s)` posterior.
+- **LMC/SMC.** Still uses the MW host (an acceptable approximation given the small contribution of the satellite-host mass to `r_t`); a dedicated LMC/SMC host is a future refinement.
+
+`r_t` is finite (~2–7 kpc for a typical UFD), far outside the projected radius of the reporting angles (`R_max ≪ r_t`), so J is essentially unchanged from the former 1 kpc placeholder while the more extended D rises a few percent.
+
+## Angular containment
+
+**Implemented** in `factors.py` (`j_containment`, `j_aperture_and_containment`), ported from the validated SatGen `compute_J_and_containment`. Reports `θ₉₅(J)`: the half-angle of the cone containing 95% of `J(<r_t)`. Uses the **exact** line-of-sight geometry (`los_radius`, law-of-cosines half-angle form, valid to θ = π/2) rather than the small-angle approximation, because `θ₉₅` reaches several tenths of a degree to ~1° for nearby dwarfs. The NFW is truncated at `r_t`, so the angular profile self-limits at `θ_max = arcsin(r_t/d)`; `dJ/dθ` is built by deterministic Gauss–Legendre LOS quadrature and `θ₉₅` read off the normalised cumulative. Cross-checks: `J(<0.5°)` agrees with the small-angle `J_D_factors` to <0.01 dex, and `J(<r_t)` matches an independent `scipy.integrate.dblquad` to <0.01 dex.
 
 ---
 

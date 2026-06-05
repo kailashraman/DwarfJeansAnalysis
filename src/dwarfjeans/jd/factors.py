@@ -43,6 +43,7 @@ Cost: a single (J, D) evaluation across all four reported angles takes
 from __future__ import annotations
 
 import numpy as np
+from numpy.polynomial.legendre import leggauss
 
 from dwarfjeans.jeans import solver as jeans  # only for the gravitational constant check + sanity
 
@@ -177,6 +178,120 @@ def alpha_c_radians(r_half_3d_kpc: float, d_kpc: float) -> float:
         α_c = 2 r_½ / d   (radians)
     Used as J's 'natural' integration angle. D uses α_c / 2."""
     return 2.0 * r_half_3d_kpc / d_kpc
+
+
+# ----------------------------------------------------------------------------
+# Exact-geometry J-factor and angular containment
+#
+# Ported from SatGen_Dwarf/python/Jdwarf.py:compute_J_and_containment, which is
+# validated to <0.1% vs scipy dblquad. Unlike J_D_factors (small-angle, R = d·θ)
+# this uses the exact line-of-sight geometry (law of cosines, half-angle form)
+# valid to θ = π/2, needed because the 95% containment angle reaches well beyond
+# the small-angle regime for nearby dwarfs. The halo is the NFW truncated at the
+# tidal radius r_t, so the "full" J is J integrated out to r_t.
+# ----------------------------------------------------------------------------
+
+def los_radius(L, d, theta):
+    """3D distance from the dwarf centre to a point at line-of-sight distance L
+    and angle theta from the dwarf direction.
+
+    Algebraically the law of cosines L² + d² − 2 L d cos θ, but written in the
+    half-angle form (L−d)² + 4 L d sin²(θ/2), which is identical and manifestly
+    ≥ 0 (no catastrophic cancellation for L≈d, θ≈0). Floored just off zero so the
+    central r=0 NFW cusp (ρ ~ 1/r, integrable) does not divide by zero.
+    """
+    return np.maximum(np.sqrt((L - d) ** 2 + 4.0 * L * d * np.sin(theta / 2.0) ** 2),
+                      1e-6)
+
+
+def _truncated_nfw_rho(r_s, rho_s, r_t):
+    """NFW density truncated hard at r_t (zero beyond), as a callable of r."""
+    def rho(r):
+        r = np.asarray(r, dtype=float)
+        return np.where(r <= r_t, nfw_rho(r, r_s, rho_s), 0.0)
+    return rho
+
+
+def j_containment(rho, d_kpc, r_t, aperture_rad, frac=0.95,
+                  n_theta=400, n_L=64):
+    """Exact-geometry J(<aperture) and the `frac` containment angle.
+
+    `rho` is the (truncated) 3D density callable [Msun/kpc³]. Integrates the
+    angular J-profile dJ/dθ out to the angle subtended by r_t (arcsin(r_t/d)),
+    so the "full" J is J within the tidal radius. Returns
+
+        (J_aperture, theta_frac)
+
+    with J_aperture in GeV²/cm⁵ (the module LOG10_J_FAC conversion) and
+    theta_frac in radians (the angle containing `frac` of the full J).
+
+    Mirrors SatGen_Dwarf compute_J_and_containment: deterministic Gauss-Legendre
+    line-of-sight quadrature with the closest-approach substitution
+    L − L0 = rmin tan φ (L0 = d cos θ, rmin = d sin θ), which clusters nodes where
+    ρ peaks. Returns (nan, nan) if r_t or d is non-positive.
+    """
+    d = float(d_kpc)
+    if not (d > 0.0) or not (r_t > 0.0):
+        return float("nan"), float("nan")
+
+    # Max angle the truncated halo subtends: a LOS at impact parameter
+    # rmin = d sin θ enters the r_t sphere iff sin θ ≤ r_t/d.
+    theta_max = float(np.arcsin(min(r_t / d, 1.0)))
+    aperture = float(aperture_rad)
+    if not (theta_max > 0.0):
+        return float("nan"), float("nan")
+    # If the aperture exceeds the halo's angular extent, J(<aperture) = J_full.
+    aperture_eff = min(aperture, theta_max)
+
+    # log-spaced theta grid, with theta=0 and the aperture forced in as exact
+    # nodes so J(<aperture) is read off directly.
+    th = np.unique(np.concatenate([
+        [0.0],
+        np.logspace(np.log10(aperture_eff * 1e-3), np.log10(theta_max), n_theta),
+        [aperture_eff]]))
+
+    # I(theta) = int_0^{2d} rho(r)^2 dL via Gauss-Legendre with the substitution
+    # L - L0 = rmin tan(phi): r = rmin sec(phi), dL = rmin sec^2(phi) dphi.
+    gx, gw = leggauss(n_L)
+    L0 = d * np.cos(th)
+    rmin = np.maximum(d * np.sin(th), 1e-12)
+    phi_lo = np.arctan((0.0 - L0) / rmin)
+    phi_hi = np.arctan((2 * d - L0) / rmin)
+    half = 0.5 * (phi_hi - phi_lo)
+    mid = 0.5 * (phi_hi + phi_lo)
+    phi = mid[:, None] + half[:, None] * gx[None, :]
+    r = rmin[:, None] / np.cos(phi)
+    integrand = rho(r) ** 2 * (rmin[:, None] / np.cos(phi) ** 2)
+    I = (integrand * (half[:, None] * gw[None, :])).sum(axis=1)
+
+    w = 2 * np.pi * np.sin(th) * I               # dJ/dtheta
+    # At theta=0 the cusp makes I ~ 1/rmin diverge while sin(theta) -> 0; the
+    # product (dJ/dtheta) tends to a finite NONZERO constant, but the literal
+    # w[0] = 2pi*sin(0)*I(0) collapses 0*inf to 0 and under-counts the first
+    # interval. Use the cusp limit. Valid for an NFW gamma=1 inner cusp
+    # (dJ/dtheta ~ theta^{2-2gamma} -> const); a steeper cusp would need
+    # analytic treatment of the divergent first interval.
+    w[0] = w[1]
+    cdf = np.concatenate([[0.0],
+                          np.cumsum(0.5 * (w[1:] + w[:-1]) * np.diff(th))])
+
+    J_full = cdf[-1]
+    J_aperture = float(np.interp(aperture_eff, th, cdf))   # Msun²/kpc⁵
+    theta_frac = float(np.interp(frac * J_full, cdf, th))
+    # Convert J(<aperture) to GeV²/cm⁵ (same factor as the rest of the module).
+    J_aperture_gev = (J_aperture * 10.0 ** LOG10_J_FAC) if J_aperture > 0 else float("nan")
+    return J_aperture_gev, theta_frac
+
+
+def j_aperture_and_containment(d_kpc, r_s, rho_s, r_t, aperture_rad=0.5 * np.pi / 180.0,
+                               frac=0.95, n_theta=400, n_L=64):
+    """Convenience wrapper: build the r_t-truncated NFW and call j_containment.
+
+    Returns (J_aperture [GeV²/cm⁵], theta_frac [rad]).
+    """
+    rho = _truncated_nfw_rho(r_s, rho_s, r_t)
+    return j_containment(rho, d_kpc, r_t, aperture_rad, frac=frac,
+                         n_theta=n_theta, n_L=n_L)
 
 
 # ----------------------------------------------------------------------------

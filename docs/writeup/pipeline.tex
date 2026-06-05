@@ -1320,12 +1320,80 @@ is processed sample-by-sample in \code{scripts/run\_production.py}
 via per-draw, per-angle calls to \code{J\_D\_factors}
 (\code{factors.py}).  Per draw: $(r_s,\rho_s)$ are extracted; $d$
 comes from the nuisance chain (production) or is held at truth (MC
-validation); the tidal radius $r_t$ is hard-coded to $1\,\kpc$ in
-the production driver, since the input chain carries no host-orbit
-information from which to derive a Springel~et~al.\ 2008 tidal
-radius. \code{J\_D\_factors} returns $(J^{(k)}, D^{(k)})$ in internal
+validation); the tidal radius $r_t$ is computed per draw from the
+sampled halo and galactocentric distance (Section~\ref{sec:stage3:tidal}).
+\code{J\_D\_factors} returns $(J^{(k)}, D^{(k)})$ in internal
 units.  The chains are summarised per galaxy as median +
 $q_{16}/q_{84}$ + 1D-KDE MAP.
+
+\subsection{Tidal radius}
+\label{sec:stage3:tidal}
+
+The line-of-sight truncation $r_t$ is computed per posterior draw in
+\code{src/dwarfjeans/jd/tidal.py} from the Tormen, Diaferio \& Syer
+(1998) / Springel~et~al.\ (2008) radial tidal-radius condition:
+\begin{equation}
+  r_t = D\left[\frac{M_\mathrm{sub}(<r_t)}
+    {\bigl(\kappa - \mathrm{d}\ln M_\mathrm{host}/\mathrm{d}\ln r\bigr)\,
+     M_\mathrm{host}(<D)}\right]^{1/3},
+  \label{eq:tidal}
+\end{equation}
+with $\kappa = 2$ (radial tidal field; the Tormen/Springel
+convention, default) or $\kappa = 3$ (circular-orbit Jacobi/Hill,
+$\to D\,(m/3M)^{1/3}$ for a point-mass host), a swappable knob.
+$M_\mathrm{sub}(<r_t) = 4\pi\rho_s r_s^3\,g(r_t/r_s)$ is the NFW
+subhalo mass; the slope and the host enclosed mass are evaluated at
+the satellite's galactocentric distance $D$. Equation~\eqref{eq:tidal}
+is implicit in $r_t$ and is solved with a one-dimensional bracketed
+root find (\code{tidal\_radius}). It depends only on
+$(r_s,\rho_s,D,\,\mathrm{host})$ --- not on the kinematics --- so it
+is computed for every dwarf, $\sigma_\mathrm{los}$-resolved or not.
+
+The host is the SatGen \code{m12res8-Diemer} Milky-Way halo
+($M_\mathrm{vir}=10^{12}\,\Msun$, $R_\mathrm{vir}=258.9\,\kpc$,
+concentration $c\simeq 11.5$; NFW, $z=0$), matching the satgen prior
+catalog. For an NFW, $\mathrm{d}\ln M/\mathrm{d}\ln r = h(x)/g(x)$ with
+$x=r/r_s$ (since $x\,g'(x)=x^2/(1+x)^2=h(x)$), so the host log-slope
+reuses \code{nfw\_g}/\code{nfw\_h} from \code{solver.py}. The
+galactocentric distance is obtained from the registry $(\alpha,\delta)$
+and the heliocentric distance chain via astropy's default
+\code{Galactocentric} frame (\code{galactocentric\_distance}). For a
+typical UFD this gives $r_t\sim 2$--$7\,\kpc$, far outside the
+projected radius of the reporting angles --- so $J$ (set by $\rho^2$
+near the centre) is essentially unchanged from the former
+$r_t=1\,\kpc$ placeholder, while the more extended $D$ (set by $\rho$)
+rises by a few percent.
+
+\subsection{Angular containment}
+\label{sec:stage3:containment}
+
+Alongside the reporting-angle factors, the pipeline reports the
+posterior on the \emph{95\% containment angle} $\theta_{95}(J)$ --- the
+half-angle of the cone containing 95\% of the $J$-factor integrated out
+to $r_t$. This is computed by \code{j\_containment} in \code{factors.py},
+ported from the validated \code{compute\_J\_and\_containment} of the
+companion SatGen analysis. Unlike \code{J\_D\_factors}, which uses the
+small-angle approximation $R=d\,\theta$, the containment integral uses
+the \emph{exact} line-of-sight geometry,
+\begin{equation}
+  r(\ell,\theta) = \sqrt{(\ell-d)^2 + 4\,\ell\,d\,\sin^2(\theta/2)},
+\end{equation}
+(\code{los\_radius}; the half-angle form is identical to the law of
+cosines but free of catastrophic cancellation), valid to
+$\theta=\pi/2$, because $\theta_{95}$ reaches several tenths of a
+degree to $\sim 1^\circ$ for nearby dwarfs --- beyond the small-angle
+regime. The NFW is truncated hard at $r_t$, so the angular profile
+self-limits at $\theta_\mathrm{max}=\arcsin(r_t/d)$ and the ``total''
+$J$ is $J(<r_t)$. The cumulative angular profile $\mathrm{d}J/\mathrm{d}\theta$
+is built by deterministic Gauss--Legendre line-of-sight quadrature
+(closest-approach substitution clustering nodes where $\rho$ peaks),
+and $\theta_{95}$ is read off the normalised cumulative; the
+$\theta\to0$ cusp limit ($\mathrm{d}J/\mathrm{d}\theta\to$ const for an
+NFW $\gamma=1$ inner slope) is used in place of the $0\cdot\infty$
+on-axis node. The same routine returns $J(<0.5^\circ)$, which agrees
+with the small-angle \code{J\_D\_factors} value to $<0.01$~dex; the
+full $J(<r_t)$ matches an independent \code{scipy.integrate.dblquad}
+reference to $<0.01$~dex.
 
 \subsection{MC recovery}
 \label{sec:stage3:mc}

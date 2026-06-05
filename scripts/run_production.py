@@ -44,6 +44,7 @@ from dwarfjeans.jeans import inference as jeans_inference
 from dwarfjeans.jeans.preprocess import prepare_jeans_input
 from dwarfjeans.jeans.selection import SelectionPolicy
 from dwarfjeans.jd import factors as jdf
+from dwarfjeans.jd import tidal as jdtidal
 from dwarfjeans.jeans.constant_sigma import constant_sigma_inference
 
 ARCMIN_TO_RAD = np.pi / (180.0 * 60.0)
@@ -447,36 +448,59 @@ def run(lvdb_key: str,
         logp(f"  sigma_los failures: at-R_½ {n_sigma_nan}/{idx_sig.size}, "
              f"profile {n_profile_nan}/{idx_prof.size} (filled NaN)")
 
-    # J/D chains at fixed angles + α_c (resp. α_c/2 for D)
-    r_t_kpc = 1.0  # truncation; matches stage3.md mock-test default
+    # J/D chains at fixed angles + α_c (resp. α_c/2 for D), plus the 95% J-factor
+    # angular containment angle θ₉₅. The tidal radius r_t is now physical and
+    # per-draw: r_t = Tormen/Springel(r_s, rho_s, D_GC) in the SatGen m12 host,
+    # where D_GC is the galactocentric distance from (ra, dec, d). It is computed
+    # for every dwarf (resolved-σ_los or not — r_t has no kinematic dependence).
     alpha_c_chain = jdf.alpha_c_radians(r_half_3d_chain, d_chain)
+    idx_jd = _thin(thin_jd)
+    # Galactocentric distance per draw (vectorized once over the thinned set).
+    R_GC_chain = jdtidal.galactocentric_distance(
+        float(row["ra_deg"]), float(row["dec_deg"]), d_chain[idx_jd])
     fixed_J_angles = {"0p1deg": 0.1 * jdf.DEG,
                        "0p2deg": 0.2 * jdf.DEG,
                        "0p5deg": 0.5 * jdf.DEG}
     fixed_D_angles = dict(fixed_J_angles)
-    idx_jd = _thin(thin_jd)
     log10_J = {tag: np.full(idx_jd.size, np.nan)
                 for tag in (*fixed_J_angles, "alphac")}
     log10_D = {tag: np.full(idx_jd.size, np.nan)
                 for tag in (*fixed_D_angles, "alphacover2")}
-    logp(f"\n=== J/D integrals (thin {idx_jd.size}/{N_chain}, r_t={r_t_kpc} kpc) ===")
+    r_t_chain = np.full(idx_jd.size, np.nan)
+    theta95_J = np.full(idx_jd.size, np.nan)   # 95% J-factor containment [rad]
+    logp(f"\n=== J/D integrals (thin {idx_jd.size}/{N_chain}, "
+         f"per-draw r_t in SatGen m12 host) ===")
     logp(f"  alpha_c (median): {float(np.median(alpha_c_chain)):.5f} rad "
          f"({float(np.median(alpha_c_chain))/jdf.DEG:.4f} deg)")
+    logp(f"  D_GC (median): {float(np.median(R_GC_chain)):.2f} kpc")
     t_jd = time.time()
     for j, i in enumerate(idx_jd):
         rs_i, rhos_i = float(r_s_chain[i]), float(rho_s_chain[i])
         d_i = float(d_chain[i])
         ac_i = float(alpha_c_chain[i])
+        r_t_i = jdtidal.tidal_radius(rs_i, rhos_i, float(R_GC_chain[j]))
+        r_t_chain[j] = r_t_i
+        if not np.isfinite(r_t_i):
+            continue
         for tag, th in fixed_J_angles.items():
-            J, _ = jdf.J_D_factors(th, d_i, rs_i, rhos_i, r_t_kpc)
+            J, _ = jdf.J_D_factors(th, d_i, rs_i, rhos_i, r_t_i)
             log10_J[tag][j] = (np.log10(J) + jdf.LOG10_J_FAC) if J > 0 else np.nan
-        J_ac, _ = jdf.J_D_factors(ac_i, d_i, rs_i, rhos_i, r_t_kpc)
+        J_ac, _ = jdf.J_D_factors(ac_i, d_i, rs_i, rhos_i, r_t_i)
         log10_J["alphac"][j] = (np.log10(J_ac) + jdf.LOG10_J_FAC) if J_ac > 0 else np.nan
         for tag, th in fixed_D_angles.items():
-            _, D = jdf.J_D_factors(th, d_i, rs_i, rhos_i, r_t_kpc)
+            _, D = jdf.J_D_factors(th, d_i, rs_i, rhos_i, r_t_i)
             log10_D[tag][j] = (np.log10(D) + jdf.LOG10_D_FAC) if D > 0 else np.nan
-        _, D_aco2 = jdf.J_D_factors(0.5 * ac_i, d_i, rs_i, rhos_i, r_t_kpc)
+        _, D_aco2 = jdf.J_D_factors(0.5 * ac_i, d_i, rs_i, rhos_i, r_t_i)
         log10_D["alphacover2"][j] = (np.log10(D_aco2) + jdf.LOG10_D_FAC) if D_aco2 > 0 else np.nan
+        # Exact-geometry J(0.5°) and 95% containment of the within-r_t J.
+        _, th95 = jdf.j_aperture_and_containment(d_i, rs_i, rhos_i, r_t_i,
+                                                 aperture_rad=0.5 * jdf.DEG, frac=0.95)
+        theta95_J[j] = th95
+    n_rt_nan = int(np.isnan(r_t_chain).sum())
+    if n_rt_nan:
+        logp(f"  r_t failures: {n_rt_nan}/{idx_jd.size} (filled NaN)")
+    logp(f"  r_t (median): {float(np.nanmedian(r_t_chain)):.3f} kpc; "
+         f"theta95_J (median): {float(np.nanmedian(theta95_J))/jdf.DEG:.4f} deg")
     logp(f"  done in {time.time()-t_jd:.1f}s")
 
     # ----- Save outputs -----
@@ -496,7 +520,8 @@ def run(lvdb_key: str,
         sigma_profile_q84=sig_q84,
         **{f"log10_J_{tag}": v for tag, v in log10_J.items()},
         **{f"log10_D_{tag}": v for tag, v in log10_D.items()},
-        r_t_kpc=r_t_kpc,
+        r_t_kpc_chain=r_t_chain, R_GC_kpc_chain=R_GC_chain,
+        theta95_J_rad=theta95_J, theta95_J_deg=theta95_J / jdf.DEG,
         idx_jd=idx_jd, idx_sig=idx_sig, idx_prof=idx_prof,
     )
 
@@ -525,6 +550,9 @@ def run(lvdb_key: str,
         ("sigma_los_walker_kms",
             sigma_los_walker["q16"], sigma_los_walker["median"], sigma_los_walker["q84"]),
         ("alpha_c_rad",          *_q(alpha_c_chain)),
+        ("R_GC_kpc",             *_q(R_GC_chain)),
+        ("r_t_kpc",              *_q(r_t_chain)),
+        ("theta95_J_deg",        *_q(theta95_J / jdf.DEG)),
     ]
     if pmra_chain is not None:
         summary_rows.append(("pmra_mas_yr",  *_q(pmra_chain)))
@@ -565,7 +593,14 @@ def run(lvdb_key: str,
         "thinning": {"sigma": int(idx_sig.size),
                       "profile": int(idx_prof.size),
                       "jd": int(idx_jd.size)},
-        "r_t_kpc": r_t_kpc,
+        "tidal_radius": {
+            "convention": "Tormen1998/Springel2008 (factor 2 - dlnM/dlnr)",
+            "host": "SatGen m12 NFW",
+            "host_Mvir_Msun": jdtidal.SATGEN_M12_HOST.Mvir_Msun,
+            "host_Rvir_kpc": jdtidal.SATGEN_M12_HOST.Rvir_kpc,
+            "host_concentration": jdtidal.SATGEN_M12_HOST.concentration,
+            "r_t_median_kpc": float(np.nanmedian(r_t_chain)),
+        },
     }
     (out_dir / "audit.json").write_text(json.dumps(audit_payload,
                                                        indent=2,

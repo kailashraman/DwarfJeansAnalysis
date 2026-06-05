@@ -181,8 +181,8 @@ def plot_jeans_corner(npz, lvdb_key: str, out_path: Path) -> Path:
 
 
 def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
-    """3×4 grid. Rows = quantity (J, D, mass / dispersion); columns =
-    angle ascending (0.1°, 0.2°, 0.5°, α_c)."""
+    """4×4 grid. Rows = quantity (J, D, mass/dispersion, tidal/containment);
+    columns = angle ascending (0.1°, 0.2°, 0.5°, α_c)."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
@@ -202,25 +202,36 @@ def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
             ("log10_D_0p5deg",       r"$\log_{10}(D(0.5^{\circ}) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
             ("log10_D_alphacover2",  r"$\log_{10}(D(\alpha_c/2) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
         ],
-        # Row 3: derived masses + projected dispersion at R_½,2D
+        # Row 3: derived masses + projected dispersion at R_½,2D + J containment angle
         [
             ("log10_M_half_2d",      r"$\log_{10}(M(R_{1/2,2D}) / \mathrm{M}_\odot)$"),
             ("log10_M_half_3d",      r"$\log_{10}(M(r_{1/2,3D}) / \mathrm{M}_\odot)$"),
             ("sigma_los_at_Rhalf2d", r"$\sigma_\mathrm{los}(R_{1/2,2D})$ Jeans  [km/s]"),
+            ("theta95_J_deg",        r"$\theta_{95}(J)$  [deg]"),
+        ],
+        # Row 4: tidal radius + galactocentric distance (drive r_t)
+        [
+            ("r_t_kpc_chain",        r"$r_t$  [kpc]"),
+            ("R_GC_kpc_chain",       r"$D_\mathrm{GC}$  [kpc]"),
+            (None, None),
             (None, None),
         ],
     ]
 
-    fig, axes = plt.subplots(3, 4, figsize=(15, 10))
-    fig.suptitle(f"{lvdb_key} — J / D / M$_{{1/2}}$ posteriors", fontsize=13)
+    fig, axes = plt.subplots(4, 4, figsize=(15, 13))
+    fig.suptitle(f"{lvdb_key} — J / D / M$_{{1/2}}$ / tidal posteriors", fontsize=13)
 
     for i, row in enumerate(layout):
         for j, (key, xlabel) in enumerate(row):
             ax = axes[i, j]
-            if key is None:
+            if key is None or key not in npz.files:
                 ax.axis("off")
                 continue
-            x = npz[key]
+            x = np.asarray(npz[key], dtype=float)
+            x = x[np.isfinite(x)]
+            if x.size == 0:
+                ax.axis("off")
+                continue
             q = _q(x)
             ax.hist(x, bins=60, color="C0", alpha=0.6, density=True)
             ax.axvline(q[1], color="k", ls="--", lw=0.9)
@@ -253,7 +264,13 @@ def _aligned_M_J(npz, n_subsample: int = 500):
     rs = 10.0 ** npz["log10_rs"]
     rhos = 10.0 ** npz["log10_rhos"]
     d = npz["d_kpc_chain"]
-    r_t = float(np.median(npz["r_t_kpc"]))
+    # Per-draw r_t (new runs) or legacy scalar r_t_kpc (older runs); default 1 kpc.
+    if "r_t_kpc_chain" in npz.files:
+        r_t = float(np.nanmedian(npz["r_t_kpc_chain"]))
+    elif "r_t_kpc" in npz.files:
+        r_t = float(np.median(npz["r_t_kpc"]))
+    else:
+        r_t = 1.0
     n = min(n_subsample, len(M))
     idx = np.linspace(0, len(M) - 1, n, dtype=int)
     theta = np.deg2rad(0.5)

@@ -45,7 +45,11 @@ DwarfJeansAnalysis/
 │       │                             orchestrator (combine_policy +
 │       │                             selection_policy)
 │       ├── jd/
-│       │   ├── factors.py
+│       │   ├── factors.py              J/D integrals + exact-geometry
+│       │   │                           angular containment (theta95)
+│       │   ├── tidal.py                per-draw tidal radius r_t
+│       │   │                           (Tormen/Springel, SatGen m12 host)
+│       │   │                           + galactocentric distance
 │       │   └── summary.py
 │       └── mocks/
 │           └── galaxy.py
