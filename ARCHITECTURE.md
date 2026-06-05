@@ -51,13 +51,20 @@ DwarfJeansAnalysis/
 │       │   │                           (Tormen/Springel, SatGen m12 host)
 │       │   │                           + galactocentric distance
 │       │   └── summary.py
+│       ├── postprocess.py          Stage-3 deriver: all post-inference
+│       │                             quantities (data prep + M, σ_los, J/D,
+│       │                             r_t, θ95) from the chain. Single source
+│       │                             of truth; shared by run_production +
+│       │                             reprocess
 │       └── mocks/
 │           └── galaxy.py
 ├── scripts/
 │   ├── run_production.py            one-galaxy production driver
+│   ├── reprocess.py                 regenerate summary.csv + plots from saved
+│   │                                 chains (no dynesty); backfills the tree
 │   ├── submit_batch.sh              SLURM array driver (one task / catalog)
 │   ├── run_batch.py                 local-node batch (multiprocessing)
-│   ├── plot_posteriors.py           per-galaxy plot regen
+│   ├── plot_posteriors.py           per-galaxy plot regen (lazy-derives)
 │   └── bench_*.py                   solver / sampler benchmarks
 ├── tests/
 │   ├── unit/                        per-function checks
@@ -135,13 +142,34 @@ DwarfJeansAnalysis/
   Segue 1 testbed both compare across them. The module also owns
   the `V_HALFWIDTH` constant; the V prior is centered on the
   post-selection IVW mean of the catalog (computed in
-  `scripts/run_production.py`), with the halfwidth overridable per
+  `postprocess.prepare`), with the halfwidth overridable per
   galaxy via the optional `vlos_prior_halfwidth_kms` registry column.
 
 - **`jeans/constant_sigma.py`** holds the Walker+2006
   radius-independent constant-σ inference. It is the model-free
   counterpart to the Jeans posterior σ_los(R) and is the canonical
   cross-paper comparison quantity (P&S 2018, Walker 2006).
+
+- **Inference vs. derived quantities (the `postprocess.py` boundary).**
+  The expensive, stochastic part (dynesty → the equal-weight posterior
+  chain) is the *only* thing that needs the sampler. Everything
+  downstream — star selection, V-centering, the Walker baseline, and the
+  chain-derived `M(r½)`, `σ_los`, J/D-factors, tidal radius `r_t`, and
+  `θ95` containment — is a deterministic function of (chain + frozen
+  catalog + registry) and lives in `dwarfjeans/postprocess.py`
+  (`prepare` for the sampler-free data prep, `derive` for the chain
+  math, `summary_rows` for the table). `run_production.py` and
+  `scripts/reprocess.py` both call these, so the derivation math has one
+  home and never drifts between an inline path and a backfill script.
+  **Output contract:** `posterior_samples.npz` stores **only** the chain
+  (`samples_eq`) plus reproducibility metadata (`rseed`, `param_names`,
+  prior, selection policy, host/tidal config). No derived array is
+  persisted; `summary.csv`/plots are regenerable views, recomputed from
+  the chain via `postprocess`. Per-draw loop thinning is reproduced
+  deterministically from the stored `rseed`, so no index arrays are
+  stored. `reprocess.py` backfills the existing tree by reading the same
+  metadata from each run's `audit.json` when an older npz predates this
+  contract.
 
 - **Ingest preserves provenance; combination is downstream.** Adapters
   in `path_b_adapters/` write the catalog at whatever granularity the

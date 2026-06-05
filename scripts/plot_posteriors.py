@@ -42,11 +42,10 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 
 from dwarfjeans.jeans.constant_sigma import constant_sigma_inference
-from dwarfjeans.jeans.preprocess import prepare_jeans_input
-from dwarfjeans.jeans.selection import SelectionPolicy
+from dwarfjeans.jd import tidal as jdtidal
+from dwarfjeans import postprocess as pp
 
 sys.path.insert(0, str(HERE))
-from run_production import _read_registry_row  # noqa: E402
 import plot_config  # noqa: F401,E402  — applies rcParams on import
 
 
@@ -69,41 +68,21 @@ def _latest_run(lvdb_key: str, prior: str, shmr: str | None = None) -> Path:
     return run_dir
 
 
-def _walker_posterior(audit: dict) -> dict:
-    """Replay prepare_jeans_input with the run's selection policy and
-    return the constant_sigma_inference result dict. The σ_los prior is
-    taken from audit['prior_name'] so the Walker plot is consistent with
-    the Jeans-side prior of the run."""
-    lvdb_key = audit["lvdb_key"]
-    sel = audit["selection_policy"]
-    prior = audit.get("prior_name", "jeffreys")
-    # The σ_los Walker baseline has its own prior namespace
-    # ({uniform, loguniform, jeffreys}); the (r_s, ρ_s) `satgen` /
-    # `satgen_box` / `satgen_shmr` priors have no σ_los counterpart,
-    # so use the production-default `jeffreys` σ_los prior when the
-    # Jeans-side run used one of them.
-    if prior in ("satgen", "satgen_box", "satgen_shmr"):
-        prior = "jeffreys"
-    catalog = np.load(REPO / "data" / "star_catalogs" / f"{lvdb_key}.npz",
-                      allow_pickle=True)
-    registry_row = _read_registry_row(lvdb_key)
-    arrays, _ = prepare_jeans_input(
-        catalog,
-        registry_row,
-        selection_policy=SelectionPolicy(
-            p_min=float(sel["p_min"]),
-            R_over_rhalf_max=float(sel["R_over_rhalf_max"]),
-            drop_variable=bool(sel["drop_variable"]),
-        ),
+def _walker_posterior(ctx: pp.GalaxyContext, prior_name: str) -> dict:
+    """Return the constant_sigma_inference result dict for the Walker panel.
+    Uses the already-prepared ctx (star selection + V_center already applied)
+    so the result is identical to what the production run computed, without
+    re-loading the catalog."""
+    sigma_prior_name = (
+        "jeffreys" if prior_name in ("satgen", "satgen_box", "satgen_shmr")
+        else prior_name
     )
-    V = arrays["V"]
-    sigma_eps = arrays["sigma_eps"]
-    p = arrays["p"]
-    V_center = float(registry_row.get("vlos_systemic_kms", np.median(V)))
-    if np.isnan(V_center):
-        V_center = float(np.median(V))
-    return constant_sigma_inference(V, sigma_eps, p, V_center=V_center,
-                                     prior=prior)
+    V = ctx.galaxy["V"]
+    sigma_eps = ctx.galaxy["sigma_eps"]
+    p = ctx.galaxy["p"]
+    return constant_sigma_inference(V, sigma_eps, p, V_center=ctx.V_center,
+                                    V_halfwidth=ctx.V_halfwidth,
+                                    prior=sigma_prior_name)
 
 
 def _q(arr, qs=(0.16, 0.5, 0.84)):
@@ -326,20 +305,67 @@ def plot_m_J_corner(npz, lvdb_key: str, out_path: Path) -> Path:
     return out_path
 
 
+class _NpzLike:
+    """Thin dict wrapper that also exposes a ``files`` attribute, mimicking
+    the interface of numpy.lib.npyio.NpzFile consumed by the plot functions."""
+
+    def __init__(self, d: dict):
+        self._d = d
+        self.files = list(d.keys())
+
+    def __getitem__(self, key):
+        return self._d[key]
+
+    def __contains__(self, key):
+        return key in self._d
+
+
 PLOTS_DIR = REPO / "plots"
 
 
 def make_plots(run_dir: Path, out_dir: Path) -> list[Path]:
-    npz = np.load(run_dir / "posterior_samples.npz")
-    audit = json.loads((run_dir / "audit.json").read_text())
-    lvdb_key = audit["lvdb_key"]
+    # Shared meta-resolution: backfills legacy npz from audit.json so plots use
+    # the SAME prior / selection / rseed as the run (and as reprocess.py's
+    # summary.csv), never silent defaults.
+    samples_eq, meta = pp.resolve_run_meta(run_dir)
+    prior_name = meta.get("prior_name", "jeffreys")
+    lvdb_key = meta["lvdb_key"]
+
+    ctx = pp.prepare(lvdb_key, prior_name=prior_name, **meta["selection"])
+    derived = pp.derive(
+        samples_eq, ctx,
+        rseed=meta["rseed"],
+        thin_sigma=meta["thin_sigma"],
+        thin_jd=meta["thin_jd"],
+        thin_profile=meta["thin_profile"],
+        host=meta.get("host", jdtidal.SATGEN_M12_HOST),
+        tidal_factor=meta.get("tidal_factor", 2.0),
+    )
+
+    # Build a dict that the plot functions index by the old npz key names.
+    npz_like = _NpzLike({
+        "V":                  derived["V_chain"],
+        "log10_rs":           derived["lr_chain"],
+        "log10_rhos":         derived["lp_chain"],
+        "beta_tilde":         derived["btilde_chain"],
+        "log10_M_half_2d":    derived["log10_M_2d"],
+        "log10_M_half_3d":    derived["log10_M_3d"],
+        "sigma_los_at_Rhalf2d": derived["sigma_at_Rhalf"],
+        "theta95_J_deg":      derived["theta95_J"] / np.deg2rad(1.0),
+        "r_t_kpc_chain":      derived["r_t_chain"],
+        "R_GC_kpc_chain":     derived["R_GC_chain"],
+        "log10_J_0p5deg":     derived["log10_J"]["0p5deg"],
+        "idx_jd":             derived["idx_jd"],
+        **{f"log10_J_{tag}": arr for tag, arr in derived["log10_J"].items()},
+        **{f"log10_D_{tag}": arr for tag, arr in derived["log10_D"].items()},
+    })
 
     out_dir.mkdir(parents=True, exist_ok=True)
     out = []
-    out.append(plot_jeans_corner(npz, lvdb_key, out_dir / "jeans_corner.pdf"))
-    out.append(plot_jd_mhalf(npz, lvdb_key,    out_dir / "jd_mhalf.pdf"))
-    out.append(plot_m_J_corner(npz, lvdb_key,  out_dir / "m_J_corner.pdf"))
-    out.append(plot_sigma_walker(_walker_posterior(audit), lvdb_key,
+    out.append(plot_jeans_corner(npz_like, lvdb_key, out_dir / "jeans_corner.pdf"))
+    out.append(plot_jd_mhalf(npz_like, lvdb_key,    out_dir / "jd_mhalf.pdf"))
+    out.append(plot_m_J_corner(npz_like, lvdb_key,  out_dir / "m_J_corner.pdf"))
+    out.append(plot_sigma_walker(_walker_posterior(ctx, prior_name), lvdb_key,
                                   out_dir / "sigma_los_walker.pdf"))
     return out
 

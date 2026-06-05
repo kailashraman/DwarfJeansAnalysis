@@ -1316,15 +1316,24 @@ the fixed angles vary only through the sampled $d$.
 
 The Stage~1 equal-weight chain
 $(\bar V^{(k)},\,\log_{10} r_s^{(k)},\,\log_{10}\rho_s^{(k)},\,\tilde\beta^{(k)})$
-is processed sample-by-sample in \code{scripts/run\_production.py}
-via per-draw, per-angle calls to \code{J\_D\_factors}
-(\code{factors.py}).  Per draw: $(r_s,\rho_s)$ are extracted; $d$
-comes from the nuisance chain (production) or is held at truth (MC
-validation); the tidal radius $r_t$ is computed per draw from the
-sampled halo and galactocentric distance (Section~\ref{sec:stage3:tidal}).
-\code{J\_D\_factors} returns $(J^{(k)}, D^{(k)})$ in internal
-units.  The chains are summarised per galaxy as median +
-$q_{16}/q_{84}$ + 1D-KDE MAP.
+is processed sample-by-sample by \code{derive} in
+\code{dwarfjeans/postprocess.py} via per-draw, per-angle calls to
+\code{J\_D\_factors} (\code{factors.py}).  Per draw: $(r_s,\rho_s)$ are
+extracted; $d$ comes from the nuisance chain (production) or is held at
+truth (MC validation); the tidal radius $r_t$ is computed per draw from
+the sampled halo and galactocentric distance
+(Section~\ref{sec:stage3:tidal}). \code{J\_D\_factors} returns
+$(J^{(k)}, D^{(k)})$ in internal units.  The chains are summarised per
+galaxy as median $+\,q_{16}/q_{84}$.
+
+The posterior chain is the single persisted artifact:
+\code{posterior\_samples.npz} stores only \code{samples\_eq} plus
+reproducibility metadata, and every derived quantity above is recomputed
+on demand from the chain by \code{postprocess}. The same \code{prepare}
+/ \code{derive} path is shared by the production driver
+(\code{scripts/run\_production.py}) and \code{scripts/reprocess.py}, the
+latter regenerating the derived views for existing runs without
+re-running the sampler.
 
 \subsection{Tidal radius}
 \label{sec:stage3:tidal}

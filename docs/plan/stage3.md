@@ -4,6 +4,8 @@ Pushes the Stage 2 halo posterior chains through line-of-sight + solid-angle int
 
 This document is the canonical Stage 3 reference. The high-level role in the pipeline is summarized in [`pipeline_overview.md`](./pipeline_overview.md); deviations from P&S 2018 are consolidated in the Differences section there.
 
+**Implementation.** All of Stage 3 (and the other post-inference quantities — `M(r½)`, `σ_los`, the Walker baseline) lives in `src/dwarfjeans/postprocess.py`: `prepare()` does the sampler-free data prep, `derive()` does the chain math, `summary_rows()` builds the table. The posterior chain is the single persisted artifact (`posterior_samples.npz` = `samples_eq` + reproducibility metadata); derived quantities are recomputed on demand, so `scripts/reprocess.py` can regenerate the views (and backfill existing runs via their `audit.json`) without re-running the sampler.
+
 ---
 
 ## Inputs / outputs
