@@ -197,6 +197,9 @@ def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
         ],
     ]
 
+    # Panels spanning a wide multiplicative range read better on a log x-axis.
+    log_x_panels = {"theta95_J_deg"}
+
     fig, axes = plt.subplots(4, 4, figsize=(15, 13))
     fig.suptitle(f"{lvdb_key} — J / D / M$_{{1/2}}$ / tidal posteriors", fontsize=13)
 
@@ -208,11 +211,18 @@ def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
                 continue
             x = np.asarray(npz[key], dtype=float)
             x = x[np.isfinite(x)]
+            if key in log_x_panels:
+                x = x[x > 0]
             if x.size == 0:
                 ax.axis("off")
                 continue
             q = _q(x)
-            ax.hist(x, bins=60, color="C0", alpha=0.6, density=True)
+            if key in log_x_panels:
+                bins = np.geomspace(x.min(), x.max(), 60)
+                ax.set_xscale("log")
+            else:
+                bins = 60
+            ax.hist(x, bins=bins, color="C0", alpha=0.6, density=True)
             ax.axvline(q[1], color="k", ls="--", lw=0.9)
             ax.axvspan(q[0], q[2], alpha=0.12, color="k")
             ax.set_xlabel(xlabel)
