@@ -96,7 +96,9 @@ def main() -> int:
             if not args.no_plots:
                 plots_leaf = run_dir.relative_to(base)
                 out_dir = REPO / "plots" / plots_leaf
-                plot_posteriors.make_plots(run_dir, out_dir)
+                # Reuse the ctx/derived just computed — avoid a second derive().
+                plot_posteriors.make_plots(run_dir, out_dir, ctx=ctx,
+                                           derived=derived, prior_name=prior_name)
 
             print(f"  OK    {label}  ({origin})")
             n_ok += 1

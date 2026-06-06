@@ -323,24 +323,36 @@ class _NpzLike:
 PLOTS_DIR = REPO / "plots"
 
 
-def make_plots(run_dir: Path, out_dir: Path) -> list[Path]:
-    # Shared meta-resolution: backfills legacy npz from audit.json so plots use
-    # the SAME prior / selection / rseed as the run (and as reprocess.py's
-    # summary.csv), never silent defaults.
-    samples_eq, meta = pp.resolve_run_meta(run_dir)
-    prior_name = meta.get("prior_name", "jeffreys")
-    lvdb_key = meta["lvdb_key"]
-
-    ctx = pp.prepare(lvdb_key, prior_name=prior_name, **meta["selection"])
-    derived = pp.derive(
-        samples_eq, ctx,
-        rseed=meta["rseed"],
-        thin_sigma=meta["thin_sigma"],
-        thin_jd=meta["thin_jd"],
-        thin_profile=meta["thin_profile"],
-        host=meta.get("host", jdtidal.SATGEN_M12_HOST),
-        tidal_factor=meta.get("tidal_factor", 2.0),
-    )
+def make_plots(run_dir: Path, out_dir: Path, *,
+               ctx: "pp.GalaxyContext | None" = None,
+               derived: dict | None = None,
+               prior_name: str | None = None) -> list[Path]:
+    # A caller (e.g. reprocess.py) that already prepared/derived this run can
+    # pass ctx + derived + prior_name to skip the recompute. Otherwise resolve
+    # from disk: shared meta-resolution backfills legacy npz from audit.json so
+    # plots use the SAME prior / selection / rseed as the run (and as
+    # reprocess.py's summary.csv), never silent defaults.
+    if (ctx is None) != (derived is None):
+        raise ValueError(
+            "make_plots: pass ctx and derived together, or neither")
+    if ctx is None:
+        samples_eq, meta = pp.resolve_run_meta(run_dir)
+        prior_name = meta.get("prior_name", "jeffreys")
+        ctx = pp.prepare(meta["lvdb_key"], prior_name=prior_name,
+                         **meta["selection"])
+        derived = pp.derive(
+            samples_eq, ctx,
+            rseed=meta["rseed"],
+            thin_sigma=meta["thin_sigma"],
+            thin_jd=meta["thin_jd"],
+            thin_profile=meta["thin_profile"],
+            host=meta.get("host", jdtidal.SATGEN_M12_HOST),
+            tidal_factor=meta.get("tidal_factor", 2.0),
+        )
+    elif prior_name is None:
+        raise ValueError(
+            "make_plots: prior_name is required when ctx/derived are precomputed")
+    lvdb_key = ctx.lvdb_key
 
     # Build a dict that the plot functions index by the old npz key names.
     npz_like = _NpzLike({
