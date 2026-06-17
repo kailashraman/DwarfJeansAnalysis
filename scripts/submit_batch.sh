@@ -169,6 +169,14 @@ EOF
     if [[ -n "$POOL_OVERRIDE" ]]; then
         sbatch_args+=(--cpus-per-task="$POOL_OVERRIDE")
     fi
+    # Honor the shared bad-node list (single source of truth). A CLI --exclude
+    # overrides the static #SBATCH --exclude header. Only the `bash` wrapper
+    # path applies it; a bare `sbatch submit_batch.sh` keeps the n0150 fallback.
+    EXCLUDE_FILE=/global/scratch/projects/pc_heptheory/kraman/slurm_exclude_nodes.txt
+    if [[ -f "$EXCLUDE_FILE" ]]; then
+        excl="$(tr -d '[:space:]' < "$EXCLUDE_FILE")"
+        if [[ -n "$excl" ]]; then sbatch_args+=(--exclude="$excl"); fi
+    fi
     echo "Submitting: prior=$PRIOR_ARG${SHMR_ARG:+ shmr=$SHMR_ARG}" \
          "nlive=$NLIVE_ARG dlogz=$DLOGZ_ARG" \
          "pool=${POOL_OVERRIDE:-<header default>} array=$array_arg"
