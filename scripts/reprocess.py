@@ -1,4 +1,4 @@
-"""Regenerate derived views (summary.csv + plots) from saved chain files.
+"""Regenerate derived views (summary.csv + derived.npz + plots) from saved chains.
 
 Loops over every ``<base>/<lvdb_key>/<prior>/posterior_samples.npz`` without
 re-running dynesty. New chain-only npz files carry their own reproducibility
@@ -38,7 +38,8 @@ def _cli() -> argparse.Namespace:
                    help="Glob pattern relative to --base for <lvdb_key>/<prior> "
                         "subdirs (default: '*/*')")
     p.add_argument("--no-plots", action="store_true",
-                   help="Skip plot regeneration; write only summary.csv")
+                   help="Skip plot regeneration; still writes summary.csv "
+                        "and derived.npz")
     return p.parse_args()
 
 
@@ -92,6 +93,7 @@ def main() -> int:
                 run_dir / "summary.csv",
                 pp.summary_rows(derived, ctx),
             )
+            pp.save_derived(run_dir / "derived.npz", derived, ctx)
 
             if not args.no_plots:
                 plots_leaf = run_dir.relative_to(base)

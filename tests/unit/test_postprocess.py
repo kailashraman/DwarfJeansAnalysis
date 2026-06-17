@@ -113,6 +113,37 @@ def test_save_load_chain_roundtrip(tmp_path):
         assert forbidden not in z.files
 
 
+def test_save_derived_export(tmp_path):
+    """save_derived writes the per-draw derived arrays (the external-consumer
+    export) with the legacy key names plus theta95_J_deg, with the documented
+    length contract (full chain vs idx_jd-thinned)."""
+    chain = _synthetic_chain()
+    ctx = _minimal_ctx()
+    d = pp.derive(chain, ctx, rseed=5, thin_jd=50, thin_sigma=80, thin_profile=40)
+    path = tmp_path / "derived.npz"
+    pp.save_derived(path, d, ctx)
+
+    z = np.load(path, allow_pickle=True)
+    # Keys Jdata.py reads + the new theta95.
+    for required in ("log10_rs", "log10_rhos", "beta", "log10_J_0p5deg",
+                     "theta95_J_deg", "r_t_kpc", "idx_jd"):
+        assert required in z.files, f"{required} missing from derived.npz"
+
+    n = chain.shape[0]
+    n_jd = d["idx_jd"].size
+    # Full-chain-length blocks.
+    assert z["V"].shape == (n,)
+    assert z["log10_rs"].shape == (n,)
+    # idx_jd-thinned J/D block.
+    assert z["log10_J_0p5deg"].shape == (n_jd,)
+    assert z["theta95_J_deg"].shape == (n_jd,)
+    assert z["r_t_kpc"].shape == (n_jd,)
+    # theta95 is exported in degrees (radians / DEG).
+    np.testing.assert_allclose(z["theta95_J_deg"], d["theta95_J"] / jdf.DEG)
+    # No PM columns for a 7-column (PM-less) chain.
+    assert "pmra" not in z.files
+
+
 def test_resolve_run_meta_backfills_legacy_from_audit(tmp_path):
     """A legacy npz (no reproducibility metadata) + an audit.json must resolve
     to the AUDIT's prior/selection/rseed, never silent defaults. Guards the

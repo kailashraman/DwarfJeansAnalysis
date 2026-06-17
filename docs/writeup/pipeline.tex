@@ -1333,7 +1333,12 @@ on demand from the chain by \code{postprocess}. The same \code{prepare}
 / \code{derive} path is shared by the production driver
 (\code{scripts/run\_production.py}) and \code{scripts/reprocess.py}, the
 latter regenerating the derived views for existing runs without
-re-running the sampler.
+re-running the sampler.  For external consumers that cannot import this
+package, \code{reprocess.py} additionally writes a regenerable
+\code{derived.npz} (\code{postprocess.save\_derived}) holding the full
+per-draw derived arrays ($J/D$-factors, $r_t$, $\theta_{95}$,
+$M(r_{1/2})$, $\dots$); this is a side-output, not part of the
+chain-only persistence contract.
 
 \subsection{Tidal radius}
 \label{sec:stage3:tidal}

@@ -60,8 +60,8 @@ DwarfJeansAnalysis/
 │           └── galaxy.py
 ├── scripts/
 │   ├── run_production.py            one-galaxy production driver
-│   ├── reprocess.py                 regenerate summary.csv + plots from saved
-│   │                                 chains (no dynesty); backfills the tree
+│   ├── reprocess.py                 regenerate summary.csv + derived.npz + plots
+│   │                                 from saved chains (no dynesty); backfills
 │   ├── submit_batch.sh              SLURM array driver (one task / catalog)
 │   ├── run_batch.py                 local-node batch (multiprocessing)
 │   ├── plot_posteriors.py           per-galaxy plot regen (lazy-derives)
@@ -164,10 +164,15 @@ DwarfJeansAnalysis/
   **Output contract:** `posterior_samples.npz` stores **only** the chain
   (`samples_eq`) plus reproducibility metadata (`rseed`, `param_names`,
   prior, selection policy, host/tidal config). No derived array is
-  persisted; `summary.csv`/plots are regenerable views, recomputed from
-  the chain via `postprocess`. Per-draw loop thinning is reproduced
-  deterministically from the stored `rseed`, so no index arrays are
-  stored. `reprocess.py` backfills the existing tree by reading the same
+  persisted *in the chain npz*; `summary.csv`/plots are regenerable views,
+  recomputed from the chain via `postprocess`. Per-draw loop thinning is
+  reproduced deterministically from the stored `rseed`, so no index arrays
+  are stored. For external consumers that cannot import this package (e.g.
+  `SatGen_Dwarf/Jdata.py`), `reprocess.py` also writes a regenerable
+  `derived.npz` (`save_derived`) holding the full per-draw derived arrays —
+  J/D-factors, `r_t`, `θ95`, `M(r½)`, etc. — keyed to mirror the
+  pre-refactor npz layout; it is a side-output, not part of the chain
+  contract. `reprocess.py` backfills the existing tree by reading the same
   metadata from each run's `audit.json` when an older npz predates this
   contract.
 

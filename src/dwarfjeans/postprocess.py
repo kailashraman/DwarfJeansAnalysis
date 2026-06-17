@@ -529,6 +529,63 @@ def write_summary_csv(path: Path, rows: list[tuple]) -> None:
 
 
 # ----------------------------------------------------------------------------
+# Derived-quantity export (for external consumers, e.g. SatGen_Dwarf/Jdata.py)
+# ----------------------------------------------------------------------------
+
+def save_derived(path: Path, d: dict, ctx: GalaxyContext) -> None:
+    """Write the full per-draw derived arrays from :func:`derive` to a npz.
+
+    This is a regenerable side-output, NOT part of the chain-only contract:
+    the equal-weight chain in posterior_samples.npz stays the single source of
+    truth, and this file is rebuilt from it by scripts/reprocess.py. Key names
+    mirror the pre-refactor posterior_samples.npz layout so prior consumers are
+    a one-line path change, plus the newer ``theta95_J_deg``.
+
+    Array lengths: V/log10_rs/log10_rhos/beta(_tilde)/d/eps/rhalf/r_p/
+    R_half_2d/r_half_3d/alpha_c and log10_M_half_* are full-chain length N.
+    The J/D block (log10_J_*, log10_D_*, r_t_kpc, R_GC_kpc, theta95_J_deg) is
+    length len(idx_jd) — map back to the chain with idx_jd. sigma_los_at_Rhalf2d
+    is length len(idx_sig) (map back with idx_sig); sigma_profile_q* have length
+    len(R_grid_sigma_profile) (their own idx_prof thin).
+    """
+    out = {
+        "V":                    d["V_chain"],
+        "log10_rs":             d["lr_chain"],
+        "log10_rhos":           d["lp_chain"],
+        "beta_tilde":           d["btilde_chain"],
+        "beta":                 d["beta_chain"],
+        "d_kpc_chain":          d["d_chain"],
+        "eps_chain":            d["eps_chain"],
+        "rhalf_arcmin_chain":   d["rhalf_arcmin_chain"],
+        "r_p_chain":            d["r_p_chain"],
+        "R_half_2d_chain":      d["R_half_2d_chain"],
+        "r_half_3d_chain":      d["r_half_3d_chain"],
+        "alpha_c_chain":        d["alpha_c_chain"],
+        "log10_M_half_2d":      d["log10_M_2d"],
+        "log10_M_half_3d":      d["log10_M_3d"],
+        "sigma_los_at_Rhalf2d": d["sigma_at_Rhalf"],
+        "R_grid_sigma_profile": d["R_grid"],
+        "sigma_profile_q16":    d["sigma_profile_q16"],
+        "sigma_profile_q50":    d["sigma_profile_q50"],
+        "sigma_profile_q84":    d["sigma_profile_q84"],
+        "r_t_kpc":              d["r_t_chain"],
+        "R_GC_kpc":             d["R_GC_chain"],
+        "theta95_J_deg":        d["theta95_J"] / jdf.DEG,
+        "idx_jd":               d["idx_jd"],
+        "idx_sig":              d["idx_sig"],
+        "idx_prof":             d["idx_prof"],
+    }
+    for tag, arr in d["log10_J"].items():
+        out[f"log10_J_{tag}"] = arr
+    for tag, arr in d["log10_D"].items():
+        out[f"log10_D_{tag}"] = arr
+    if d["pmra_chain"] is not None:
+        out["pmra"] = d["pmra_chain"]
+        out["pmdec"] = d["pmdec_chain"]
+    np.savez(Path(path), **out)
+
+
+# ----------------------------------------------------------------------------
 # Chain persistence (the npz contract: chain + reproducibility metadata only)
 # ----------------------------------------------------------------------------
 
