@@ -145,6 +145,55 @@ def test_full_J_matches_scipy_dblquad():
     assert abs(np.log10(J_full) - np.log10(ref_gev)) < 0.01   # < 0.01 dex
 
 
+def test_theta95_matches_independent_quad_brentq():
+    """Gold-standard for the containment ANGLE itself (not just J_full): solve
+    theta95 with an independent scipy quad+brentq pipeline that integrates
+    dJ/dtheta directly (no Gauss-Legendre sec-substitution, no log-theta grid,
+    no cusp w[0]=w[1] patch). The suite's J_95/J_full==0.95 check is
+    self-consistent and cannot catch a cdf-shape bias shared by numerator and
+    denominator; this can."""
+    import warnings
+    from scipy.integrate import quad, IntegrationWarning
+    from scipy.optimize import brentq
+
+    rt = _rt_here()
+    theta_max = float(np.arcsin(min(rt / D, 1.0)))
+
+    def dJ_dtheta(theta):
+        # Integrate only the supported LOS segment: rho>0 where r<=rt, i.e.
+        # L in [L0-half, L0+half] with L0=d cos(theta) (closest approach),
+        # half=sqrt(rt^2 - rmin^2), rmin=d sin(theta). Flag the cusp peak at L0
+        # so scipy quad needn't hunt for the jump/peak (fast + no roundoff warns).
+        rmin = D * np.sin(theta)
+        if rmin >= rt:
+            return 0.0
+        L0 = D * np.cos(theta)
+        half = np.sqrt(rt ** 2 - rmin ** 2)
+        La, Lb = max(0.0, L0 - half), min(2.0 * D, L0 + half)
+        if not (Lb > La):
+            return 0.0
+        pts = [L0] if La < L0 < Lb else None
+        inner, _ = quad(lambda L: jdf.nfw_rho(jdf.los_radius(L, D, theta), RS, RHOS) ** 2,
+                        La, Lb, points=pts, limit=200)
+        return 2.0 * np.pi * np.sin(theta) * inner
+
+    def cumJ(theta):
+        val, _ = quad(dJ_dtheta, 0.0, theta, limit=200)
+        return val
+
+    # scipy quad emits convergence chatter on the tall, narrow rho^2 cusp; the
+    # <1% cross-check below is the real correctness gate, so silence the noise.
+    # Scope the suppression to the outer theta-integral only — let any genuine
+    # convergence failure during the brentq search surface rather than pass mute.
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", IntegrationWarning)
+        target = 0.95 * cumJ(theta_max)
+    th95_ref = brentq(lambda t: cumJ(t) - target, 1e-6, theta_max, xtol=1e-9)
+
+    _, th95 = jdf.j_aperture_and_containment(D, RS, RHOS, rt, frac=0.95)
+    assert abs(th95 - th95_ref) / th95_ref < 0.01   # < 1%
+
+
 # --------------------------------------------------------------------------- #
 # Regression: the physical r_t rewire changes D, barely moves J
 # --------------------------------------------------------------------------- #
