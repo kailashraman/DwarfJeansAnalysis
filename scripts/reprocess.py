@@ -10,6 +10,7 @@ Usage:
     python scripts/reprocess.py
     python scripts/reprocess.py --base results/production --glob '*/*'
     python scripts/reprocess.py --no-plots
+    python scripts/reprocess.py --host mw2022
 """
 from __future__ import annotations
 
@@ -40,6 +41,10 @@ def _cli() -> argparse.Namespace:
     p.add_argument("--no-plots", action="store_true",
                    help="Skip plot regeneration; still writes summary.csv "
                         "and derived.npz")
+    p.add_argument("--host", choices=("stored", "mw2022", "m12"), default="stored",
+                   help="Host potential for the tidal radius: 'stored' uses "
+                        "each run's saved host metadata (default), 'mw2022' "
+                        "and 'm12' force that host for every run")
     return p.parse_args()
 
 
@@ -49,6 +54,11 @@ def main() -> int:
     if not base.exists():
         print(f"ERROR: base directory does not exist: {base}", file=sys.stderr)
         return 1
+
+    host_override = {
+        "mw2022": jdtidal.MW2022_HOST,
+        "m12": jdtidal.SATGEN_M12_HOST,
+    }.get(args.host)
 
     npz_paths = sorted(base.glob(f"{args.glob}/posterior_samples.npz"))
     if not npz_paths:
@@ -86,7 +96,8 @@ def main() -> int:
                 thin_sigma=meta.get("thin_sigma", 2000),
                 thin_jd=meta.get("thin_jd", 500),
                 thin_profile=meta.get("thin_profile", 300),
-                host=meta.get("host", jdtidal.SATGEN_M12_HOST),
+                host=host_override if host_override is not None
+                else meta.get("host", jdtidal.SATGEN_M12_HOST),
                 tidal_factor=meta.get("tidal_factor", 2.0),
             )
             pp.write_summary_csv(

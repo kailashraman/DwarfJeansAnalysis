@@ -419,6 +419,13 @@ def derive(samples_eq, ctx: GalaxyContext, *,
                for tag in (*fixed_D_angles, "alphacover2")}
     r_t_chain = np.full(idx_jd.size, np.nan)
     theta95_J = np.full(idx_jd.size, np.nan)
+    theta95_D = np.full(idx_jd.size, np.nan)
+    # Exact-geometry TOTAL factors within r_t (= J/D at theta=pi/2; the small-angle
+    # approximation is invalid at the full angular extent). j_/d_containment
+    # already return these in GeV units, so log10 is taken directly -- NOT with
+    # a +LOG10_*_FAC offset like the small-angle fixed-angle log10_J/log10_D.
+    log10_J_pi2 = np.full(idx_jd.size, np.nan)
+    log10_D_pi2 = np.full(idx_jd.size, np.nan)
     logp(f"\n=== J/D integrals (thin {idx_jd.size}/{N_chain}, "
          f"per-draw r_t in {type(host).__name__} host) ===")
     logp(f"  alpha_c (median): {float(np.median(alpha_c_chain)):.5f} rad "
@@ -443,14 +450,20 @@ def derive(samples_eq, ctx: GalaxyContext, *,
             log10_D[tag][j] = (np.log10(D) + jdf.LOG10_D_FAC) if D > 0 else np.nan
         _, D_aco2 = jdf.J_D_factors(0.5 * ac_i, d_i, rs_i, rhos_i, r_t_i)
         log10_D["alphacover2"][j] = (np.log10(D_aco2) + jdf.LOG10_D_FAC) if D_aco2 > 0 else np.nan
-        _, th95 = jdf.j_aperture_and_containment(d_i, rs_i, rhos_i, r_t_i,
-                                                 aperture_rad=0.5 * jdf.DEG, frac=0.95)
+        _, J_pi2_i, th95 = jdf.j_aperture_and_containment(
+            d_i, rs_i, rhos_i, r_t_i, aperture_rad=0.5 * jdf.DEG, frac=0.95)
         theta95_J[j] = th95
+        log10_J_pi2[j] = np.log10(J_pi2_i) if (np.isfinite(J_pi2_i) and J_pi2_i > 0) else np.nan
+        _, D_pi2_i, th95_D = jdf.d_aperture_and_containment(
+            d_i, rs_i, rhos_i, r_t_i, aperture_rad=0.5 * jdf.DEG, frac=0.95)
+        theta95_D[j] = th95_D
+        log10_D_pi2[j] = np.log10(D_pi2_i) if (np.isfinite(D_pi2_i) and D_pi2_i > 0) else np.nan
     n_rt_nan = int(np.isnan(r_t_chain).sum())
     if n_rt_nan:
         logp(f"  r_t failures: {n_rt_nan}/{idx_jd.size} (filled NaN)")
     logp(f"  r_t (median): {float(np.nanmedian(r_t_chain)):.3f} kpc; "
-         f"theta95_J (median): {float(np.nanmedian(theta95_J))/jdf.DEG:.4f} deg")
+         f"theta95_J (median): {float(np.nanmedian(theta95_J))/jdf.DEG:.4f} deg; "
+         f"theta95_D (median): {float(np.nanmedian(theta95_D))/jdf.DEG:.4f} deg")
 
     return {
         "V_chain": V_chain, "lr_chain": lr_chain, "lp_chain": lp_chain,
@@ -466,8 +479,9 @@ def derive(samples_eq, ctx: GalaxyContext, *,
         "R_grid": R_grid, "sigma_profile_q16": sig_q16,
         "sigma_profile_q50": sig_q50, "sigma_profile_q84": sig_q84,
         "log10_J": log10_J, "log10_D": log10_D,
+        "log10_J_pi2": log10_J_pi2, "log10_D_pi2": log10_D_pi2,
         "r_t_chain": r_t_chain, "R_GC_chain": R_GC_chain,
-        "theta95_J": theta95_J,
+        "theta95_J": theta95_J, "theta95_D": theta95_D,
         "n_jd": int(idx_jd.size), "n_sigma": int(idx_sig.size),
         "n_profile": int(idx_prof.size),
         "idx_jd": idx_jd, "idx_sig": idx_sig, "idx_prof": idx_prof,
@@ -510,14 +524,18 @@ def summary_rows(d: dict, ctx: GalaxyContext) -> list[tuple]:
         ("R_GC_kpc",             *_q(d["R_GC_chain"])),
         ("r_t_kpc",              *_q(d["r_t_chain"])),
         ("theta95_J_deg",        *_q(d["theta95_J"] / jdf.DEG)),
+        ("theta95_D_deg",        *_q(d["theta95_D"] / jdf.DEG)),
     ]
     if d["pmra_chain"] is not None:
         rows.append(("pmra_mas_yr",  *_q(d["pmra_chain"])))
         rows.append(("pmdec_mas_yr", *_q(d["pmdec_chain"])))
     for tag in fixed_J:
         rows.append((f"log10_J_{tag}_GeV2_cm5", *_q(d["log10_J"][tag])))
+    # Exact-geometry total J within r_t (= J at theta=pi/2), large-angle correct.
+    rows.append(("log10_J_pi2_GeV2_cm5", *_q(d["log10_J_pi2"])))
     for tag in fixed_D:
         rows.append((f"log10_D_{tag}_GeV_cm2", *_q(d["log10_D"][tag])))
+    rows.append(("log10_D_pi2_GeV_cm2", *_q(d["log10_D_pi2"])))
     return rows
 
 
@@ -571,6 +589,9 @@ def save_derived(path: Path, d: dict, ctx: GalaxyContext) -> None:
         "r_t_kpc":              d["r_t_chain"],
         "R_GC_kpc":             d["R_GC_chain"],
         "theta95_J_deg":        d["theta95_J"] / jdf.DEG,
+        "theta95_D_deg":        d["theta95_D"] / jdf.DEG,
+        "log10_J_pi2":          d["log10_J_pi2"],
+        "log10_D_pi2":          d["log10_D_pi2"],
         "idx_jd":               d["idx_jd"],
         "idx_sig":              d["idx_sig"],
         "idx_prof":             d["idx_prof"],

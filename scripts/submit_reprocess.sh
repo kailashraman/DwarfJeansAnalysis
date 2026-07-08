@@ -26,6 +26,7 @@
 #   bash scripts/submit_reprocess.sh                   # full 39-galaxy sweep
 #   bash scripts/submit_reprocess.sh --array=0         # one galaxy (index 0)
 #   NO_PLOTS=1 bash scripts/submit_reprocess.sh        # summary.csv + derived.npz only
+#   HOST=mw2022 bash scripts/submit_reprocess.sh       # roll the real-MW tidal host onto every run
 #
 # A bare `sbatch scripts/submit_reprocess.sh` still works but only honors the
 # static #SBATCH --exclude (n0150) fallback above, not the full shared list.
@@ -72,5 +73,14 @@ if [[ -n "${NO_PLOTS:-}" ]]; then
     plots_flag=(--no-plots)
 fi
 
-echo "Task $SLURM_ARRAY_TASK_ID: reprocessing all priors for lvdb_key=$KEY${NO_PLOTS:+ (no plots)}"
-python scripts/reprocess.py --glob "$KEY/*" "${plots_flag[@]}"
+# HOST=mw2022|m12|stored selects the tidal-radius host for every run (rides
+# through on the exported environment, like NO_PLOTS). Default 'stored' honors
+# each chain's saved host; use HOST=mw2022 to roll the real-MW host onto the
+# whole tree (legacy chains carry no host tag, so 'stored' == m12 for them).
+host_flag=()
+if [[ -n "${HOST:-}" ]]; then
+    host_flag=(--host "$HOST")
+fi
+
+echo "Task $SLURM_ARRAY_TASK_ID: reprocessing all priors for lvdb_key=$KEY${NO_PLOTS:+ (no plots)}${HOST:+ (host=$HOST)}"
+python scripts/reprocess.py --glob "$KEY/*" "${plots_flag[@]}" "${host_flag[@]}"

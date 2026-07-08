@@ -104,7 +104,7 @@ def _rt_here(Dgc=None):
 
 def test_exact_J_matches_small_angle_at_half_degree():
     rt = _rt_here()
-    Jx, _ = jdf.j_aperture_and_containment(D, RS, RHOS, rt, aperture_rad=0.5 * jdf.DEG)
+    Jx, _, _ = jdf.j_aperture_and_containment(D, RS, RHOS, rt, aperture_rad=0.5 * jdf.DEG)
     Jsa, _ = jdf.J_D_factors(0.5 * jdf.DEG, D, RS, RHOS, rt)
     log_x = np.log10(Jx)
     log_sa = np.log10(Jsa) + jdf.LOG10_J_FAC
@@ -114,10 +114,10 @@ def test_exact_J_matches_small_angle_at_half_degree():
 def test_containment_recovers_fraction():
     """J(<theta95) / J_full == frac by construction (cross-checked via the API)."""
     rt = _rt_here()
-    _, th95 = jdf.j_aperture_and_containment(D, RS, RHOS, rt, frac=0.95)
-    # J_full: aperture beyond the halo's angular extent is clamped to theta_max.
-    J_full, _ = jdf.j_aperture_and_containment(D, RS, RHOS, rt, aperture_rad=np.pi / 2)
-    J_95, _ = jdf.j_aperture_and_containment(D, RS, RHOS, rt, aperture_rad=th95)
+    _, _, th95 = jdf.j_aperture_and_containment(D, RS, RHOS, rt, frac=0.95)
+    # J_full: aperture-independent, the total exact-geometry J within r_t.
+    _, J_full, _ = jdf.j_aperture_and_containment(D, RS, RHOS, rt)
+    J_95, _, _ = jdf.j_aperture_and_containment(D, RS, RHOS, rt, aperture_rad=th95)
     # ~0.5% tolerance: J_full and J_95 come from independent quadratures whose
     # log-spaced theta grids differ (each forces a different aperture node).
     assert J_95 / J_full == pytest.approx(0.95, abs=5e-3)
@@ -125,7 +125,7 @@ def test_containment_recovers_fraction():
 
 def test_containment_angle_within_geometric_bound():
     rt = _rt_here()
-    _, th95 = jdf.j_aperture_and_containment(D, RS, RHOS, rt)
+    _, _, th95 = jdf.j_aperture_and_containment(D, RS, RHOS, rt)
     theta_geom = np.arcsin(min(rt / D, 1.0))
     assert 0.0 < th95 < theta_geom
 
@@ -135,7 +135,7 @@ def test_containment_shrinks_with_distance():
     angles = []
     for dd in (20.0, 40.0, 80.0):
         rt = _rt_here(tidal.galactocentric_distance(0.0, -60.0, dd))
-        _, th = jdf.j_aperture_and_containment(dd, RS, RHOS, rt)
+        _, _, th = jdf.j_aperture_and_containment(dd, RS, RHOS, rt)
         angles.append(th)
     assert angles[0] > angles[1] > angles[2]
 
@@ -157,7 +157,7 @@ def test_full_J_matches_scipy_dblquad():
                      epsabs=0.0, epsrel=1e-6)
     ref_gev = ref * 10.0 ** jdf.LOG10_J_FAC
 
-    J_full, _ = jdf.j_aperture_and_containment(D, RS, RHOS, rt, aperture_rad=np.pi / 2)
+    _, J_full, _ = jdf.j_aperture_and_containment(D, RS, RHOS, rt)
     assert abs(np.log10(J_full) - np.log10(ref_gev)) < 0.01   # < 0.01 dex
 
 
@@ -206,7 +206,7 @@ def test_theta95_matches_independent_quad_brentq():
         target = 0.95 * cumJ(theta_max)
     th95_ref = brentq(lambda t: cumJ(t) - target, 1e-6, theta_max, xtol=1e-9)
 
-    _, th95 = jdf.j_aperture_and_containment(D, RS, RHOS, rt, frac=0.95)
+    _, _, th95 = jdf.j_aperture_and_containment(D, RS, RHOS, rt, frac=0.95)
     assert abs(th95 - th95_ref) / th95_ref < 0.01   # < 1%
 
 
@@ -226,3 +226,42 @@ def test_physical_rt_changes_D_more_than_J():
     assert dlog_J < 0.005                # J ~ rho^2: r_t essentially irrelevant
     assert dlog_D > 0.015                # D ~ rho: r_t materially raises D (~4%)
     assert dlog_D > 3.0 * dlog_J         # and the D shift dominates the J shift
+
+
+# --------------------------------------------------------------------------- #
+# Exact-geometry D + containment
+# --------------------------------------------------------------------------- #
+
+def test_d_containment_full_ge_aperture():
+    rt = _rt_here()
+    D_aperture, D_full, _ = jdf.d_aperture_and_containment(D, RS, RHOS, rt,
+                                                            aperture_rad=0.5 * jdf.DEG)
+    assert D_full >= D_aperture > 0.0
+
+
+def test_d_more_extended_than_j():
+    # D falls off slower than J (rho vs rho^2), so its containment angle is larger.
+    rt = _rt_here()
+    _, _, th95_d = jdf.d_aperture_and_containment(D, RS, RHOS, rt)
+    _, _, th95_j = jdf.j_aperture_and_containment(D, RS, RHOS, rt)
+    assert th95_d > th95_j
+
+
+def test_d_containment_matches_small_angle_at_small_aperture():
+    rt = _rt_here()
+    Dx, _, _ = jdf.d_aperture_and_containment(D, RS, RHOS, rt, aperture_rad=0.1 * jdf.DEG)
+    _, Dsa = jdf.J_D_factors(0.1 * jdf.DEG, D, RS, RHOS, rt)
+    Dsa_gev = Dsa * 10.0 ** jdf.LOG10_D_FAC
+    assert abs(Dx - Dsa_gev) / Dsa_gev < 0.01   # < 1%
+
+
+def test_d_containment_nan_guard():
+    D_aperture, D_full, th = jdf.d_aperture_and_containment(D, RS, RHOS, r_t=0.0)
+    assert np.isnan(D_aperture) and np.isnan(D_full) and np.isnan(th)
+
+
+def test_theta95_d_within_geometric_bound():
+    rt = _rt_here()
+    _, _, th95_d = jdf.d_aperture_and_containment(D, RS, RHOS, rt)
+    theta_geom = np.arcsin(min(rt / D, 1.0))
+    assert 0.0 < th95_d < theta_geom

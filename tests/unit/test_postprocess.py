@@ -87,6 +87,40 @@ def test_derive_matches_primitives():
         assert d["r_t_chain"][k] == pytest.approx(r_t, rel=1e-10)
 
 
+def test_derive_pi2_totals_units_and_monotonicity():
+    """Guard the exact-geometry J/D(pi2) units: derive takes log10 of the
+    ALREADY-GeV containment value (no +LOG10_*_FAC). A double-apply/omission
+    would shift log10_J_pi2 by ~45 dex; a units-correct value sits just above
+    the fixed-angle J(0.5deg) (containment monotonicity)."""
+    chain = _synthetic_chain()
+    ctx = _minimal_ctx()
+    d = pp.derive(chain, ctx, rseed=3, thin_jd=50)
+    rs = 10.0 ** chain[:, 1]
+    rhos = 10.0 ** chain[:, 2]
+    idx = d["idx_jd"]
+    R_GC = d["R_GC_chain"]
+    n_checked = 0
+    for k in (0, len(idx) // 2, len(idx) - 1):
+        if not np.isfinite(d["log10_J_pi2"][k]):
+            continue
+        i = idx[k]
+        r_t = jdtidal.tidal_radius(float(rs[i]), float(rhos[i]), float(R_GC[k]))
+        _, J_pi2, _ = jdf.j_aperture_and_containment(
+            float(chain[i, 4]), float(rs[i]), float(rhos[i]), r_t)
+        _, D_pi2, _ = jdf.d_aperture_and_containment(
+            float(chain[i, 4]), float(rs[i]), float(rhos[i]), r_t)
+        # Exact units: log10 of the GeV containment value directly (no offset).
+        assert d["log10_J_pi2"][k] == pytest.approx(np.log10(J_pi2), rel=1e-10)
+        assert d["log10_D_pi2"][k] == pytest.approx(np.log10(D_pi2), rel=1e-10)
+        # Total >= 0.5deg aperture, and within a few dex (a LOG10_FAC slip is ~45).
+        assert d["log10_J_pi2"][k] >= d["log10_J"]["0p5deg"][k] - 1e-9
+        assert d["log10_J_pi2"][k] - d["log10_J"]["0p5deg"][k] < 5.0
+        assert d["log10_D_pi2"][k] >= d["log10_D"]["0p5deg"][k] - 1e-9
+        assert d["log10_D_pi2"][k] - d["log10_D"]["0p5deg"][k] < 5.0
+        n_checked += 1
+    assert n_checked > 0
+
+
 def test_save_load_chain_roundtrip(tmp_path):
     chain = _synthetic_chain()
     ctx = _minimal_ctx()

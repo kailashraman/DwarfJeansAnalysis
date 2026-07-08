@@ -1429,6 +1429,26 @@ with the small-angle \code{J\_D\_factors} value to $<0.01$~dex; the
 full $J(<r_t)$ matches an independent \code{scipy.integrate.dblquad}
 reference to $<0.01$~dex.
 
+This full $J(<r_t)$ --- equivalently $J(\theta=\pi/2)$, since $\rho=0$
+beyond $r_t$ --- is saved as a posterior (\code{log10\_J\_pi2}). It is
+the large-angle-correct total: the small-angle approximation
+$R=d\,\theta$ underpinning the fixed-angle $J$'s is invalid at the full
+angular extent (which reaches several degrees for nearby, large-$r_t$
+systems). The identical exact-geometry machinery is applied to the
+$D$-factor (\code{d\_containment}, with the $\int\rho\,\mathrm{d}\ell$
+column in place of $\int\rho^2\,\mathrm{d}\ell$), yielding the total
+$D(\theta=\pi/2)=D(<r_t)$ (\code{log10\_D\_pi2}) and a $D$ containment
+angle $\theta_{95}(D)$. Because $D$ weights $\rho$ rather than
+$\rho^2$ it is far less centrally concentrated, so
+$\theta_{95}(D)>\theta_{95}(J)$ and a larger fraction of $D$ lies
+beyond the reporting apertures. The on-axis cusp differs accordingly:
+$\mathrm{d}D/\mathrm{d}\theta\sim\theta\ln(1/\theta)\to0$ as
+$\theta\to0$ (versus $\mathrm{d}J/\mathrm{d}\theta\to$ const), so the
+$0\cdot\infty$ cusp lift is applied only for $J$. For $J$ the lift
+shifts $J(<r_t)$ by $\sim0.2\%$; for $D$ the no-lift choice is a
+formal-correctness one --- at the grid resolution its effect is
+$<10^{-5}$~dex.
+
 \subsection{MC recovery}
 \label{sec:stage3:mc}
 
