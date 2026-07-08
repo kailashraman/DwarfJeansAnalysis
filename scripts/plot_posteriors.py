@@ -160,33 +160,37 @@ def plot_jeans_corner(npz, lvdb_key: str, out_path: Path) -> Path:
 
 
 def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
-    """4×4 grid. Rows = quantity (J, D, mass/dispersion, tidal/containment);
-    columns = angle ascending (0.1°, 0.2°, 0.5°, α_c)."""
+    """4×5 grid. Rows = quantity (J, D, mass/dispersion, tidal/containment);
+    columns = angle ascending (0.1°, 0.2°, 0.5°, α_c) plus the exact-geometry
+    total at θ=π/2 (= within r_t) in the last column."""
     import matplotlib
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
 
     layout = [
-        # Row 1: J at the four reporting angles, ascending
+        # Row 1: J at the four reporting angles, ascending, then the total J(π/2)
         [
             ("log10_J_0p1deg",       r"$\log_{10}(J(0.1^{\circ}) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"),
             ("log10_J_0p2deg",       r"$\log_{10}(J(0.2^{\circ}) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"),
             ("log10_J_0p5deg",       r"$\log_{10}(J(0.5^{\circ}) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"),
             ("log10_J_alphac",       r"$\log_{10}(J(\alpha_c) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"),
+            ("log10_J_pi2",          r"$\log_{10}(J(\pi/2) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"),
         ],
-        # Row 2: D at matching angles (α_c/2 in the natural-angle slot)
+        # Row 2: D at matching angles (α_c/2 in the natural-angle slot), then D(π/2)
         [
             ("log10_D_0p1deg",       r"$\log_{10}(D(0.1^{\circ}) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
             ("log10_D_0p2deg",       r"$\log_{10}(D(0.2^{\circ}) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
             ("log10_D_0p5deg",       r"$\log_{10}(D(0.5^{\circ}) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
             ("log10_D_alphacover2",  r"$\log_{10}(D(\alpha_c/2) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
+            ("log10_D_pi2",          r"$\log_{10}(D(\pi/2) / (\mathrm{GeV}\,\mathrm{cm}^{-2}))$"),
         ],
-        # Row 3: derived masses + projected dispersion at R_½,2D + J containment angle
+        # Row 3: derived masses + projected dispersion at R_½,2D + J & D containment angles
         [
             ("log10_M_half_2d",      r"$\log_{10}(M(R_{1/2,2D}) / \mathrm{M}_\odot)$"),
             ("log10_M_half_3d",      r"$\log_{10}(M(r_{1/2,3D}) / \mathrm{M}_\odot)$"),
             ("sigma_los_at_Rhalf2d", r"$\sigma_\mathrm{los}(R_{1/2,2D})$ Jeans  [km/s]"),
             ("theta95_J_deg",        r"$\theta_{95}(J)$  [deg]"),
+            ("theta95_D_deg",        r"$\theta_{95}(D)$  [deg]"),
         ],
         # Row 4: tidal radius + galactocentric distance (drive r_t)
         [
@@ -194,13 +198,14 @@ def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
             ("R_GC_kpc_chain",       r"$D_\mathrm{GC}$  [kpc]"),
             (None, None),
             (None, None),
+            (None, None),
         ],
     ]
 
     # Panels spanning a wide multiplicative range read better on a log x-axis.
-    log_x_panels = {"theta95_J_deg"}
+    log_x_panels = {"theta95_J_deg", "theta95_D_deg"}
 
-    fig, axes = plt.subplots(4, 4, figsize=(15, 13))
+    fig, axes = plt.subplots(4, 5, figsize=(18.5, 13))
     fig.suptitle(f"{lvdb_key} — J / D / M$_{{1/2}}$ / tidal posteriors", fontsize=13)
 
     for i, row in enumerate(layout):
@@ -231,7 +236,7 @@ def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
                          fontsize=10)
 
     fig.tight_layout(rect=[0, 0, 1, 0.97])
-    fig.savefig(out_path, dpi=130)
+    fig.savefig(out_path, dpi=130, bbox_inches="tight")
     plt.close(fig)
     return out_path
 
@@ -374,6 +379,9 @@ def make_plots(run_dir: Path, out_dir: Path, *,
         "log10_M_half_3d":    derived["log10_M_3d"],
         "sigma_los_at_Rhalf2d": derived["sigma_at_Rhalf"],
         "theta95_J_deg":      derived["theta95_J"] / np.deg2rad(1.0),
+        "theta95_D_deg":      derived["theta95_D"] / np.deg2rad(1.0),
+        "log10_J_pi2":        derived["log10_J_pi2"],
+        "log10_D_pi2":        derived["log10_D_pi2"],
         "r_t_kpc_chain":      derived["r_t_chain"],
         "R_GC_kpc_chain":     derived["R_GC_chain"],
         "log10_J_0p5deg":     derived["log10_J"]["0p5deg"],
