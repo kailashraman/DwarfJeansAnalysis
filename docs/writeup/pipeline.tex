@@ -569,7 +569,13 @@ implemented in \code{src/dwarfjeans/jeans/solver.py} (\code{nfw\_M},
 \code{nfw\_g}).  For numerical stability $g(x)$ is evaluated via a
 Taylor series for $x < 10^{-3}$.  No tidal-radius truncation is
 applied at this stage; the integration upper limit is set to
-$100\max(r_s, r_p)$, well into the Plummer $r^{-5}$ tail.
+$100\max(r_s, r_p)$, well into the Plummer $r^{-5}$ tail.  This is
+justified by a scale separation between the tracers and $r_t$: across
+the 39 MW dwarfs the 3D tracer-mass fraction beyond $r_t$ (MW host,
+median posterior) is below $0.5\%$ for 32, the clear exceptions being
+the extended, tidally-influenced systems Crater~2 ($\sim$18\%),
+Antlia~2 ($\sim$6.5\%) and Bootes~3 ($\sim$3.3\%), for which the
+equilibrium Jeans model is independently suspect.
 
 \paragraph{Plummer tracer.}
 The 3D stellar number density and projected surface density are

@@ -149,7 +149,9 @@ Numerical correctness was verified against `scipy.integrate.quad` reference impl
 
 ### Tidal-radius cutoff
 
-The σ_los integrals do not require a tidal-radius cutoff — both integrate to ∞ (or numerically to `s_inf = 100 · max(r_s, r_p)`, well into the Plummer r⁻⁵ tail). The tidal radius `r_t` (Springel et al. 2008 eq. 12; Eadie & Harris 2016 MW host profile) only enters the J- and D-factor integrals, computed in Stage 3 from the Stage 2 posterior chains. Stage 2 itself is `r_t`-independent.
+The σ_los integrals do not require a tidal-radius cutoff — both integrate to ∞ (or numerically to `s_inf = 100 · max(r_s, r_p)`, well into the Plummer r⁻⁵ tail). The tidal radius `r_t` (Tormen/Springel; computed in the real-MW host, `mw_host_model.py`) only enters the J- and D-factor integrals, computed in Stage 3 from the Stage 2 posterior chains. Stage 2 itself is `r_t`-independent.
+
+This is justified by a scale separation between the fitted tracers (selected within `2 r_half`) and `r_t`: σ_los at the data radii is set by mass interior to the stars, and the Plummer `r⁻⁵` tail suppresses the tracer weight beyond `r_t`. Verified across all 39 MW dwarfs (MW-host `r_t`, median posterior): the 3D tracer-mass fraction beyond `r_t` is <0.5% for 32/39 (most ≪0.1%; e.g. Segue 1 0.07%, Draco 0.06%). Three systems are clear exceptions, where `r_t` and the tracer extent become comparable: **Crater 2 (~18%), Antlia 2 (~6.5%), Bootes 3 (~3.3%)**; a marginal tail of four sits near 0.5–1% (Tucana 2 1.1%, Bootes 1 0.9%, Sextans 1 0.7%, Hydrus 1 0.6%). For the three exceptions a truncated-σ_los *would* shift the fit. Those are, however, the same systems where the equilibrium single-component Jeans assumption is itself least reliable (Antlia 2 shows a clear tidal-disruption gradient; Bootes 3 is a disrupting stream progenitor). Adopting the real-MW host slightly sharpens this, since it lowers `r_t` ~20–45% at D≲50 kpc relative to the old m12 NFW.
 
 ### MC recovery test
 
