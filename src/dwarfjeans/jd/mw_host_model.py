@@ -42,9 +42,11 @@ Provenance & verification
   tested points. Note M_2 < 0 (a genuine MN3 feature) and the realized disk mass
   sum(M_i) = 5.2866e10 differs from the nominal target 4.7717e10.
 * NFW convention: M(<r) = m[ln(1+x) - x/(1+x)] matches gala's mass_enclosed to
-  < 1e-5. The assembled M_enc(D) reproduces a brute-force integration of gala's
-  own total density over spheres to ~0.2% (limited by the brute-force grid, not
-  this model).
+  < 1e-5. The assembled M_enc(D) reproduces an independent integration of gala's
+  own total density over spheres to < 0.05% (max 4e-4 over 8--262 kpc). This
+  parity is regression-guarded by tests/unit/test_mw_host_gala_parity.py against
+  a committed fixture; regenerate with scripts/build_gala_reference.py (needs
+  gala installed). gala is NOT a runtime dependency of the pipeline.
 """
 
 from __future__ import annotations
