@@ -173,10 +173,8 @@ def run(lvdb_key: str,
                       "jd": derived["n_jd"]},
         "tidal_radius": {
             "convention": "Tormen1998/Springel2008 (factor 2 - dlnM/dlnr)",
-            "host": "SatGen m12 NFW",
-            "host_Mvir_Msun": jdtidal.SATGEN_M12_HOST.Mvir_Msun,
-            "host_Rvir_kpc": jdtidal.SATGEN_M12_HOST.Rvir_kpc,
-            "host_concentration": jdtidal.SATGEN_M12_HOST.concentration,
+            "host": "MilkyWayPotential2022 (Gala; NFW halo + Hernquist bulge "
+                    "+ nucleus + MN3 disk; spherically-enclosed mass)",
             "r_t_median_kpc": float(np.nanmedian(derived["r_t_chain"])),
         },
     }

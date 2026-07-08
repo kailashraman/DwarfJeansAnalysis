@@ -14,11 +14,15 @@ The equation is implicit (M_sub(<r_t) appears on the right), so it is solved
 self-consistently per posterior draw with a 1-D root find.
 
 The subhalo is the NFW (r_s, rho_s) of the Jeans posterior:
-M_sub(<r) = 4 pi rho_s r_s^3 g(r/r_s). The host is the SatGen ``m12res8-Diemer``
-MW halo (Mvir = 1e12 Msun, Rvir = 258.9 kpc, c ~ 11.5; NFW, z=0), matching the
-satgen prior catalog. For an NFW, dln M/dln r = h(x)/g(x) with x = r/r_s, since
-x g'(x) = x^2/(1+x)^2 = h(x); the host log-slope therefore reuses the existing
-``jeans.nfw_g`` / ``jeans.nfw_h``.
+M_sub(<r) = 4 pi rho_s r_s^3 g(r/r_s). The default host is the real Milky Way
+mass model ``MWPotential2022Host`` (Gala's ``MilkyWayPotential2022``: NFW halo +
+Hernquist bulge + Hernquist nucleus + MN3 exponential disk; see
+``mw_host_model.py``), which supplies M_host(<D) as the true spherically-enclosed
+mass and gamma(D) analytically. The legacy fixed-mass NFW host ``HostNFW`` (SatGen
+``m12res8-Diemer``: Mvir = 1e12 Msun, Rvir = 258.9 kpc, c ~ 11.5) is retained for
+reproducing older chains; for that NFW, dln M/dln r = h(x)/g(x) with x = r/r_s,
+reusing ``jeans.nfw_g`` / ``jeans.nfw_h``. Any host exposing ``M_enc(D)`` and
+``dlnM_dlnr(D)`` works -- the solver is host-agnostic.
 
 r_t depends only on (r_s, rho_s, D, host) -- not on the kinematics -- so it is
 computed for every dwarf, resolved-sigma_los or not.
@@ -33,6 +37,8 @@ import numpy as np
 from astropy.coordinates import Galactocentric, SkyCoord
 from scipy.optimize import brentq
 
+from dwarfjeans.jd import mw_host_model
+from dwarfjeans.jd.mw_host_model import MW2022_HOST, MWPotential2022Host
 from dwarfjeans.jeans import solver as jeans
 
 
@@ -68,9 +74,65 @@ class HostNFW:
         return jeans.nfw_h(x) / jeans.nfw_g(x)
 
 
-# Default host: SatGen m12 (matches the satgen prior catalog). See
+# Legacy fixed-mass NFW host: SatGen m12 (matches the satgen prior catalog).
+# Retained to reproduce chains run before the real-MW host was adopted. See
 # reference_satgen_m12_host memory / docs/plan/stage3.md.
 SATGEN_M12_HOST = HostNFW()
+
+# Default host for all new runs: the real Milky Way mass model (Gala
+# MilkyWayPotential2022). See docs/plan/mw_host_model.md.
+DEFAULT_HOST = MW2022_HOST
+
+# Host tags recorded in chain metadata so a saved chain deserialises to the exact
+# host it was run against (see host_save_fields / host_from_npz).
+HOST_MODEL_MW2022 = "MWPotential2022"
+HOST_MODEL_SATGEN_M12 = "SatGenM12NFW"
+
+
+def host_save_fields(host) -> dict:
+    """npz fields identifying ``host`` for chain persistence.
+
+    The MW2022 host is a single fixed fiducial, so only a tag is stored; the
+    legacy NFW host also stores its three scalars so it round-trips exactly.
+    """
+    if isinstance(host, MWPotential2022Host):
+        return {"host_model": HOST_MODEL_MW2022}
+    if isinstance(host, HostNFW):
+        return {
+            "host_model": HOST_MODEL_SATGEN_M12,
+            "host_Mvir_Msun": float(host.Mvir_Msun),
+            "host_Rvir_kpc": float(host.Rvir_kpc),
+            "host_concentration": float(host.concentration),
+        }
+    raise TypeError(f"cannot serialise unknown host type {type(host)!r}")
+
+
+def host_from_npz(z):
+    """Reconstruct the host from a loaded chain npz, or None if absent.
+
+    Dispatches on the ``host_model`` tag written by ``host_save_fields``. Legacy
+    chains predate the tag and carry only ``host_Mvir_Msun`` etc.; those are the
+    SatGen m12 NFW host by construction.
+    """
+    files = set(z.files)
+    if "host_model" in files:
+        model = str(z["host_model"])
+        if model == HOST_MODEL_MW2022:
+            return MW2022_HOST
+        if model == HOST_MODEL_SATGEN_M12:
+            return HostNFW(
+                Mvir_Msun=float(z["host_Mvir_Msun"]),
+                Rvir_kpc=float(z["host_Rvir_kpc"]),
+                concentration=float(z["host_concentration"]),
+            )
+        raise ValueError(f"unknown host_model tag {model!r}")
+    if "host_Mvir_Msun" in files:  # legacy chain, pre-tag: always the m12 NFW host
+        return HostNFW(
+            Mvir_Msun=float(z["host_Mvir_Msun"]),
+            Rvir_kpc=float(z["host_Rvir_kpc"]),
+            concentration=float(z["host_concentration"]),
+        )
+    return None
 
 
 def galactocentric_distance(ra_deg: float, dec_deg: float, d_helio_kpc):
@@ -93,7 +155,7 @@ def galactocentric_distance(ra_deg: float, dec_deg: float, d_helio_kpc):
 
 
 def tidal_radius(r_s_kpc: float, rho_s_Msun_kpc3: float, D_kpc: float,
-                 host: HostNFW = SATGEN_M12_HOST, factor: float = 2.0) -> float:
+                 host=DEFAULT_HOST, factor: float = 2.0) -> float:
     """Tormen/Springel tidal radius r_t [kpc] for one NFW subhalo.
 
     Solves r_t^3 * (factor - gamma(D)) * M_host(<D) = D^3 * M_sub(<r_t) for the
@@ -121,7 +183,7 @@ def tidal_radius(r_s_kpc: float, rho_s_Msun_kpc3: float, D_kpc: float,
 
 
 def tidal_radius_chain(r_s_kpc, rho_s_Msun_kpc3, D_kpc,
-                       host: HostNFW = SATGEN_M12_HOST, factor: float = 2.0):
+                       host=DEFAULT_HOST, factor: float = 2.0):
     """Vectorized ``tidal_radius`` over equal-length (r_s, rho_s, D) arrays."""
     r_s = np.atleast_1d(np.asarray(r_s_kpc, float))
     rho_s = np.atleast_1d(np.asarray(rho_s_Msun_kpc3, float))

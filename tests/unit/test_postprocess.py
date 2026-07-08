@@ -104,13 +104,43 @@ def test_save_load_chain_roundtrip(tmp_path):
         "p_min": 0.5, "rmax_over_rhalf": 2.0,
         "drop_variable": True, "use_p_weights": False}
     assert meta["tidal_factor"] == 2.0
-    assert isinstance(meta["host"], jdtidal.HostNFW)
-    assert meta["host"].Mvir_Msun == jdtidal.SATGEN_M12_HOST.Mvir_Msun
+    # New runs default to the real-MW host; it round-trips via the host_model tag.
+    assert meta["host"] is jdtidal.MW2022_HOST
     # Chain-only contract: no derived arrays persisted.
     z = np.load(path, allow_pickle=True)
     for forbidden in ("log10_J_0p5deg", "log10_M_half_3d", "r_t_kpc_chain",
                       "theta95_J_deg", "sigma_los_at_Rhalf2d"):
         assert forbidden not in z.files
+
+
+def test_save_load_chain_explicit_legacy_host_roundtrips(tmp_path):
+    """Passing the legacy m12 NFW host explicitly round-trips exactly."""
+    chain = _synthetic_chain()
+    ctx = _minimal_ctx()
+    path = tmp_path / "posterior_samples.npz"
+    pp.save_chain(path, chain, ctx, rseed=1, prior_name="jeffreys", shmr=None,
+                  thin_sigma=2000, thin_jd=500, thin_profile=300,
+                  host=jdtidal.SATGEN_M12_HOST,
+                  p_min=0.5, rmax_over_rhalf=2.0, drop_variable=True,
+                  use_p_weights=False)
+    _, meta = pp.load_chain(path)
+    assert isinstance(meta["host"], jdtidal.HostNFW)
+    assert meta["host"].Mvir_Msun == jdtidal.SATGEN_M12_HOST.Mvir_Msun
+
+
+def test_load_chain_pretag_legacy_npz_is_m12_host(tmp_path):
+    """A legacy npz with host_Mvir_Msun but no host_model tag deserialises to
+    the SatGen m12 NFW host (the only host such chains were ever run against)."""
+    path = tmp_path / "legacy.npz"
+    np.savez(path,
+             samples_eq=_synthetic_chain(),
+             param_names=np.array(pp.PARAM_NAMES_7),
+             rseed=7, lvdb_key="g", prior_name="jeffreys", shmr="",
+             host_Mvir_Msun=1.0e12, host_Rvir_kpc=258.9, host_concentration=11.5)
+    _, meta = pp.load_chain(path)
+    assert isinstance(meta["host"], jdtidal.HostNFW)
+    assert meta["host"].Mvir_Msun == 1.0e12
+    assert meta["host"].concentration == 11.5
 
 
 def test_save_derived_export(tmp_path):

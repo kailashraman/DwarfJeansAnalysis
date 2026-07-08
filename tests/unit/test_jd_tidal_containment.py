@@ -21,10 +21,26 @@ RS, RHOS, D = 0.3, 3.0e8, 30.0
 # Tidal radius
 # --------------------------------------------------------------------------- #
 
+def test_default_host_is_mw2022():
+    from dwarfjeans.jd.mw_host_model import MWPotential2022Host
+    assert isinstance(tidal.DEFAULT_HOST, MWPotential2022Host)
+
+
 def test_tidal_radius_satisfies_implicit_equation():
-    host = tidal.SATGEN_M12_HOST
+    # Default path: the real-MW host.
+    host = tidal.DEFAULT_HOST
     Dgc = 50.0
     rt = tidal.tidal_radius(RS, RHOS, Dgc)
+    assert np.isfinite(rt) and rt > 0.0
+    lhs = rt ** 3 * (2.0 - host.dlnM_dlnr(Dgc)) * host.M_enc(Dgc)
+    rhs = Dgc ** 3 * jeans.nfw_M(rt, RS, RHOS)
+    assert abs(lhs - rhs) / rhs < 1e-6
+
+
+def test_tidal_radius_satisfies_implicit_equation_m12_host():
+    host = tidal.SATGEN_M12_HOST
+    Dgc = 50.0
+    rt = tidal.tidal_radius(RS, RHOS, Dgc, host=host)
     assert np.isfinite(rt) and rt > 0.0
     lhs = rt ** 3 * (2.0 - host.dlnM_dlnr(Dgc)) * host.M_enc(Dgc)
     rhs = Dgc ** 3 * jeans.nfw_M(rt, RS, RHOS)

@@ -48,8 +48,10 @@ DwarfJeansAnalysis/
 │       │   ├── factors.py              J/D integrals + exact-geometry
 │       │   │                           angular containment (theta95)
 │       │   ├── tidal.py                per-draw tidal radius r_t
-│       │   │                           (Tormen/Springel, SatGen m12 host)
+│       │   │                           (Tormen/Springel, MW2022 host)
 │       │   │                           + galactocentric distance
+│       │   ├── mw_host_model.py         real-MW host M(<D), dlnM/dlnr
+│       │   │                           (Gala MilkyWayPotential2022)
 │       │   └── summary.py
 │       ├── postprocess.py          Stage-3 deriver: all post-inference
 │       │                             quantities (data prep + M, σ_los, J/D,

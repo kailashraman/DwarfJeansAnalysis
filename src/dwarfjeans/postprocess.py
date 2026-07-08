@@ -322,7 +322,7 @@ def derive(samples_eq, ctx: GalaxyContext, *,
            thin_sigma: int = 2000,
            thin_jd: int = 500,
            thin_profile: int = 300,
-           host: jdtidal.HostNFW = jdtidal.SATGEN_M12_HOST,
+           host=jdtidal.DEFAULT_HOST,
            tidal_factor: float = 2.0,
            logp=_noop) -> dict:
     """Compute all chain-derived posteriors from the equal-weight chain.
@@ -420,7 +420,7 @@ def derive(samples_eq, ctx: GalaxyContext, *,
     r_t_chain = np.full(idx_jd.size, np.nan)
     theta95_J = np.full(idx_jd.size, np.nan)
     logp(f"\n=== J/D integrals (thin {idx_jd.size}/{N_chain}, "
-         f"per-draw r_t in SatGen m12 host) ===")
+         f"per-draw r_t in {type(host).__name__} host) ===")
     logp(f"  alpha_c (median): {float(np.median(alpha_c_chain)):.5f} rad "
          f"({float(np.median(alpha_c_chain))/jdf.DEG:.4f} deg)")
     logp(f"  D_GC (median): {float(np.median(R_GC_chain)):.2f} kpc")
@@ -592,7 +592,7 @@ def save_derived(path: Path, d: dict, ctx: GalaxyContext) -> None:
 def save_chain(path: Path, samples_eq, ctx: GalaxyContext, *,
                rseed: int, prior_name: str, shmr: str | None,
                thin_sigma: int, thin_jd: int, thin_profile: int,
-               host: jdtidal.HostNFW = jdtidal.SATGEN_M12_HOST,
+               host=jdtidal.DEFAULT_HOST,
                tidal_factor: float = 2.0,
                p_min: float, rmax_over_rhalf: float,
                drop_variable: bool, use_p_weights: bool) -> None:
@@ -615,9 +615,7 @@ def save_chain(path: Path, samples_eq, ctx: GalaxyContext, *,
         selection_drop_variable=bool(drop_variable),
         selection_use_p_weights=bool(use_p_weights),
         tidal_factor=float(tidal_factor),
-        host_Mvir_Msun=float(host.Mvir_Msun),
-        host_Rvir_kpc=float(host.Rvir_kpc),
-        host_concentration=float(host.concentration),
+        **jdtidal.host_save_fields(host),
     )
 
 
@@ -644,12 +642,9 @@ def load_chain(path: Path) -> tuple[np.ndarray, dict]:
         )
     if "tidal_factor" in z.files:
         meta["tidal_factor"] = float(z["tidal_factor"])
-    if "host_Mvir_Msun" in z.files:
-        meta["host"] = jdtidal.HostNFW(
-            Mvir_Msun=float(z["host_Mvir_Msun"]),
-            Rvir_kpc=float(z["host_Rvir_kpc"]),
-            concentration=float(z["host_concentration"]),
-        )
+    host = jdtidal.host_from_npz(z)
+    if host is not None:
+        meta["host"] = host
     if "param_names" in z.files:
         meta["param_names"] = [str(s) for s in z["param_names"]]
     return samples_eq, meta

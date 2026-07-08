@@ -1363,20 +1363,34 @@ root find (\code{tidal\_radius}). It depends only on
 $(r_s,\rho_s,D,\,\mathrm{host})$ --- not on the kinematics --- so it
 is computed for every dwarf, $\sigma_\mathrm{los}$-resolved or not.
 
-The host is the SatGen \code{m12res8-Diemer} Milky-Way halo
-($M_\mathrm{vir}=10^{12}\,\Msun$, $R_\mathrm{vir}=258.9\,\kpc$,
-concentration $c\simeq 11.5$; NFW, $z=0$), matching the satgen prior
-catalog. For an NFW, $\mathrm{d}\ln M/\mathrm{d}\ln r = h(x)/g(x)$ with
-$x=r/r_s$ (since $x\,g'(x)=x^2/(1+x)^2=h(x)$), so the host log-slope
-reuses \code{nfw\_g}/\code{nfw\_h} from \code{solver.py}. The
-galactocentric distance is obtained from the registry $(\alpha,\delta)$
-and the heliocentric distance chain via astropy's default
-\code{Galactocentric} frame (\code{galactocentric\_distance}). For a
-typical UFD this gives $r_t\sim 2$--$7\,\kpc$, far outside the
-projected radius of the reporting angles --- so $J$ (set by $\rho^2$
-near the centre) is essentially unchanged from the former
-$r_t=1\,\kpc$ placeholder, while the more extended $D$ (set by $\rho$)
-rises by a few percent.
+The default host is the real Milky-Way mass model
+\code{MilkyWayPotential2022} (Gala; Price-Whelan~et~al.), a composite of
+an NFW halo, a Hernquist bulge and nucleus, and a three-component
+Miyamoto--Nagai exponential disk. $M_\mathrm{host}(<D)$ is the true
+spherically-enclosed mass $\int\rho\,\mathrm{d}V$ and its log-slope
+$\mathrm{d}\ln M/\mathrm{d}\ln r$ is evaluated analytically for the
+spherical components and by shell integration for the flattened disk,
+in the self-contained \code{mw\_host\_model.py} (numpy+scipy only; no
+gala at runtime), which reproduces gala 1.11 to $<0.2\%$. The
+spherically-enclosed convention is the self-consistent choice for the
+spherically-symmetric tidal criterion of Eq.~\eqref{eq:tidal}; at the
+$D\gtrsim 20\,\kpc$ of the satellites the halo dominates and it agrees
+with the force-based definition to $<1\%$. The earlier fixed-mass NFW
+host (SatGen \code{m12res8-Diemer}: $M_\mathrm{vir}=10^{12}\,\Msun$,
+$R_\mathrm{vir}=258.9\,\kpc$, $c\simeq 11.5$; for which $\mathrm{d}\ln
+M/\mathrm{d}\ln r = h(x)/g(x)$, reusing \code{nfw\_g}/\code{nfw\_h}) is
+retained as \code{HostNFW} to reproduce chains run before the real-MW
+host was adopted. The galactocentric distance is obtained from the
+registry $(\alpha,\delta)$ and the heliocentric distance chain via
+astropy's default \code{Galactocentric} frame
+(\code{galactocentric\_distance}). For a typical UFD this gives
+$r_t\sim 1$--$7\,\kpc$; the real-MW host lowers $r_t$ by $\sim
+20$--$45\%$ at $D\lesssim 50\,\kpc$ relative to the m12 NFW (the
+disk and bulge steepen the inner tidal field), shrinking to $\sim
+10\%$ by $D\sim 100\,\kpc$. In all cases $r_t$ stays far outside the projected radius
+of the reporting angles, so $J$ (set by $\rho^2$ near the centre) is
+essentially unchanged, while the more extended $D$ (set by $\rho$)
+shifts by a few percent.
 
 \subsection{Angular containment}
 \label{sec:stage3:containment}
