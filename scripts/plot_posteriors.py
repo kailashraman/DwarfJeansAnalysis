@@ -1,22 +1,26 @@
 """Posterior diagnostic plots for production runs.
 
-Writes four PNGs per galaxy into ``plots/<lvdb_key>/<prior>/`` (relative
+Writes five PDFs per galaxy into ``plots/<lvdb_key>/<prior>/`` (relative
 to repo root), refreshed from the latest production run on each
 invocation. The ``plots/`` directory always reflects the most recent
 results.
 
-  * ``jeans_corner.png`` — corner plot of the four Stage-1 Jeans-model
+  * ``jeans_corner.pdf`` — corner plot of the four Stage-1 Jeans-model
     parameters: $\\bar V$, $\\log_{10} r_s$, $\\log_{10} \\rho_s$,
     $\\tilde\\beta$ (sampled variable, not the unbounded $\\beta$).
-  * ``jd_mhalf.png`` — marginals for $\\log_{10} J(0.5°)$,
+  * ``jd_mhalf.pdf`` — marginals for $\\log_{10} J(0.5°)$,
     $\\log_{10} D(0.5°)$, $\\log_{10} M(r_{1/2,3D})$, plus the J/D
     chains at the other three reporting angles for context.
-  * ``m_J_corner.png`` — joint posterior of $\\log_{10} M(r_{1/2,3D})$
+  * ``m_J_corner.pdf`` — joint posterior of $\\log_{10} M(r_{1/2,3D})$
     against $\\log_{10} J(0.5°)$. Uses the saved ``idx_jd`` index to
     align M with the thinned J chain; for older runs without
     ``idx_jd``, J(0.5°) is recomputed on a deterministic subsample so
     the (M, J) pairs are aligned by construction.
-  * ``sigma_los_walker.png`` — Walker+2006 constant-σ marginal
+  * ``rs_J_corner.pdf`` — joint posterior of $\\log_{10} r_s$ against
+    $\\log_{10} J(\\pi/2)$, the exact-geometry total J within $r_t$.
+    J(π/2) is stored on the thinned J/D subsample, so r_s is indexed
+    with ``idx_jd`` to keep the pairs aligned.
+  * ``sigma_los_walker.pdf`` — Walker+2006 constant-σ marginal
     posterior (recomputed on-the-fly from the same per-star catalog
     the production run consumed via ``constant_sigma_inference``).
 
@@ -319,6 +323,51 @@ def plot_m_J_corner(npz, lvdb_key: str, out_path: Path) -> Path:
     return out_path
 
 
+def plot_rs_J_corner(npz, lvdb_key: str, out_path: Path) -> Path:
+    """2D corner of log10 r_s vs log10 J(π/2).
+
+    ``log10_J_pi2`` lives on the thinned J/D subsample, so r_s must be
+    indexed with ``idx_jd`` to pair each J with the draw it came from."""
+    import matplotlib
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    import corner
+
+    J = np.asarray(npz["log10_J_pi2"], dtype=float)
+    rs = np.asarray(npz["log10_rs"], dtype=float)[npz["idx_jd"]]
+
+    mask = np.isfinite(rs) & np.isfinite(J)
+    rs, J = rs[mask], J[mask]
+
+    samples = np.column_stack([rs, J])
+    labels = [r"$\log_{10}(r_s / \mathrm{kpc})$",
+              r"$\log_{10}(J(\pi/2) / (\mathrm{GeV}^2\,\mathrm{cm}^{-5}))$"]
+    import matplotlib.colors as mcolors
+    grey = mcolors.to_rgb("tab:grey")
+    fill_colors = [grey + (0.0,), grey + (0.5,), grey + (0.8,)]
+    fig = plt.figure(figsize=(12, 12))
+    corner.corner(
+        samples,
+        labels=labels,
+        quantiles=(0.16, 0.5, 0.84),
+        show_titles=True,
+        title_fmt=".3g",
+        plot_datapoints=False,
+        fill_contours=True,
+        smooth=0.7,
+        smooth1d=0.7,
+        levels=(0.68, 0.95),
+        color="tab:grey",
+        contour_kwargs={"colors": [grey + (0.8,), grey + (0.5,)]},
+        contourf_kwargs={"colors": fill_colors},
+        hist_kwargs={"color": "black"},
+        fig=fig,
+    )
+    fig.savefig(out_path, dpi=130, bbox_inches="tight")
+    plt.close(fig)
+    return out_path
+
+
 class _NpzLike:
     """Thin dict wrapper that also exposes a ``files`` attribute, mimicking
     the interface of numpy.lib.npyio.NpzFile consumed by the plot functions."""
@@ -394,6 +443,7 @@ def make_plots(run_dir: Path, out_dir: Path, *,
     out.append(plot_jeans_corner(npz_like, lvdb_key, out_dir / "jeans_corner.pdf"))
     out.append(plot_jd_mhalf(npz_like, lvdb_key,    out_dir / "jd_mhalf.pdf"))
     out.append(plot_m_J_corner(npz_like, lvdb_key,  out_dir / "m_J_corner.pdf"))
+    out.append(plot_rs_J_corner(npz_like, lvdb_key, out_dir / "rs_J_corner.pdf"))
     out.append(plot_sigma_walker(_walker_posterior(ctx, prior_name), lvdb_key,
                                   out_dir / "sigma_los_walker.pdf"))
     return out
