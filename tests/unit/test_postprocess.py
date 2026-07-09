@@ -176,6 +176,34 @@ def test_host_from_meta_defaults_to_mw2022_not_legacy_m12():
     assert pp.host_from_meta({"host": jdtidal.SATGEN_M12_HOST}) is jdtidal.SATGEN_M12_HOST
 
 
+def test_legacy_meta_from_audit_raises_when_rseed_absent(tmp_path):
+    """An audit.json with no dynesty.rseed is refused, not defaulted to 0.
+
+    Regression: the seed drives the thinning indices, so guessing it silently
+    re-pairs J/D with different draws. A default of 0 is also indistinguishable
+    from a genuinely recorded seed of 0.
+    """
+    import json
+    policy = {"p_min": 0.5, "R_over_rhalf_max": 2.0}
+    (tmp_path / "audit.json").write_text(json.dumps({
+        "lvdb_key": "test_galaxy", "prior_name": "jeffreys",
+        "selection_policy": policy,
+        "thinning": {"sigma": 2000, "jd": 500, "profile": 300},
+        "dynesty": {},  # no rseed
+    }))
+    with pytest.raises(ValueError, match="rseed"):
+        pp.legacy_meta_from_audit(tmp_path)
+
+    # A recorded seed is used verbatim.
+    (tmp_path / "audit.json").write_text(json.dumps({
+        "lvdb_key": "test_galaxy", "prior_name": "jeffreys",
+        "selection_policy": policy,
+        "thinning": {"sigma": 2000, "jd": 500, "profile": 300},
+        "dynesty": {"rseed": 12345},
+    }))
+    assert pp.legacy_meta_from_audit(tmp_path)["rseed"] == 12345
+
+
 def test_aligned_M_J_requires_idx_jd_and_pairs_by_draw():
     """M is paired with J through idx_jd, and a missing idx_jd is an error.
 

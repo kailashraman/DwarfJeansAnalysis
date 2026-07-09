@@ -688,6 +688,12 @@ def legacy_meta_from_audit(run_dir: Path) -> dict | None:
     Pre-contract npz files don't carry the selection policy / rseed / thinning,
     but the sibling audit.json does. Returns a meta dict shaped like
     :func:`load_chain`'s, or None if audit.json is absent or lacks the policy.
+
+    Raises ValueError if audit.json records no ``dynesty.rseed``. The seed
+    drives the thinning indices (``idx_jd`` and friends), so a wrong seed
+    re-pairs J/D with different draws -- silently, since every value stays
+    individually plausible. A default here would be indistinguishable from a
+    recorded seed of the same value; refuse instead of guessing.
     """
     import json
     ap = Path(run_dir) / "audit.json"
@@ -699,6 +705,11 @@ def legacy_meta_from_audit(run_dir: Path) -> dict | None:
         return None
     thinning = a.get("thinning") or {}
     dyn = a.get("dynesty") or {}
+    if "rseed" not in dyn:
+        raise ValueError(
+            f"{ap}: no dynesty.rseed; cannot reproduce the thinning indices "
+            f"for {run_dir}. Refusing to guess a seed."
+        )
     return {
         "lvdb_key": a.get("lvdb_key") or Path(run_dir).parent.name,
         "prior_name": a.get("prior_name", "jeffreys"),
@@ -708,7 +719,7 @@ def legacy_meta_from_audit(run_dir: Path) -> dict | None:
             "drop_variable": bool(sp.get("drop_variable", True)),
             "use_p_weights": bool(sp.get("use_p_weights", False)),
         },
-        "rseed": int(dyn.get("rseed", 0)),
+        "rseed": int(dyn["rseed"]),
         "thin_sigma": int(thinning.get("sigma", 2000)),
         "thin_jd": int(thinning.get("jd", 500)),
         "thin_profile": int(thinning.get("profile", 300)),
