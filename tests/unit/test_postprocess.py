@@ -176,6 +176,30 @@ def test_host_from_meta_defaults_to_mw2022_not_legacy_m12():
     assert pp.host_from_meta({"host": jdtidal.SATGEN_M12_HOST}) is jdtidal.SATGEN_M12_HOST
 
 
+def test_aligned_M_J_requires_idx_jd_and_pairs_by_draw():
+    """M is paired with J through idx_jd, and a missing idx_jd is an error.
+
+    Regression: the old fallback recomputed J(0.5 deg) at a hardcoded r_t = 1 kpc
+    when idx_jd was absent, silently truncating J at a non-physical radius
+    instead of failing.
+    """
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "scripts"))
+    import plot_posteriors as pl
+
+    M = np.arange(10.0)
+    idx = np.array([7, 2, 5])
+    J = np.array([70.0, 20.0, 50.0])
+    m_out, j_out = pl._aligned_M_J({"log10_M_half_3d": M, "idx_jd": idx,
+                                    "log10_J_0p5deg": J})
+    np.testing.assert_array_equal(m_out, M[idx])      # 7, 2, 5 -- draw order preserved
+    np.testing.assert_array_equal(j_out, J)
+
+    with pytest.raises(KeyError):
+        pl._aligned_M_J({"log10_M_half_3d": M, "log10_J_0p5deg": J})
+
+
 def test_resolve_run_meta_keeps_chain_host_when_falling_back_to_audit(tmp_path, monkeypatch):
     """A chain that recorded a host keeps it even when selection metadata is
     missing and resolve_run_meta swaps in the audit.json legacy dict.

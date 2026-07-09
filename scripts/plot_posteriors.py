@@ -13,9 +13,7 @@ results.
     chains at the other three reporting angles for context.
   * ``m_J_corner.pdf`` — joint posterior of $\\log_{10} M(r_{1/2,3D})$
     against $\\log_{10} J(0.5°)$. Uses the saved ``idx_jd`` index to
-    align M with the thinned J chain; for older runs without
-    ``idx_jd``, J(0.5°) is recomputed on a deterministic subsample so
-    the (M, J) pairs are aligned by construction.
+    align M with the thinned J chain.
   * ``rs_J_corner.pdf`` — joint posterior of $\\log_{10} r_s$ against
     $\\log_{10} J(\\pi/2)$, the exact-geometry total J within $r_t$.
     J(π/2) is stored on the thinned J/D subsample, so r_s is indexed
@@ -244,43 +242,12 @@ def plot_jd_mhalf(npz, lvdb_key: str, out_path: Path) -> Path:
     return out_path
 
 
-def _aligned_M_J(npz, n_subsample: int = 500):
+def _aligned_M_J(npz):
     """Return aligned (log10 M(r_½,3D), log10 J(0.5°)) sample arrays.
 
-    Uses the saved ``idx_jd`` index when present (production runs
-    written after the run_production.py update). Falls back to
-    recomputing J(0.5°) on a deterministic ``np.linspace`` subsample
-    of the full chain when ``idx_jd`` is absent (older runs)."""
-    M = npz["log10_M_half_3d"]
-    if "idx_jd" in npz.files:
-        idx = npz["idx_jd"]
-        return M[idx], npz["log10_J_0p5deg"]
-
-    # Fallback: recompute J(0.5°) for a deterministic subsample.
-    from dwarfjeans.jd.factors import J_D_factors, LOG10_J_FAC
-    rs = 10.0 ** npz["log10_rs"]
-    rhos = 10.0 ** npz["log10_rhos"]
-    d = npz["d_kpc_chain"]
-    # Per-draw r_t (new runs) or legacy scalar r_t_kpc (older runs); default 1 kpc.
-    if "r_t_kpc_chain" in npz.files:
-        r_t = float(np.nanmedian(npz["r_t_kpc_chain"]))
-    elif "r_t_kpc" in npz.files:
-        r_t = float(np.median(npz["r_t_kpc"]))
-    else:
-        r_t = 1.0
-    n = min(n_subsample, len(M))
-    idx = np.linspace(0, len(M) - 1, n, dtype=int)
-    theta = np.deg2rad(0.5)
-    J = np.full(n, np.nan)
-    for j, i in enumerate(idx):
-        try:
-            Jval, _ = J_D_factors(theta, float(d[i]), float(rs[i]),
-                                  float(rhos[i]), r_t)
-            if Jval > 0:
-                J[j] = np.log10(Jval) + LOG10_J_FAC
-        except Exception:
-            pass
-    return M[idx], J
+    J(0.5°) lives on the thinned J/D subsample, so M is indexed through the
+    saved ``idx_jd`` to pair each J with the draw it came from."""
+    return npz["log10_M_half_3d"][npz["idx_jd"]], npz["log10_J_0p5deg"]
 
 
 def plot_m_J_corner(npz, lvdb_key: str, out_path: Path) -> Path:
