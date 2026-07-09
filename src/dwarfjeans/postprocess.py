@@ -671,6 +671,17 @@ def load_chain(path: Path) -> tuple[np.ndarray, dict]:
     return samples_eq, meta
 
 
+def host_from_meta(meta: dict):
+    """Tidal host for a run whose ``meta`` came from ``load_chain``/``resolve_run_meta``.
+
+    A chain that recorded its host deserialises to exactly that host. A chain
+    that recorded none gets ``jdtidal.DEFAULT_HOST`` (MW2022) — the same default
+    ``derive`` uses — so a recompute reproduces the run's stored derived arrays
+    instead of silently substituting a different host.
+    """
+    return meta.get("host", jdtidal.DEFAULT_HOST)
+
+
 def legacy_meta_from_audit(run_dir: Path) -> dict | None:
     """Reconstruct reproducibility metadata from a legacy run's audit.json.
 
@@ -718,5 +729,10 @@ def resolve_run_meta(run_dir: Path) -> tuple[np.ndarray, dict]:
                 f"{run_dir}: legacy npz with no usable audit.json "
                 "selection_policy; cannot reproduce derived views."
             )
+        # audit.json records no host, so a host the chain *did* record must
+        # survive the swap — dropping it would silently fall back to the
+        # MW2022 default and recompute r_t against the wrong potential.
+        if "host" in meta:
+            legacy["host"] = meta["host"]
         meta = legacy
     return samples_eq, meta

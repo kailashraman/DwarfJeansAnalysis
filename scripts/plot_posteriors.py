@@ -42,7 +42,6 @@ HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 
 from dwarfjeans.jeans.constant_sigma import constant_sigma_inference
-from dwarfjeans.jd import tidal as jdtidal
 from dwarfjeans import postprocess as pp
 
 sys.path.insert(0, str(HERE))
@@ -361,7 +360,7 @@ def make_plots(run_dir: Path, out_dir: Path, *,
             thin_sigma=meta["thin_sigma"],
             thin_jd=meta["thin_jd"],
             thin_profile=meta["thin_profile"],
-            host=meta.get("host", jdtidal.SATGEN_M12_HOST),
+            host=pp.host_from_meta(meta),
             tidal_factor=meta.get("tidal_factor", 2.0),
         )
     elif prior_name is None:

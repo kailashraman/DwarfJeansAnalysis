@@ -162,6 +162,55 @@ def test_save_load_chain_explicit_legacy_host_roundtrips(tmp_path):
     assert meta["host"].Mvir_Msun == jdtidal.SATGEN_M12_HOST.Mvir_Msun
 
 
+def test_host_from_meta_defaults_to_mw2022_not_legacy_m12():
+    """A run whose chain recorded no host must recompute against MW2022.
+
+    Regression: reprocess.py and plot_posteriors.py both fell back to the
+    legacy m12 NFW host here, while ``derive`` defaults to MW2022. Since r_t
+    sets the J(pi/2) truncation radius, that silently produced plots whose
+    J(pi/2)/theta95/r_t disagreed with the run's own derived.npz and summary.csv.
+    """
+    assert pp.host_from_meta({}) is jdtidal.DEFAULT_HOST
+    assert pp.host_from_meta({}) is jdtidal.MW2022_HOST
+    # An explicitly recorded host still wins over the default.
+    assert pp.host_from_meta({"host": jdtidal.SATGEN_M12_HOST}) is jdtidal.SATGEN_M12_HOST
+
+
+def test_resolve_run_meta_keeps_chain_host_when_falling_back_to_audit(tmp_path, monkeypatch):
+    """A chain that recorded a host keeps it even when selection metadata is
+    missing and resolve_run_meta swaps in the audit.json legacy dict.
+
+    Regression: the wholesale ``meta = legacy`` swap dropped meta["host"], so a
+    recorded m12 chain would silently recompute r_t against the MW2022 default.
+    """
+    run_dir = tmp_path
+    monkeypatch.setattr(
+        pp, "legacy_meta_from_audit",
+        lambda _rd: {"lvdb_key": "test_galaxy", "rseed": 3, "thin_sigma": 2000,
+                     "thin_jd": 500, "thin_profile": 300,
+                     "selection": {"p_min": 0.5, "rmax_over_rhalf": 2.0,
+                                   "drop_variable": True, "use_p_weights": False}})
+    # Chain records the legacy m12 host but no selection_* fields.
+    np.savez(run_dir / "posterior_samples.npz",
+             samples_eq=_synthetic_chain(),
+             **jdtidal.host_save_fields(jdtidal.SATGEN_M12_HOST))
+    _, meta = pp.resolve_run_meta(run_dir)
+    assert isinstance(meta["host"], jdtidal.HostNFW)
+    assert pp.host_from_meta(meta) is not jdtidal.MW2022_HOST
+
+
+def test_plot_and_reprocess_do_not_default_to_m12_host():
+    """The recompute call sites must not re-introduce an m12 fallback."""
+    import re
+    from pathlib import Path
+    scripts = Path(__file__).resolve().parents[2] / "scripts"
+    for name in ("plot_posteriors.py", "reprocess.py"):
+        src = (scripts / name).read_text()
+        assert not re.search(r'meta\.get\(\s*["\']host["\']\s*,', src), (
+            f"{name}: resolve the host via pp.host_from_meta, not a local "
+            f"meta.get('host', ...) default")
+
+
 def test_load_chain_pretag_legacy_npz_is_m12_host(tmp_path):
     """A legacy npz with host_Mvir_Msun but no host_model tag deserialises to
     the SatGen m12 NFW host (the only host such chains were ever run against)."""

@@ -43,8 +43,9 @@ def _cli() -> argparse.Namespace:
                         "and derived.npz")
     p.add_argument("--host", choices=("stored", "mw2022", "m12"), default="stored",
                    help="Host potential for the tidal radius: 'stored' uses "
-                        "each run's saved host metadata (default), 'mw2022' "
-                        "and 'm12' force that host for every run")
+                        "each run's saved host metadata, falling back to the "
+                        "MW2022 default when a chain recorded none (default); "
+                        "'mw2022' and 'm12' force that host for every run")
     return p.parse_args()
 
 
@@ -84,6 +85,9 @@ def main() -> int:
                           "audit.json selection_policy; cannot reprocess")
                     n_skip += 1
                     continue
+                # audit.json records no host; keep the chain's own if it had one.
+                if "host" in meta:
+                    legacy["host"] = meta["host"]
                 meta = legacy
                 origin = "audit.json"
 
@@ -97,7 +101,7 @@ def main() -> int:
                 thin_jd=meta.get("thin_jd", 500),
                 thin_profile=meta.get("thin_profile", 300),
                 host=host_override if host_override is not None
-                else meta.get("host", jdtidal.SATGEN_M12_HOST),
+                else pp.host_from_meta(meta),
                 tidal_factor=meta.get("tidal_factor", 2.0),
             )
             pp.write_summary_csv(

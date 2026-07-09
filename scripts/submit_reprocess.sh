@@ -75,8 +75,8 @@ fi
 
 # HOST=mw2022|m12|stored selects the tidal-radius host for every run (rides
 # through on the exported environment, like NO_PLOTS). Default 'stored' honors
-# each chain's saved host; use HOST=mw2022 to roll the real-MW host onto the
-# whole tree (legacy chains carry no host tag, so 'stored' == m12 for them).
+# each chain's saved host, falling back to the MW2022 default when a chain
+# recorded none; use HOST=m12 to force the legacy SatGen host onto every run.
 host_flag=()
 if [[ -n "${HOST:-}" ]]; then
     host_flag=(--host "$HOST")
