@@ -57,6 +57,8 @@ Routing: **reviewer** for routine passes; **deep-reviewer** when the change touc
 Reviewers consult `docs/review-checklist.md` for recurring bug classes in this repo. **Only the main session writes to this file**. When a reviewer (or any subagent) catches a bug whose class isn't already listed, it must surface the proposed class in its findings — a one-line class name, where the bug typically appears, what goes wrong when it slips through, and what reviewers should flag going forward — and leave the file edit to the main session. Serializing writes through the main session keeps framing consistent and entries general enough to catch near-misses, not just the exact bug that triggered them.
 
 Entries describe the class, not the instance: name the failure mode, its consequences, the symptoms, and the review-time signals. Do not put the triggering file:line in the "what to flag" body.
+
+When you delegate a verification or review task, never assert the expected current state in the brief ("X is staged but not yet run," "Y still exists"): state drifts between when you frame the task and when the agent runs it — especially for user-gated actions and long background jobs — so a stale premise reads as authoritative and produces a false PASS. Hand the agent the artifacts and have it derive current state itself (`ls`/`git log`/dry-run), and ask it to flag any contradiction with your assumptions rather than confirm them.
  
 ### When the gate fires
  
