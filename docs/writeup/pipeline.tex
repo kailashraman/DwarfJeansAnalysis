@@ -570,12 +570,24 @@ implemented in \code{src/dwarfjeans/jeans/solver.py} (\code{nfw\_M},
 Taylor series for $x < 10^{-3}$.  No tidal-radius truncation is
 applied at this stage; the integration upper limit is set to
 $100\max(r_s, r_p)$, well into the Plummer $r^{-5}$ tail.  This is
-justified by a scale separation between the tracers and $r_t$: across
-the 39 MW dwarfs the 3D tracer-mass fraction beyond $r_t$ (MW host,
-median posterior) is below $0.5\%$ for 32, the clear exceptions being
-the extended, tidally-influenced systems Crater~2 ($\sim$18\%),
-Antlia~2 ($\sim$6.5\%) and Bootes~3 ($\sim$3.3\%), for which the
-equilibrium Jeans model is independently suspect.
+justified by a scale separation between the tracers and $r_t$.  Across
+the 39 MW dwarfs the 3D tracer-mass fraction beyond $r_t$ (MW host) is
+$f = 1 - r_t^3/(r_t^2 + r_p^2)^{3/2}$, evaluated per posterior draw
+(\code{scripts/scale\_sep95.py}).  Its median is below $0.5\%$ for 32
+of 39; because $f$ is steeply nonlinear in $r_t$ the median understates
+the upper tail, so we also quote the 95th percentile of the per-draw
+posterior, below $0.5\%$ for 24 of 39 and below $2\%$ for 34 of 39.
+The conclusion is insensitive to the choice of summary: under either
+the same three extended, tidally-influenced systems are the exceptions
+--- Crater~2 (median $18\%$, 95th percentile $30\%$), Antlia~2
+($6.5\%$, $10\%$) and Bootes~3 ($3.1\%$, $10.0\%$) --- and for these
+the equilibrium Jeans model is independently suspect.  Among these
+three Bootes~3 has the most skewed posterior, and only the 95th
+percentile places it unambiguously with the other two.  These
+percentages are from the \code{jeffreys} posterior; since $r_t$ tracks
+the inferred mass, $f$ is prior-dependent (the single values swing by
+$\sim$3$\times$ across priors) while the identity of the three
+exceptions is not.
 
 \paragraph{Plummer tracer.}
 The 3D stellar number density and projected surface density are
