@@ -16,6 +16,7 @@ Guidance for Claude Code (claude.ai/code) when working with code in this reposit
 - Match existing style. Don't refactor or "improve" adjacent code.
 - Remove imports/variables your changes made unused; leave pre-existing dead code alone (mention it, don't delete it).
 - Every changed line should trace to the user's request.
+- Extend existing scripts; don't clone them. If a pipeline script already produces the needed output, run it — a broader run beats a parallel copy that duplicates logic and drifts. To narrow what it does (e.g. recompute only one output type), add a flag to that script; don't copy its logic into a new file.
 ### Goal-driven execution
 - Transform tasks into verifiable goals with success criteria.
 - For multi-step work, state a brief plan with verification checks.
