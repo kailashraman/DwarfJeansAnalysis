@@ -66,6 +66,14 @@ generating synthetic input at known truth and reporting bias and
 dispersion across realisations.
 \end{abstract}
 
+\noindent The posteriors this pipeline produces are used in Raman,
+Folsom, Kaplinghat, Lisanti \& Safdi (2026), \emph{Semi-analytic
+Inference of Satellite Densities in the Cold Dark Matter Model},
+Part~I (arXiv:2607.27316) and Part~II (arXiv:2607.27326).  That series
+is distinct from Geha et~al.\ (2026), whose two papers are called
+``Paper~I'' (arXiv:2602.10200) and ``Paper~II'' (arXiv:2602.10202)
+elsewhere in this document.
+
 \noindent\emph{This document describes the pipeline as implemented
 in code. Repository layout, module boundaries, and migration history
 live in \code{ARCHITECTURE.md} at the repository root; the working
@@ -247,7 +255,9 @@ This section summarizes the two paths as they are implemented.
 \label{sec:stage0b-patha}
 
 The 22 Path~A galaxies are ingested from the homogeneous Keck/DEIMOS
-spectroscopic census of Geha et~al.\ (2026, Papers~I/II).  The driver
+spectroscopic census of Geha et~al.\ (2026, Papers~I and~II;
+arXiv:2602.10200 and arXiv:2602.10202).  ``Paper~I'' and ``Paper~II''
+always refer to these two.  The driver
 is \code{src/dwarfjeans/ingest/stage0b\_geha.py}; it reads the
 pre-staged full-precision per-star catalog
 \code{data/geha2026/table5A\_20260110.csv} (Paper~I,
@@ -467,7 +477,7 @@ inter-epoch $\Delta v$.
 \label{sec:stage0b-perpaper}
 
 The canonical table of per-paper combiner settings is maintained in
-\code{docs/plan/per\_paper\_combiners.md}.  All seven per-paper
+\code{docs/plan/per\_paper\_combiners.md}.  All six per-paper
 handlers currently set
 \code{CombinePolicy.sigma\_sys\_kms = 0.0} --- not because the source
 papers omit a systematic floor, but precisely because every paper in
