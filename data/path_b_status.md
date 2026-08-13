@@ -31,7 +31,7 @@ discoveries next, likely-blocked last). One paper per commit.
 | 14 | Hansen 2024 (`2024ApJ...968...21H`) | Tucana V | done | User-supplied ASCII Table 1 ("Observing Log"), per-epoch v_hel for 3 Tuc V members across 17 MIKE+IMACS epochs. Adapter normalizes a non-standard `hh:mm:ss:ff` RA typo on rows 1-2, inherits Gaia ID/coords across continuation rows. Tuc V-1 shows binary-like 21 km/s swings; excluding it gives σ ≈ 0.93 km/s, matching LVDB σ = 1.2 km/s. |
 | 15 | Tan 2025 (`2025ApJ...979..176T`) | Leo VI | done | User-supplied ASCII Table 2 (decimal coords, `v +or- err`). Paper's own ε_vhel < 10 km/s split: 9 confirmed (p=1), 4 candidates (p=0, `member_flag='C'`). `<V>` matches paper. |
 
-VizieR-available subset (verified 2026-05-05 via `astroquery.vizier.Vizier.find_catalogs`): papers 1–2 and 6–9 and 12 (7 of 15). The other 8 were IOP-published with no VizieR mirror; their machine-readable tables sit behind a Radware bot-detection wall on iopscience. As of 2026-05-06 all 8 are resolved via user browser-session downloads — **Path B sweep complete**.
+VizieR-available subset (verified 2026-05-05 via `astroquery.vizier.Vizier.find_catalogs`): papers 1–2 and 6–9 and 12 (7 of 15). The other 8 are IOP-published with no VizieR mirror, and the publisher blocks automated downloads of their machine-readable tables, so these were downloaded through a browser and staged by hand. As of 2026-05-06 all 8 are resolved — **Path B sweep complete**.
 
 Statuses:
 - `pending` — not yet attempted.

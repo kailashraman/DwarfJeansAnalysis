@@ -34,7 +34,7 @@ flag_gaia, flag_HB, Pmem, Pmem_novar
 Galaxy, RA, DEC, r, gr, nmask, t_exp, SN, v, verr, CaT, CaTerr, FeH, FeH_err, Var, Pmem
 ```
 
-`Pmem` is the graded probability; `Var` is the boolean velocity-variability flag. Combining them as `Pmem > 0.5 & Var != 1` does NOT exactly reproduce Paper II Table A1 N*: residuals scatter ±10% across the sample. The `Pmem_novar` column in `table5A_20260110.csv` closes this gap.
+`Pmem` is the graded probability; `Var` is the boolean velocity-variability flag. This release lacks `Pmem_novar`, so the flag has to be reconstructed: combining them as `Pmem > 0.5 & Var != 1` recovers Paper II Table A1 N\* only approximately, with residuals of ±10% across the sample. The `Pmem_novar` column in `table5A_20260110.csv` is the column Paper II uses, which is why the current release is the one ingested.
 
 ## Acquisition
 
@@ -47,4 +47,4 @@ Galaxy, RA, DEC, r, gr, nmask, t_exp, SN, v, verr, CaT, CaTerr, FeH, FeH_err, Va
 
 ## Read-only after staging
 
-Stage 0b reads from this folder and never writes back. Auto-fetch from the Dropbox URL at runtime is forbidden — the Dropbox link contains a session token that may expire, and re-fetch would violate the "stage once, version-pin, never re-fetch" pattern.
+Stage 0b reads from this folder and never writes back. Auto-fetch at runtime is forbidden: the page above serves the CSV through a tokenized Dropbox link whose token expires, so the fetch URL is not durable, and re-fetching would violate the "stage once, version-pin, never re-fetch" pattern.
