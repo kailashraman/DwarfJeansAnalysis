@@ -34,8 +34,9 @@ DwarfJeansAnalysis/
 │       │   ├── inference.py         dynesty driver (4D, 7D, and 9D with PM marginalisation)
 │       │   ├── solver.py            σ_los(R) Jeans integrator
 │       │   ├── perspective.py       Kaplinghat–Strigari Δv_persp computation
-│       │   ├── priors.py            four-prior registry (uniform,
-│       │   │                         loguniform, jeffreys, satgen);
+│       │   ├── priors.py            six-prior registry (uniform,
+│       │   │                         loguniform, jeffreys, satgen,
+│       │   │                         satgen_box, satgen_shmr);
 │       │   │                         Fisher-determinant log term;
 │       │   │                         split-normal PM PPF + 7D→9D wrapper
 │       │   ├── constant_sigma.py    Walker+2006 constant-σ baseline
@@ -84,8 +85,9 @@ DwarfJeansAnalysis/
 │       └── analyze_asimov.py
 ├── docs/
 │   ├── writeup/
-│   │   └── pipeline.tex             single doc, all stages
-│   │                                 (PDF built by CI — not committed)
+│   │   ├── pipeline.tex             single doc, all stages
+│   │   ├── pipeline.pdf             built locally, committed with the .tex
+│   │   └── dynesty_citations.tex
 │   ├── plan/                        living markdown specs
 │   ├── original-plan/               frozen reference (read-only)
 │   └── review-checklist.md          recurring bug classes for reviewers
@@ -95,8 +97,10 @@ DwarfJeansAnalysis/
 │   ├── lvdb_v1.0.5/                 LVDB snapshot
 │   └── <per-paper raw dirs>         raw ingest inputs (kirby2015/, walker2015/, …)
 ├── plots/                           per-galaxy regen plots (gitignored)
-└── results/                         run outputs (gitignored)
+└── results/                         run outputs (gitignored except as noted)
     ├── production/<lvdb_key>/<prior>/   canonical, overwritten on each run
+    │                                     (only production/README.md is tracked)
+    ├── audits/                          tracked
     └── tests/<test_name>/               outputs from integration-test runs
 ```
 
@@ -258,11 +262,12 @@ The `src/` migration originally laid out in this document is
 `src/dwarfjeans/` package is editable-installed; ingest, jeans, jd,
 and mocks all moved out of `docs/plan/*.py`; `priors.py` is extracted;
 tests live under `tests/unit/` and `tests/integration/`; `results/`
-is gitignored; `docs/writeup/pipeline.tex` exists and is built by CI.
+is gitignored; `docs/writeup/pipeline.tex` exists, and its PDF is built
+locally and committed alongside it.
 
 The multi-epoch combiner machinery (`ingest/multi_epoch.py`,
 `ingest/combiners/`) was originally listed as out-of-band feature
-work; it is now mainline (seven per-paper handlers + default fallback,
+work; it is now mainline (six per-paper handlers + default fallback,
 unit tests under `tests/unit/test_*combiner*.py` and
 `test_multi_epoch.py`).
 

@@ -10,7 +10,7 @@
 ## Files
 
 - `table5A_20260110.csv` — Paper I per-star catalog, 24,436 rows × 50 columns, full precision. **Authoritative source for Stage 0b Path A as of 2026-05-08.** Carries the binary `Pmem_novar` column that reproduces Paper II Table A1 N* counts.
-- `table3A_20260110.csv` — Earlier Paper I release, 22,340 rows × 16 columns. Lacks the `Pmem_novar` column. Retained for cross-checks; **no longer ingested**.
+- `table3A_20260110.csv` — Earlier Paper I release, 22,339 rows × 16 columns. Lacks the `Pmem_novar` column. Retained for cross-checks; **no longer ingested**.
 - `checksums.sha256` — SHA-256 of both data files.
 
 ## table5A header (verified 2026-05-08)
@@ -26,7 +26,7 @@ gaia_parallax_err, gaia_aen, gaia_aen_sig, flag_coadd, flag_var,
 flag_gaia, flag_HB, Pmem, Pmem_novar
 ```
 
-`v` is heliocentric line-of-sight velocity (km/s), `v_err` its 1σ error, `Pmem_novar` is the binary 0/1 membership flag (1 = member, velocity variables already removed). Verified bit-identical to the MRT for `Pmem_novar` across the full sample; numerical columns (`v`, `RA`, `DEC`, etc.) carry higher precision than the MRT.
+`v` is heliocentric line-of-sight velocity (km/s), `v_err` its 1σ error, `Pmem_novar` is the binary 0/1 membership flag (1 = member, velocity variables already removed). At staging time `Pmem_novar` was recorded as agreeing exactly with the ApJ supplement MRT across the full sample, with the CSV's numerical columns (`v`, `RA`, `DEC`, etc.) carrying more precision than the MRT. **No copy of that MRT is archived here** (see Acquisition below), so the comparison cannot be re-run from this folder.
 
 ## CSV header (legacy, no longer ingested)
 
@@ -34,12 +34,16 @@ flag_gaia, flag_HB, Pmem, Pmem_novar
 Galaxy, RA, DEC, r, gr, nmask, t_exp, SN, v, verr, CaT, CaTerr, FeH, FeH_err, Var, Pmem
 ```
 
-`Pmem` is the graded probability; `Var` is the boolean velocity-variability flag. Combining them as `Pmem > 0.5 & Var != 1` does NOT exactly reproduce Paper II Table A1 N*: residuals scatter ±10% across the sample. The `Pmem-novar` column from the MRT closes this gap.
+`Pmem` is the graded probability; `Var` is the boolean velocity-variability flag. Combining them as `Pmem > 0.5 & Var != 1` does NOT exactly reproduce Paper II Table A1 N*: residuals scatter ±10% across the sample. The `Pmem_novar` column in `table5A_20260110.csv` closes this gap.
 
 ## Acquisition
 
-- **CSV staged:** 2026-05-05 by Kailash Raman from `Segue1_test/data/`.
-- **MRT staged:** 2026-05-08 by Kailash Raman from the ApJ supplement (apjae290dt5_mrt.txt).
+- **`table3A_20260110.csv` staged:** 2026-05-05 by Kailash Raman from `Segue1_test/data/`.
+- **`table5A_20260110.csv` staged:** 2026-05-08 by Kailash Raman, from the Geha
+  Group DEIMOS release (Upstream URL above).
+- No copy of the ApJ supplement MRT (`apjae290dt5_mrt.txt`) is present in this
+  folder. The two CSVs listed under Files are the only archived data files, and
+  `checksums.sha256` covers both.
 
 ## Read-only after staging
 
