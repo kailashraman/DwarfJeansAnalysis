@@ -235,7 +235,7 @@ def main(argv=None):
     base = 'https://sandbox.zenodo.org' if args.sandbox else 'https://zenodo.org'
     try:
         fetch(args.record, base, args.dest, args.files_from, args.force, tmp=args.tmp)
-    except FetchError as e:
+    except (FetchError, OSError) as e:
         print(f'ERROR: {e}', file=sys.stderr)
         return 1
     return 0
