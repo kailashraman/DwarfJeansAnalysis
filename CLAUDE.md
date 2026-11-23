@@ -112,9 +112,8 @@ reproduce only statistically.
 - **Rerunning does not reproduce the deposited `samples_eq` exactly.** The
   resample that produced it was unseeded; it is seeded now, so new runs
   are expected to reproduce their own `samples_eq` given the same seed and
-  `npool`; this was tested on a toy likelihood only. The two real-galaxy
-  reruns (pisces_2, `npool=1`) predate the seeding and reproduced `logZ`,
-  `logZ_err` and `n_eq`. Say "reproduces statistically" for the deposited
+  `npool`; this was tested on a toy likelihood and on pisces_2/satgen at
+  `npool=1` (rerun twice, identical chains). Pooled reruns were not tested. Say "reproduces statistically" for the deposited
   chains.
 - **Dwarf names are LVDB keys** (`draco_1`, `ursa_major_2`), not display names.
 - **`uniform` is a valid `--prior` but no deposited run uses it.** The SHMR

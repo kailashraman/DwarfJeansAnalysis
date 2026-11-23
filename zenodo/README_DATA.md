@@ -191,10 +191,11 @@ Checked, with the scope of each check:
 
 - **`derived.npz` and `summary.csv` from the deposited chains.**
   `scripts/reprocess.py` regenerated both bit for bit from the deposited
-  `samples_eq` for 4 runs: draco_1/satgen_shmr_moster18, pisces_2/satgen,
-  segue_1/jeffreys and ursa_major_2/loguniform. The check ran at commit
-  6acd829 plus changes later committed as 29c705c and c449a5b, which do not
-  touch the derived-product path. The other 308 runs were not compared.
+  `samples_eq` for 5 runs: draco_1/satgen_shmr_moster18, leo_1/satgen_box
+  (both `npool=8` runs), pisces_2/satgen, segue_1/jeffreys and
+  ursa_major_2/loguniform, in the clean-room check below (commit d30134d; an
+  earlier check of four of them ran at 6acd829 with the changes later
+  committed as 29c705c and c449a5b). The other 307 runs were not compared.
   `reprocess.py` rewrites in place; use `--base` on a copy (see the
   repository `README.md`). It needs `data/` (star catalogs and registry, in
   git) and each run's `audit.json` (seed, thinning, selection policy).
@@ -208,11 +209,12 @@ Checked, with the scope of each check:
   its resample was unseeded.
 - **Equal-weight resample, going forward.** Since 29c705c the resample is
   seeded from `rseed`, so a new run is expected to reproduce its own
-  `samples_eq` given the same `rseed` and `npool`. This was tested on a toy
+  `samples_eq` given the same `rseed` and `npool`. This is tested on a toy
   likelihood for `npool=1` and `npool=2`
-  (`tests/unit/test_inference_determinism.py`); no seeded rerun of a real
-  galaxy is recorded in this README yet. The deposited chains were made
-  before this change, so they reproduce only statistically.
+  (`tests/unit/test_inference_determinism.py`), and on one real galaxy:
+  pisces_2/satgen rerun twice at `npool=1` with commit d30134d gave identical
+  `samples_eq` (and the deposited `logZ`, `logZ_err` and `n_eq`). The deposited
+  chains were made before this change, so they reproduce only statistically.
 - **Pooled runs (`npool` > 1).** The 80 `npool=8` runs were not rerun. A run is
   expected to be deterministic given `rseed` and `npool` (dynesty 3.0.0
   derives its per-queue seeds from the sampler's generator), but this was not
@@ -222,8 +224,8 @@ Checked, with the scope of each check:
 
 Not checked: any run other than those named above; any run on a different
 dynesty or numpy version than the one in `environment.yml`; any sampling rerun
-for the `jeffreys`, `loguniform` (other than pisces_2), `satgen_box` or
-`satgen_shmr_*` priors, or for any `npool=8` run.
+for the `jeffreys`, `loguniform` (other than pisces_2), `satgen` (other than
+pisces_2), `satgen_box` or `satgen_shmr_*` priors, or for any `npool=8` run.
 
 ## Provenance gaps
 
@@ -252,12 +254,12 @@ for the `jeffreys`, `loguniform` (other than pisces_2), `satgen_box` or
   `audit.json`'s `n_eq` equals N.
 - **Prior tables.** The satgen-family prior tables the runs used
   (`data/satgen_prior/`, 157 files: 1 global table and 4 SHMRs times 39
-  dwarfs, tracked in git) were rebuilt from SatelliteDensityInference's
-  deposited `inputs` tier with scratch copies of
+  dwarfs, tracked in git) were rebuilt by the committed
   `scripts/build_satgen_prior_table.py` and
-  `scripts/build_satgen_shmr_prior_tables.py` (paths from environment
-  variables; the tracked versions with `--h5` and `--weights-dir` differ only
-  in argument plumbing). Every numeric array of all 157 files was identical.
+  `scripts/build_satgen_shmr_prior_tables.py` at commit d30134d, from
+  SatelliteDensityInference's catalog and published Diemer weights
+  (sha256-identical to that record's `inputs` members; see "How this record
+  was checked"). Every numeric array of all 157 files was identical.
   The recorded metadata differs: the tables record the original SatGen_Dwarf
   paths and an `h5` sha256 beginning `4b9026`, while the deposited SatelliteDensityInference file
   has sha256 beginning `a9880a` (all 67 datasets in it are identical). The
@@ -301,6 +303,9 @@ for the `jeffreys`, `loguniform` (other than pisces_2), `satgen_box` or
   (`derived.npz` for the 7 non-`jeffreys` priors times 39 dwarfs, plus
   `ursa_major_2/loguniform/posterior_samples.npz`), unpacked under its
   `data/dja_results/`. It has no `audit.json`, `run.log` or `summary.csv`.
+  That record's MANIFEST names the DwarfJeansAnalysis commit checked out
+  when it was packed, which can differ from this record's; the files are the
+  same.
 
 ## Third-party data
 
@@ -318,10 +323,40 @@ the citations.
 
 ## How this record was checked
 
-Not yet recorded: the clean-room check (a fresh clone holding only this
-record, unpacked with `scripts/zenodo_fetch.py`, in an environment built from
-`environment.yml`) is run on this packing, and its results replace this
-paragraph before publication.
+Before publication, in a fresh clone of the repository at commit d30134d
+(later commits up to the packing commit change only documentation, the
+fetch's error reporting for unreadable files and the packer), with this
+record's archive unpacked by `scripts/zenodo_fetch.py --files-from` and an
+environment built from `environment.yml` (dynesty 3.0.0, numpy 2.4.3, scipy
+1.17.1). Every step ran under `strace`. Outside the fresh clone and its
+environment, the only files opened were this record's files (read by
+`--files-from` from the authors' build directory) and, for the prior-table
+rebuild, SatelliteDensityInference's `.h5` catalog and published Diemer
+weights, read from the authors' SatelliteDensityInference checkout and
+sha256-identical to the members of that record. No other file was opened
+from the authors' checkouts, data or conda environment.
+
+- **Fetch:** all 1560 files matched their `MANIFEST.json` sha256; a second
+  fetch left every file untouched.
+- **Tests:** the default `pytest` run passed (348 tests).
+- **Postprocessing:** `reprocess.py --no-plots` on copies of 5 runs (listed
+  above) reproduced `derived.npz` array for array and `summary.csv` byte for
+  byte.
+- **Prior tables:** the committed builders, given SatelliteDensityInference's
+  deposited `.h5` catalog and published Diemer weights, rebuilt all 157
+  tables with every numeric array identical (only the recorded source paths
+  and hashes differ).
+- **Sampling:** pisces_2/satgen, rerun twice (`rseed=0`, `npool=1`), gave
+  identical chains and the deposited `logZ`, `logZ_err` and `n_eq`; its
+  `samples_eq` differs from the deposited one, as expected (see above).
+- **Plot:** `scripts/plot_posteriors.py` redrew `jeans_corner.pdf` for
+  ursa_major_2/loguniform; at 100 dpi it is pixel-identical to
+  SatelliteDensityInference's committed `plots/jeans/jeans_corner.pdf`, with
+  the same size, text and fonts, using the authors' cluster TeX Live 2016.
+  The files' bytes differ (including the creation date).
+
+Not run: the network fetch path, the remaining 307 runs' postprocessing, and
+any `npool=8` sampling rerun.
 
 ## Licence
 

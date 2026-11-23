@@ -142,12 +142,14 @@ Stated precisely in `zenodo/README_DATA.md`; in short:
   deposited `samples_eq` was resampled with an unseeded generator, so it
   reproduces only statistically. The resample is now seeded, so new runs are
   expected to reproduce their own `samples_eq` given the same seed and
-  `npool`; this was tested on a toy likelihood, not yet on a real galaxy.
+  `npool`; this was tested on a toy likelihood and on one real galaxy
+  (pisces_2/satgen at `npool=1`, rerun twice).
 - A different `--npool` gives a different chain (the shift was not quantified
   here). 232 deposited runs used `npool=1` and 80 used `npool=8`; use the
   `npool` in each run's `run.log`. Pooled runs were not rerun.
 - `scripts/reprocess.py` reproduced `derived.npz` and `summary.csv` bit for bit
-  from the deposited chains for four runs, not all 312.
+  from the deposited chains for five runs (two of them `npool=8`), not all
+  312.
 - The deposited `audit.json` and `run.log` record no git commit, package
   versions or input hashes; their `r_t = 1.0 kpc` values are superseded by the
   per-draw tidal radius in `derived.npz` and `summary.csv`; and the deposited

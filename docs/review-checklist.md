@@ -171,3 +171,11 @@ Recurring bug classes for adversarial review. Reviewers consult this before sign
 ## Selection described by its intent instead of its rule
 
 - **A subset is labelled by what it is meant to be ("the classical dwarfs") rather than by the rule that defines it** (a launcher list with N_post > 100). Readers apply the usual meaning and get the membership wrong. What to flag: any named subset in docs; require the defining rule or the explicit list.
+
+## Allow-listed hits summarised as a clean result
+
+- **An isolation check's expected exceptions disappear from the summary.** Clean-room, strace, network or dependency audits pre-label expected reads as "ok", and the prose then says "nothing was opened outside X", hiding which reads were allowed and whether those inputs were the deposited bytes. What to flag: any "no file / no access / nothing outside" claim; require the allow-list to be stated in the claim and a content-identity check (sha256 against the deposit) for each allowed input.
+
+## Packer stamps provenance before reading what it ships
+
+- **The commit/clean stamp is taken, then files are read minutes later.** A commit or edit during a long build ships newer files under the older stamp, still marked clean. What to flag: any gap between a git-state check and the reads of shipped or stamped files; require the bytes to be held at check time or the state re-checked after the build.

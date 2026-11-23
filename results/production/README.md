@@ -72,9 +72,11 @@ How far this reproduces, as checked: the sampling stage reproduced `logZ`,
 `logZ_err` and `n_eq` exactly for two `npool=1` runs (pisces_2 `satgen` and
 `loguniform`), made before the equal-weight resample was seeded; the deposited
 `samples_eq` reproduces only statistically (it was resampled with an unseeded
-generator). `derived.npz` and `summary.csv` reproduced bit for bit from the
-deposited chains for four runs (`scripts/reprocess.py`, on a copy; see
-`README.md`). No `jeffreys`, SHMR-prior or `npool=8` run was rerun. The details
+generator). Since the resample was seeded, pisces_2/satgen rerun twice gave
+identical chains. `derived.npz` and `summary.csv` reproduced bit for bit from the
+deposited chains for five runs (`scripts/reprocess.py`, on a copy; see
+`README.md`). No `jeffreys`, SHMR-prior or `npool=8` run was rerun through
+the sampler. The details
 and the unchecked remainder are in `zenodo/README_DATA.md` ("What reproduces,
 and how far"). The deposit records no git commit, package versions or input
 hashes for the sampling runs.
