@@ -14,9 +14,14 @@ complete; see "Migration status" below.
 ```
 DwarfJeansAnalysis/
 ├── ARCHITECTURE.md                  this file
-├── CLAUDE.md                        agent behavioral guidelines
+├── CLAUDE.md                        guide for using the repo with Claude Code
 ├── README.md                        one-screen orientation for new users
+├── LICENSE                          MIT
 ├── pyproject.toml                   package metadata + deps
+├── environment.yml                  pinned conda environment (DwarfJeans)
+├── zenodo/
+│   ├── README_DATA.md               README of the Zenodo data record
+│   └── metadata.json                Zenodo deposition metadata
 ├── src/
 │   └── dwarfjeans/
 │       ├── __init__.py
@@ -67,6 +72,9 @@ DwarfJeansAnalysis/
 │   │                                 from saved chains (no dynesty); backfills
 │   ├── submit_batch.sh              SLURM array driver (one task / catalog)
 │   ├── run_batch.py                 local-node batch (multiprocessing)
+│   ├── zenodo_pack.py               pack results/production/ for the Zenodo record
+│   ├── zenodo_fetch.py              download + unpack the record
+│   ├── zenodo_upload.py             upload a packed build to a Zenodo draft
 │   ├── plot_posteriors.py           per-galaxy plot regen (lazy-derives)
 │   └── bench_*.py                   solver / sampler benchmarks
 ├── tests/
@@ -88,6 +96,7 @@ DwarfJeansAnalysis/
 │   │   ├── pipeline.tex             single doc, all stages
 │   │   ├── pipeline.pdf             built locally, committed with the .tex
 │   │   └── dynesty_citations.tex
+│   ├── claude.development.md        the authors' development rules (agent guidance)
 │   ├── plan/                        living markdown specs
 │   ├── original-plan/               frozen reference (read-only)
 │   └── review-checklist.md          recurring bug classes for reviewers
@@ -117,11 +126,13 @@ DwarfJeansAnalysis/
   These are entry points, not library code; keeping them outside
   `src/dwarfjeans/` keeps the package surface clean.
 
-- **`tests/unit/` vs. `tests/integration/`.** Enforces the CLAUDE.md
-  gold-standard rule. `integration/` holds whole-pipeline tests:
-  `run_segue1.py` (single-galaxy mock-pipeline check),
-  `run_ufd_population.py` (15-realization MC recovery), and
-  `analyze_asimov.py` (Asimov bias check).
+- **`tests/unit/` vs. `tests/integration/`.** Enforces the
+  `docs/claude.development.md` gold-standard rule. `integration/` holds
+  whole-pipeline scripts, run by hand: `run_segue1.py` (single-galaxy
+  real-data smoke test), `run_ufd_population.py` (15-realization MC
+  recovery), `run_perspective_calibration.py` (mock-data calibration of
+  perspective and PM marginalisation), and `analyze_asimov.py` (Asimov bias
+  check).
 
 - **`results/` gitignored, split by purpose.**
   - `results/production/<lvdb_key>/<prior>/` — canonical per-galaxy
@@ -138,10 +149,10 @@ DwarfJeansAnalysis/
   on 2026-05-08.
 
 - **`docs/writeup/`.** Single `pipeline.tex` covering all stages,
-  per CLAUDE.md. Both the `.tex` source and the compiled
+  per `docs/claude.development.md`. Both the `.tex` source and the compiled
   `pipeline.pdf` live in the repo; the PDF is built locally and
-  committed alongside any `.tex` change (see CLAUDE.md "Pipeline
-  documentation").
+  committed alongside any `.tex` change (see "Pipeline
+  documentation" in `docs/claude.development.md`).
 
 - **`jeans/priors.py` is its own module** because we run with multiple
   prior choices (loguniform vs. Jeffreys) and the Stage 2 MC and
@@ -178,7 +189,8 @@ DwarfJeansAnalysis/
   `derived.npz` (`save_derived`) holding the full per-draw derived arrays —
   J/D-factors, `r_t`, `θ95`, `M(r½)`, etc. — keyed to mirror the
   pre-refactor npz layout; it is a side-output, not part of the chain
-  contract. `reprocess.py` backfills the existing tree by reading the same
+  contract. (The deposited chain files hold `samples_eq` only; see
+  `zenodo/README_DATA.md`.) `reprocess.py` backfills the existing tree by reading the same
   metadata from each run's `audit.json` when an older npz predates this
   contract.
 

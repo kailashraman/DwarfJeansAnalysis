@@ -1,50 +1,83 @@
 # Production Posteriors — Zenodo Deposit
 
-The full posterior chains from the 39-galaxy production sweep are not stored
-in this git repository. They are archived on Zenodo with a permanent DOI.
+The posterior chains from the 39-galaxy production sweep are not stored in
+this git repository. They are archived on Zenodo; `zenodo/README_DATA.md` (also
+the record's README) describes the deposit, its file formats, what reproduces
+and how far, and its provenance gaps. Read it before relying on anything here.
 
 ## Deposit
 
-- **DOI:** _TBD — fill in after Zenodo upload_
-- **URL:** _TBD_
-- **Version:** _TBD (matches git tag / commit)_
-- **Size:** ~930 MB (312 chains: 39 galaxies × 8 configurations — the
-  `jeffreys`, `loguniform`, `satgen` and `satgen_box` priors, plus
-  `satgen_shmr` run once per SHMR (`fattahi18`, `moster18`,
-  `danieli23_const`, `kim24`), which land in `satgen_shmr_<shmr>/` leaves)
+- **DOI:** added on publication.
+- **Record:** `https://zenodo.org/records/<RECORD_ID>`, added on publication.
+- **Version:** `MANIFEST.json`'s `dja_git_commit` is the packing commit (the
+  tools and documents), not the code that produced the runs.
+- **Contents:** 312 runs: 39 galaxies times 8 prior directories (`jeffreys`,
+  `loguniform`, `satgen`, `satgen_box`, and `satgen_shmr_<shmr>` for the four
+  SHMRs `danieli23_const`, `fattahi18`, `kim24`, `moster18`), 5 files each
+  (1560 files, 0.97 GB before compression). The code also accepts a
+  `uniform` prior, but no `uniform` run is in the deposit.
 
-## Contents
+## Layout
 
-Each chain is stored as a `posterior_samples.npz` under
-`<lvdb_key>/<prior>/`, alongside its `summary.csv`, `audit.json`, and
-`run.log`. See `ARCHITECTURE.md` for the output-path convention.
+Each run is `<lvdb_key>/<prior>/` with:
 
-`posterior_samples.npz` fields: _TBD — document keys (samples, logl,
-weights, …) and shapes._
+| file | contents |
+|---|---|
+| `posterior_samples.npz` | `samples_eq`: equal-weight posterior samples, shape (N, 9), columns `V`, `log10_rs`, `log10_rhos`, `beta_tilde`, `d_kpc`, `eps`, `rhalf_arcmin`, `pmra`, `pmdec`. Nothing else is stored |
+| `derived.npz` | per-draw derived arrays (J/D-factors, M(r_1/2), sigma_los, tidal radius, theta95, ...) |
+| `summary.csv` | q16/q50/q84 of 31 quantities, all from `samples_eq` except `sigma_los_walker_kms` (a separate constant-sigma fit) |
+| `audit.json` | registry row, selection policy, sampler configuration and thinning. Its `r_t_kpc` (1.0) is superseded |
+| `run.log` | run stdout, including the pool size (`npool`). Its "J/D integrals" block (fixed `r_t=1.0 kpc`) is superseded |
+
+`derived.npz` and `summary.csv` use a per-draw tidal radius and were
+regenerated on 2026-07-09 from `samples_eq`; the `r_t=1.0 kpc` values in
+`audit.json` and `run.log` are from the original May runs and should not be
+used. `zenodo/README_DATA.md` lists the keys and rows and the other provenance
+gaps. See `ARCHITECTURE.md` for the output-path convention.
+
+## Fetching
+
+From the repository root, in the environment built from `environment.yml`:
+
+```bash
+python scripts/zenodo_fetch.py --record <RECORD_ID>
+```
+
+This unpacks into `results/production/`, checks the archive's checksums and
+refuses to overwrite a differing local file unless given `--force`
+(`python scripts/zenodo_fetch.py --help`).
 
 ## Reproduction
 
-The chains can be regenerated from the tracked code and input catalogs
-(`data/star_catalogs/`) using:
-
 `--prior` is one of `uniform`, `loguniform`, `jeffreys`, `satgen`,
 `satgen_box`, `satgen_shmr`; `--shmr` is required iff `--prior satgen_shmr`.
+The chains can be regenerated from the tracked code and input catalogs
+(`data/star_catalogs/`) with the settings of the deposit (`--nlive 1500
+--dlogz 0.05 --rseed 0`, the default seed, recorded as `dynesty.rseed` in
+`audit.json`):
 
 ```bash
-# Single galaxy
+# Single galaxy (--output-base keeps it from overwriting this tree)
 python scripts/run_production.py --lvdb-key <key> --prior <prior> \
-    [--shmr <shmr>] --nlive 1500 --dlogz 0.05
-
-# Full sweep (SLURM array; invoke through bash, not sbatch)
-bash scripts/submit_batch.sh --cohort {classical|ufd} --prior <prior> [--shmr <shmr>]
+    [--shmr <shmr>] --nlive 1500 --dlogz 0.05 --rseed 0 --npool <npool> \
+    --output-base results/scratch
 ```
 
-_TBD — pin commit SHA, runtime envelope, and seed handling for exact
-reproducibility._
+Use the `npool` printed in the deposited run's `run.log` (1 for 232 runs, 8
+for the 80 runs of the ten classical dwarfs); a different `npool` gives a
+different chain (the size of the shift was not quantified). `scripts/submit_batch.sh` runs the sweep as a SLURM array and
+is specific to the authors' cluster (see `README.md`).
 
-## Fetching from Zenodo
-
-_TBD — fetch command or script._
+How far this reproduces, as checked: the sampling stage reproduced `logZ`,
+`logZ_err` and `n_eq` exactly for two `npool=1` runs (pisces_2 `satgen` and
+`loguniform`), made before the equal-weight resample was seeded; the deposited
+`samples_eq` reproduces only statistically (it was resampled with an unseeded
+generator). `derived.npz` and `summary.csv` reproduced bit for bit from the
+deposited chains for four runs (`scripts/reprocess.py`, on a copy; see
+`README.md`). No `jeffreys`, SHMR-prior or `npool=8` run was rerun. The details
+and the unchecked remainder are in `zenodo/README_DATA.md` ("What reproduces,
+and how far"). The deposit records no git commit, package versions or input
+hashes for the sampling runs.
 
 ## Citation
 
@@ -56,4 +89,4 @@ Kaplinghat, Lisanti & Safdi, 2026):
 - Part II — Implications for Dark Matter Indirect Detection Constraints,
   arXiv:2607.27326
 
-_TBD — Zenodo citation block, once the deposit is made._
+The Zenodo citation (DOI) is added on publication.

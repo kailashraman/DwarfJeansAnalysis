@@ -72,3 +72,6 @@ logs/
 # Local sanity-check scripts and figures
 scratch/
 
+
+# Local Claude Code guidance (loads docs/claude.development.md)
+CLAUDE.local.md

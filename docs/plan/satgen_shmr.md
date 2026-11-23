@@ -188,8 +188,8 @@ truncated-normal on $[0,1]$.
 Per-dwarf output: `data/satgen_prior/<SHMR_KEY>/<lvdb_key>.npz`,
 plus a `build_summary.json` per SHMR collecting the metadata blocks
 across the study sample. These tables are an explicit exception to
-the "don't commit generated outputs" rule (see
-`CLAUDE.md` and the corresponding memory): the upstream weights are
+the "never commit ... generated outputs" rule in `docs/claude.development.md`
+("Version control"): the upstream weights are
 themselves derived data and we want the inference fully reproducible
 from a fresh checkout without re-running the SatGen_Dwarf pipeline.
 
