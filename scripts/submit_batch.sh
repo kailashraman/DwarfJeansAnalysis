@@ -10,7 +10,7 @@
 #SBATCH --mem=8G
 #SBATCH --mail-type=NONE
 #SBATCH --exclude=n0150.lr7
-#SBATCH --output=/global/scratch/projects/pc_heptheory/kraman/DwarfJeansAnalysis/logs/slurm-%A_%a.out
+#SBATCH --output=logs/slurm-%A_%a.out
 
 # Production driver: one array task per staged catalog in
 # data/star_catalogs/. Each task runs scripts/run_production.py for one
@@ -50,10 +50,21 @@
 # --npool=$SLURM_CPUS_PER_TASK to dynesty so the pool size auto-syncs
 # with the SLURM allocation. Sized for the slowest classical (Draco-class):
 # pool=8 expected to give ~4-4.5× wall reduction on those, ~3× on UFDs.
+# Log path is relative: a bare `sbatch` must be run from the repo root with
+# logs/ present (the `bash` wrapper creates it).
 # Total array demand: 39 × 8 = 312 cores; lr7 should schedule in parallel.
 
 set -euo pipefail
-cd /global/scratch/projects/pc_heptheory/kraman/DwarfJeansAnalysis
+# Repo root: derived from this script's location in the outer `bash` call
+# (BASH_SOURCE is a spool copy under SLURM) and passed to the array tasks via
+# --export; a bare `sbatch` falls back to the submit directory.
+if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+    DJA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+else
+    DJA_ROOT="${DJA_ROOT:-$SLURM_SUBMIT_DIR}"
+    [[ -f "$DJA_ROOT/scripts/run_production.py" ]] || { echo "not the DwarfJeansAnalysis root: $DJA_ROOT (submit from the repo root)" >&2; exit 1; }
+fi
+cd "$DJA_ROOT"
 
 # -----------------------------------------------------------------------------
 # Wrapper mode: not running inside an array task, so translate user-supplied
@@ -161,7 +172,7 @@ EOF
         echo "ERROR: --shmr is only valid with --prior satgen_shmr" >&2; exit 1
     fi
     array_arg=$(IFS=,; echo "${INDICES[*]}")
-    export_list="ALL,PRIOR=$PRIOR_ARG,NLIVE=$NLIVE_ARG,DLOGZ=$DLOGZ_ARG"
+    export_list="ALL,DJA_ROOT=$DJA_ROOT,PRIOR=$PRIOR_ARG,NLIVE=$NLIVE_ARG,DLOGZ=$DLOGZ_ARG"
     if [[ -n "$SHMR_ARG" ]]; then
         export_list+=",SHMR=$SHMR_ARG"
     fi
@@ -180,7 +191,8 @@ EOF
     echo "Submitting: prior=$PRIOR_ARG${SHMR_ARG:+ shmr=$SHMR_ARG}" \
          "nlive=$NLIVE_ARG dlogz=$DLOGZ_ARG" \
          "pool=${POOL_OVERRIDE:-<header default>} array=$array_arg"
-    exec sbatch "${sbatch_args[@]}" "$0"
+    mkdir -p "$DJA_ROOT/logs"
+    exec sbatch "${sbatch_args[@]}" "$DJA_ROOT/scripts/submit_batch.sh"
 fi
 
 # -----------------------------------------------------------------------------

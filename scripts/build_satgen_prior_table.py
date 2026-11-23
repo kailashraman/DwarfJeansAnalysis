@@ -1,7 +1,8 @@
 """Derive the SatGen-based (r_s, ρ_s) prior table.
 
-Reads the ΛCDM-with-tidal-stripping subhalo catalog from SatGen_Dwarf,
-converts each halo's (v_max, r_max) to NFW (r_s, ρ_s), bins in
+Reads the ΛCDM-with-tidal-stripping subhalo catalog
+(m12res8_10k_Diemer+scatter_sim.h5) from the SatelliteDensityInference
+Zenodo record (`inputs` tier) or checkout, converts each halo's (v_max, r_max) to NFW (r_s, ρ_s), bins in
 log10 r_s, and saves the per-bin Gaussian moments of log10 ρ_s plus
 the marginal CDF of log10 r_s.
 
@@ -13,10 +14,15 @@ Outputs:
   data/satgen_prior/diagnostics_skew_kurt_N.png
 
 The npz is the only artifact the inference path consumes.
+
+Input: --h5, default <repo>/../SatelliteDensityInference/data/satgen_catalogs/
+m12res8_10k_Diemer+scatter_sim.h5 (the sibling SatelliteDensityInference
+checkout, or the same layout unpacked from its Zenodo `inputs` tier).
 """
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 import json
 from pathlib import Path
@@ -28,11 +34,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from scipy import stats
 
-SATGEN_PATH = Path(
-    "/global/scratch/projects/pc_heptheory/kraman/SatGen_Dwarf/data/additional/"
-    "m12res8_10k_Diemer+scatter_sim.h5"
-)
-OUT_DIR = Path(__file__).resolve().parent.parent / "data" / "satgen_prior"
+REPO = Path(__file__).resolve().parent.parent
+SDI_DATA = REPO.parent / "SatelliteDensityInference" / "data"
+DEFAULT_H5 = SDI_DATA / "satgen_catalogs" / "m12res8_10k_Diemer+scatter_sim.h5"
+OUT_DIR = REPO / "data" / "satgen_prior"
 
 # Match the registry bounds.
 LOG10_RS_BOUNDS = (-2.0, 1.0)
@@ -53,9 +58,15 @@ def _sha256(path: Path) -> str:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--h5", type=Path, default=DEFAULT_H5,
+                        help="SatGen subhalo catalog .h5 (default: %(default)s)")
+    args = parser.parse_args()
+    satgen_path = args.h5
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
 
-    with h5py.File(SATGEN_PATH, "r") as fh:
+    with h5py.File(satgen_path, "r") as fh:
         v_max_kpcGyr = fh["v_max"][()]
         r_max_kpc = fh["r_max"][()]
 
@@ -146,8 +157,8 @@ def main() -> None:
     pooled_kurt = float(stats.kurtosis(residuals, fisher=True))
 
     metadata = {
-        "source_path": str(SATGEN_PATH),
-        "source_sha256": _sha256(SATGEN_PATH),
+        "source_path": str(satgen_path),
+        "source_sha256": _sha256(satgen_path),
         "x_max": 1.0 / RS_OVER_RMAX,
         "rs_over_rmax": RS_OVER_RMAX,
         "rhos_coeff": RHOS_COEFF,

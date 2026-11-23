@@ -2,7 +2,8 @@
 
 For each galaxy in the 39-dwarf study sample, the Diemer halo catalog
 is reweighted by the precomputed Fattahi+18 (or other) stellar-to-halo
-mass relation weights from the SatGen_Dwarf sibling repo. Those
+mass relation weights (SatelliteDensityInference's published Diemer
+weights). Those
 weights already include a geometric prior that zeroes any halo whose
 galactocentric distance falls outside a factor of 2 of the observed
 GC distance — so the effective sub-population per dwarf is much
@@ -14,6 +15,12 @@ inference loader reuses the same code path.
 
 Outputs (one per dwarf):
   data/satgen_prior/<shmr>/<lvdb_key>.npz
+
+Inputs come from the SatelliteDensityInference Zenodo record (`inputs`
+tier) or checkout. Defaults, relative to the sibling checkout
+<repo>/../SatelliteDensityInference/data/:
+  --h5           satgen_catalogs/m12res8_10k_Diemer+scatter_sim.h5
+  --weights-dir  halo_weights_published/Diemer/
 """
 
 from __future__ import annotations
@@ -29,13 +36,14 @@ import numpy as np
 import yaml
 
 REPO = Path(__file__).resolve().parent.parent
-SATGEN_REPO = Path("/global/scratch/projects/pc_heptheory/kraman/SatGen_Dwarf")
-SATGEN_H5 = SATGEN_REPO / "data/additional/m12res8_10k_Diemer+scatter_sim.h5"
-WEIGHT_DIR = SATGEN_REPO / "data/additional/weights_gc/Diemer"
+SDI_DATA = REPO.parent / "SatelliteDensityInference" / "data"
+DEFAULT_H5 = SDI_DATA / "satgen_catalogs" / "m12res8_10k_Diemer+scatter_sim.h5"
+DEFAULT_WEIGHT_DIR = SDI_DATA / "halo_weights_published" / "Diemer"
 STUDY_YAML = REPO / "src/dwarfjeans/ingest/config/study_sample.yaml"
 OUT_BASE = REPO / "data/satgen_prior"
 
-# Order in SatGen_Dwarf/python/compute_weights.py::SHMR_names.
+# Order in SatelliteDensityInference python/compute_weights.py::SHMR_names
+# (inherited from SatGen_Dwarf).
 SHMR_INDEX = {
     "behroozi13": 0, "moster13": 1, "rodriguezpuebla17": 2, "fattahi18": 3,
     "moster18": 4, "behroozi19": 5, "munshi21": 6, "danieli23_const": 7,
@@ -61,7 +69,7 @@ def _sha256(path: Path) -> str:
     return h.hexdigest()
 
 
-def _load_halos():
+def _load_halos(satgen_h5):
     """Return (log10_rs, log10_rhos, in_range_mask) for the full Diemer catalog.
 
     in_range_mask is an alignment-preserving mask onto the original
@@ -70,7 +78,7 @@ def _load_halos():
     log10_rhos are the masked sub-arrays.
     """
     import h5py  # build-time-only; not installed on CI
-    with h5py.File(SATGEN_H5, "r") as fh:
+    with h5py.File(satgen_h5, "r") as fh:
         v_max_kpcGyr = fh["v_max"][()]
         r_max_kpc = fh["r_max"][()]
     v_max = (v_max_kpcGyr * u.kpc / u.Gyr).to(u.km / u.s).value
@@ -121,8 +129,9 @@ def _weighted_mean_std(y, w):
 
 
 def _build_for_dwarf(study_name, lvdb_key, shmr,
-                     log10_rs_full, log10_rhos_full, in_range_mask):
-    weight_path = WEIGHT_DIR / f"{study_name}.npz"
+                     log10_rs_full, log10_rhos_full, in_range_mask,
+                     satgen_h5, weight_dir):
+    weight_path = weight_dir / f"{study_name}.npz"
     with np.load(weight_path) as wnpz:
         w_all = wnpz["mstar_weights"][SHMR_INDEX[shmr]].astype(np.float64)
 
@@ -203,8 +212,8 @@ def _build_for_dwarf(study_name, lvdb_key, shmr,
         "lvdb_key": lvdb_key,
         "shmr": shmr,
         "shmr_index": SHMR_INDEX[shmr],
-        "source_h5": str(SATGEN_H5),
-        "source_h5_sha256": _sha256(SATGEN_H5),
+        "source_h5": str(satgen_h5),
+        "source_h5_sha256": _sha256(satgen_h5),
         "weights_file": str(weight_path),
         "n_total_in_range": n_total,
         "n_halos_nonzero": n_nonzero,
@@ -246,6 +255,11 @@ def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--shmr", default="fattahi18",
                         choices=tuple(SHMR_INDEX.keys()))
+    parser.add_argument("--h5", type=Path, default=DEFAULT_H5,
+                        help="SatGen subhalo catalog .h5 (default: %(default)s)")
+    parser.add_argument("--weights-dir", type=Path, default=DEFAULT_WEIGHT_DIR,
+                        help="per-dwarf conditioning-weight .npz directory "
+                             "(default: %(default)s)")
     parser.add_argument("--only", default=None,
                         help="comma-separated lvdb_keys to limit the build")
     args = parser.parse_args()
@@ -262,12 +276,12 @@ def main() -> None:
             raise SystemExit(f"--only contained unknown lvdb_keys: {missing}")
 
     for study_name, _ in galaxies:
-        wp = WEIGHT_DIR / f"{study_name}.npz"
+        wp = args.weights_dir / f"{study_name}.npz"
         if not wp.exists():
             raise SystemExit(f"missing weight file for {study_name!r}: {wp}")
 
-    print(f"loading halo catalog: {SATGEN_H5}")
-    log10_rs_full, log10_rhos_full, in_range, _G = _load_halos()
+    print(f"loading halo catalog: {args.h5}")
+    log10_rs_full, log10_rhos_full, in_range, _G = _load_halos(args.h5)
     print(f"halos in range: {int(in_range.sum())}/{in_range.size}")
 
     summary = []
@@ -276,6 +290,7 @@ def main() -> None:
         npz_payload, meta = _build_for_dwarf(
             study_name, lvdb_key, args.shmr,
             log10_rs_full, log10_rhos_full, in_range,
+            args.h5, args.weights_dir,
         )
         np.savez(out_path, **npz_payload)
         summary.append(meta)

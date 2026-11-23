@@ -10,7 +10,7 @@
 #SBATCH --mem=8G
 #SBATCH --mail-type=NONE
 #SBATCH --exclude=n0150.lr7
-#SBATCH --output=/global/scratch/projects/pc_heptheory/kraman/DwarfJeansAnalysis/logs/reproc-%A_%a.out
+#SBATCH --output=logs/reproc-%A_%a.out
 
 # Regenerate the derived views (summary.csv + derived.npz + plots) for every existing
 # production run WITHOUT re-running dynesty. One array task per galaxy; each
@@ -28,14 +28,25 @@
 #   NO_PLOTS=1 bash scripts/submit_reprocess.sh        # summary.csv + derived.npz only
 #   HOST=mw2022 bash scripts/submit_reprocess.sh       # roll the real-MW tidal host onto every run
 #
-# A bare `sbatch scripts/submit_reprocess.sh` still works but only honors the
+# A bare `sbatch scripts/submit_reprocess.sh` must be run from the repo root with
+# logs/ present (the `bash` wrapper creates it); it still works but only honors the
 # static #SBATCH --exclude (n0150) fallback above, not the full shared list.
 #
 # Array indices match the sorted data/star_catalogs/*.npz list (same indexing
 # as submit_batch.sh). Adjust --array=0-38 if the catalog count changes (39).
 
 set -euo pipefail
-cd /global/scratch/projects/pc_heptheory/kraman/DwarfJeansAnalysis
+# Repo root: derived from this script's location in the outer `bash` call
+# (BASH_SOURCE is a spool copy under SLURM) and passed to the array tasks via
+# the exported environment (sbatch's default --export=ALL); a bare `sbatch`
+# falls back to the submit directory.
+if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
+    export DJA_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+else
+    DJA_ROOT="${DJA_ROOT:-$SLURM_SUBMIT_DIR}"
+    [[ -f "$DJA_ROOT/scripts/run_production.py" ]] || { echo "not the DwarfJeansAnalysis root: $DJA_ROOT (submit from the repo root)" >&2; exit 1; }
+fi
+cd "$DJA_ROOT"
 
 # Dynamic node exclusion: #SBATCH --exclude cannot interpolate, so when this
 # script is launched directly (`bash ...`, no array task id yet) we re-exec
@@ -51,7 +62,8 @@ if [[ -z "${SLURM_ARRAY_TASK_ID:-}" ]]; then
         excl="$(tr -d '[:space:]' < "$EXCLUDE_FILE")"
         if [[ -n "$excl" ]]; then excl_arg=(--exclude="$excl"); fi
     fi
-    exec sbatch "${excl_arg[@]}" "$@" "$0"
+    mkdir -p "$DJA_ROOT/logs"
+    exec sbatch "${excl_arg[@]}" "$@" "$DJA_ROOT/scripts/submit_reprocess.sh"
 fi
 
 # conda init trips `set -eu` (unset $PS1, optional-file tests) — disable around it.

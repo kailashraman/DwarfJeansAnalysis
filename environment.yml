@@ -1,0 +1,37 @@
+# The Python environment DwarfJeansAnalysis was run in (the authors' `DwarfJeans`
+# conda environment on linux-64), pruned to the packages this repository
+# imports and pinned to the versions installed there.
+#
+#   conda env create -f environment.yml
+#   conda activate DwarfJeans
+#
+# Channel notes: gala, multiprocess, pytest and requests were pip installs in the
+# source environment and are pip-installed here too (gala 1.11.0 is not on
+# conda-forge). astropy and pyyaml had no conda record there either; the same
+# versions are pinned here from conda-forge.
+# The package itself is installed editable from the repository root (the
+# `-e .` line), so create the environment from the repo root.
+#
+# LaTeX is not included: the figures set text.usetex, so they need a `latex`
+# binary on the PATH (see scripts/plot_config.py).
+name: DwarfJeans
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11.15
+  - numpy=2.4.3
+  - scipy=1.17.1
+  - astropy=7.2.0
+  - dynesty=3.0.0
+  - matplotlib-base=3.10.9
+  - pandas=3.0.2
+  - pyyaml=6.0.3
+  - h5py=3.16.0
+  - corner=2.2.3
+  - pip
+  - pip:
+      - gala==1.11.0
+      - multiprocess==0.70.19
+      - pytest==9.0.3
+      - requests==2.33.1
+      - -e .
