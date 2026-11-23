@@ -269,8 +269,9 @@ for the `jeffreys`, `loguniform` (other than pisces_2), `satgen_box` or
   `data/satgen_prior/` in place (no output flag), and the SHMR builder must be
   run once per `--shmr` (default `fattahi18`).
 - **Segue 1 test data.** The legacy single-galaxy test
-  `tests/integration/run_segue1.py` reads a `data/segue1/` directory that is
-  not in the repository; the production runs don't use it.
+  `tests/integration/run_segue1.py` can read a `data/segue1/` directory (its
+  non-default `simon` and `pace` sources) that is not in the repository; the
+  production runs don't use it.
 
 ## Relation to the SatelliteDensityInference record
 

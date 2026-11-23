@@ -174,9 +174,10 @@ Global dwarf properties come from the Local Volume Database (v1.0.5). Per-star
 velocities come from the original spectroscopic studies, ingested per paper under
 `data/`. Each per-paper ingest directory carries a `PROVENANCE.md` recording
 where the source came from and a `checksums.sha256` pinning it. The legacy
-single-galaxy test `tests/integration/run_segue1.py` reads a `data/segue1/`
-directory that is not part of the repository (the production Segue 1 run uses
-the Geha et al. 2026 catalog), so that test cannot run from a clone. These data are in git, not in
+single-galaxy test `tests/integration/run_segue1.py` can also read a
+`data/segue1/` directory (its non-default `simon` and `pace` sources) that is
+not part of the repository; its default source and the production Segue 1 run
+use the Geha et al. 2026 catalog. These data are in git, not in
 the Zenodo record, and keep their original terms. If you use them, cite the
 original works:
 

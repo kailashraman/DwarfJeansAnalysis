@@ -18,6 +18,10 @@ Per-star source options (SOURCE toggle):
   'geha':  Geha+2026 Table 5A (Pmem_novar==1) + sphericalized 3D Plummer
            half-mass cut R < 2·rhalf_major·√(1−ε)·(4/3) per the production
            SelectionPolicy. Uses LVDB nuisance priors instead of PS18 overrides.
+
+The 'simon' and 'pace' sources read data/segue1/, which is not tracked (no
+provenance record) and is absent from a clone; the default 'geha' source reads
+tracked data only.
 """
 from __future__ import annotations
 
