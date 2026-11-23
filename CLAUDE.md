@@ -134,7 +134,7 @@ so bare `pytest` does not collect them. They are scripts run by hand and some
 are slow: `run_perspective_calibration.py` is a mock-data calibration with its
 command in its docstring, `run_ufd_population.py` a 15-realization mock study,
 `analyze_asimov.py` an Asimov bias check, and `run_segue1.py` a real-data
-Segue 1 smoke test. Their outputs go to `results/tests/`, which is gitignored.
+Segue 1 smoke test (its inputs, `data/segue1/`, are not in the repository). Their outputs go to `results/tests/`, which is gitignored.
 `tests/unit/test_jeans_vs_quad.py` is collected and is slow (its docstring
 says about 80 seconds). `tests/unit/test_scale_sep95.py` skips its per-galaxy
 tests for a galaxy whose `jeffreys` run is absent from `results/production/`,

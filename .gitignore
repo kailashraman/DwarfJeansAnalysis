@@ -75,3 +75,6 @@ scratch/
 
 # Local Claude Code guidance (loads docs/claude.development.md)
 CLAUDE.local.md
+
+# Legacy Segue 1 test inputs: kept locally, not tracked (no provenance record)
+data/segue1/

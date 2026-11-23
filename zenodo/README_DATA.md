@@ -268,9 +268,9 @@ for the `jeffreys`, `loguniform` (other than pisces_2), `satgen_box` or
   the rerun confirms the global `satgen` table. The builders write into
   `data/satgen_prior/` in place (no output flag), and the SHMR builder must be
   run once per `--shmr` (default `fattahi18`).
-- **Segue 1 data.** `data/segue1/` (used only by the legacy single-galaxy
-  test `tests/integration/run_segue1.py`, not by the production runs) has no
-  `PROVENANCE.md`.
+- **Segue 1 test data.** The legacy single-galaxy test
+  `tests/integration/run_segue1.py` reads a `data/segue1/` directory that is
+  not in the repository; the production runs don't use it.
 
 ## Relation to the SatelliteDensityInference record
 
@@ -310,8 +310,7 @@ half-light radii, ellipticities, proper motions), and the posteriors derive
 from the per-star catalogs. Those inputs are in the git repository under
 `data/`, not in this record. Each per-paper directory has a `PROVENANCE.md`
 naming its source; `data/star_catalogs/`, `data/registry/` and
-`data/satgen_prior/` (derived products the runs read) and the test-only
-`data/segue1/` have none. The Walker et al. 2009 table is the star catalog
+`data/satgen_prior/` (derived products the runs read) have none. The Walker et al. 2009 table is the star catalog
 for `carina_1` only (the `sculptor_1` and `sextans_1` catalogs are from Geha
 et al. 2026; Fornax is not in the sample). The repository `README.md` lists
 the citations.

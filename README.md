@@ -172,11 +172,11 @@ Stated precisely in `zenodo/README_DATA.md`; in short:
 
 Global dwarf properties come from the Local Volume Database (v1.0.5). Per-star
 velocities come from the original spectroscopic studies, ingested per paper under
-`data/`. Each per-paper ingest directory except `data/segue1/` carries a
-`PROVENANCE.md` recording where the source came from and a `checksums.sha256`
-pinning it. `data/segue1/` (a Pace "Bayes 0.8" file and a Simon 2011
-velocity table, read only by the legacy test `tests/integration/run_segue1.py`)
-has neither, and its sources are not cited here. These data are in git, not in
+`data/`. Each per-paper ingest directory carries a `PROVENANCE.md` recording
+where the source came from and a `checksums.sha256` pinning it. The legacy
+single-galaxy test `tests/integration/run_segue1.py` reads a `data/segue1/`
+directory that is not part of the repository (the production Segue 1 run uses
+the Geha et al. 2026 catalog), so that test cannot run from a clone. These data are in git, not in
 the Zenodo record, and keep their original terms. If you use them, cite the
 original works:
 
