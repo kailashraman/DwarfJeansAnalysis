@@ -145,6 +145,48 @@ def test_stale_manifest_removed_when_build_fails(world, monkeypatch):
     assert not (out / 'MANIFEST.json').exists()         # never next to a new/partial archive
 
 
+def _during_build(monkeypatch, action):
+    real = zp.build_archive
+
+    def build(path, files):
+        r = real(path, files)
+        action()
+        return r
+    monkeypatch.setattr(zp, 'build_archive', build)
+
+
+@pytest.mark.parametrize('what', ['head_moved', 'dirty', 'build_file_dirty'])
+def test_git_state_change_during_build_fails_and_leaves_nothing(world, monkeypatch,
+                                                               capsys, what):
+    out = world['tmp'] / 'out'
+    go(world, out)                                      # a previous build
+
+    def change():
+        if what == 'head_moved':
+            monkeypatch.setattr(zp, 'git_state', lambda p: ('newcommit', False))
+        elif what == 'dirty':
+            monkeypatch.setattr(zp, 'git_state', lambda p: ('deadbeef', True))
+        else:
+            monkeypatch.setattr(zp, 'dirty_build_files', lambda paths: [str(paths[0])])
+    _during_build(monkeypatch, change)
+    assert go(world, out) == 1
+    assert 'build' in capsys.readouterr().out.split('FAIL')[-1]
+    assert not (out / 'MANIFEST.json').exists()         # no manifest claiming the old commit
+    assert not (out / zp.ARCHIVE_NAME).exists()
+    assert not (out / zp.README_NAME).exists()
+
+
+def test_readme_shipped_is_the_one_read_at_the_start(world, monkeypatch):
+    out = world['tmp'] / 'out'
+    _during_build(monkeypatch, lambda: world['readme'].write_bytes(b'# newer readme\n'))
+    assert go(world, out) == 0
+    data = (out / zp.README_NAME).read_bytes()
+    assert data == b'# readme\n'
+    man = json.loads((out / 'MANIFEST.json').read_text())
+    assert man['readme']['sha256'] == hashlib.sha256(data).hexdigest()
+    assert man['readme']['size'] == len(data)
+
+
 @pytest.mark.parametrize('rel', ['results/production/draco_1/cored/notes.txt',
                                  'results/production/draco_1/cored/summary.csv.bak',
                                  'results/production/draco_1/cored/sub/summary.csv',

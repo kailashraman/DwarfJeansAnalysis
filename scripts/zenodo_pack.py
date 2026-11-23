@@ -23,6 +23,11 @@ set (--expect-priors); zenodo/README_DATA.md containing 'TODO';
 no run dirs. --dry-run validates and prints the member count and
 total bytes without writing anything.
 
+The README bytes are read once, right after the git/build-file checks, and exactly
+those bytes are written. After the build the git-state and build-file checks are
+re-run; if HEAD moved or anything became dirty the pack fails and removes the
+archive and README, leaving no MANIFEST.
+
 Builds are deterministic (sorted members, mtime 0, uid/gid 0, gzip mtime=0), so
 a rebuild is byte-identical within one Python/zlib environment.
 """
@@ -34,7 +39,6 @@ import hashlib
 import json
 import os
 import posixpath
-import shutil
 import subprocess
 import sys
 import tarfile
@@ -238,6 +242,21 @@ def file_digests(path):
     return sha.hexdigest(), md5.hexdigest()
 
 
+def changed_during_build(repo_root, readme_path, commit, dirty):
+    """Re-run the start-of-run git and build-file checks after the build; a
+    message if HEAD moved or anything became dirty, else None."""
+    c2, d2 = git_state(repo_root)
+    if (c2, d2) != (commit, dirty):
+        return (f'git state changed during the build (was {commit}, dirty={dirty}; '
+                f'now {c2}, dirty={d2})')
+    bad = dirty_build_files([Path(__file__).resolve(),
+                             Path(__file__).resolve().with_name('zenodo_fetch.py'),
+                             readme_path, METADATA_PATH])
+    if bad:
+        return f'build-defining file(s) untracked or differ from HEAD after the build: {bad}'
+    return None
+
+
 def run(out_dir, repo_root=None, readme_path=README_PATH, expect_runs=EXPECT_RUNS,
         dry_run=False, expect_priors=EXPECT_PRIORS):
     repo_root = Path(repo_root or REPO_ROOT)
@@ -245,11 +264,6 @@ def run(out_dir, repo_root=None, readme_path=README_PATH, expect_runs=EXPECT_RUN
     problems = []
     if not readme_path.is_file():
         problems.append(f'{README_NAME} not found at {readme_path} (it ships in the record)')
-    else:
-        left = [t for t in PLACEHOLDERS if t in readme_path.read_text()]
-        if left:
-            problems.append(f'{README_NAME} still contains placeholder(s) {left}; '
-                            'fill them in before packing')
     commit, dirty = git_state(repo_root)
     if commit is None:
         problems.append(f'cannot determine the git state of {repo_root}')
@@ -262,6 +276,15 @@ def run(out_dir, repo_root=None, readme_path=README_PATH, expect_runs=EXPECT_RUN
         if bad:
             problems.append(f'build-defining file(s) untracked or differ from HEAD: '
                             f'{bad}; commit them first')
+    readme_bytes = None
+    if not problems:
+        # Read once, right after the git/build-file checks; these exact bytes are
+        # what ships, so a commit made during the build cannot swap in a newer one.
+        readme_bytes = readme_path.read_bytes()
+        left = [t for t in PLACEHOLDERS if t in readme_bytes.decode(errors='replace')]
+        if left:
+            problems.append(f'{README_NAME} still contains placeholder(s) {left}; '
+                            'fill them in before packing')
     if not problems:
         files, problems = collect_members(repo_root, expect_runs, expect_priors)
     if problems:
@@ -280,12 +303,18 @@ def run(out_dir, repo_root=None, readme_path=README_PATH, expect_runs=EXPECT_RUN
     mpath.unlink(missing_ok=True)       # no stale manifest next to a new archive
     print(f'building {ARCHIVE_NAME} ({len(files)} files) ...', flush=True)
     rec, members = build_archive(out_dir / ARCHIVE_NAME, files)
-    shutil.copyfile(readme_path, out_dir / README_NAME)
-    r_sha, r_md5 = file_digests(out_dir / README_NAME)
+    late = changed_during_build(repo_root, readme_path, commit, dirty)
+    if late:
+        for n in (ARCHIVE_NAME, README_NAME):
+            (out_dir / n).unlink(missing_ok=True)
+        print(f'FAIL: {late}; nothing was written (rerun the pack)')
+        return 1
+    (out_dir / README_NAME).write_bytes(readme_bytes)
+    r_sha, r_md5 = hashlib.sha256(readme_bytes).hexdigest(), hashlib.md5(readme_bytes).hexdigest()
     manifest = {
         'created_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(timespec='seconds'),
         'dja_git_commit': commit, 'dja_git_dirty': dirty,
-        'readme': {'name': README_NAME, 'size': (out_dir / README_NAME).stat().st_size,
+        'readme': {'name': README_NAME, 'size': len(readme_bytes),
                    'sha256': r_sha, 'md5': r_md5},
         'archive': rec,
         'members': members,
