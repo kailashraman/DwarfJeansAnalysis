@@ -123,3 +123,51 @@ Recurring bug classes for adversarial review. Reviewers consult this before sign
 ## Off-grid interpolation error mistaken for physical discrepancy
 
 - **A parity/gold-standard script computes a reference on a numerical grid, then `np.interp`/splines it onto reporting points not on that grid.** Gold-standard scripts that build a quantity by cumulative quadrature (or an ODE solve) know it only on their internal grid, then sample it at specific reporting radii/angles/times via `np.interp`. When those targets are off-grid, the reported "agrees to X%" conflates the true reference-vs-model discrepancy with the *script's own* linear-interpolation error — worst where the target function has high curvature (e.g. the low-r end of a cumulative-mass profile). The inflated (or deflated) number then gets cited in a docstring/writeup as a physical fidelity claim. Symptom: a generator that builds `cumulative_*`/quadrature output on `grid` and compares at `targets` not drawn from `grid`; a precision claim that moves when the grid is refined. Defense: insert the reporting points exactly into the integration grid before differencing (so the interp is exact), or verify the reported precision tightens monotonically to a stable floor as the grid refines — if the coarse-grid number is comparable to the interpolation error, it needs a convergence check before being quoted.
+
+## Library helper's RNG argument left at its default after the sampler is seeded
+
+- **A post-sampling helper with an optional `rstate`/`rng`/`random_state` is called without it.** Equal-weight resampling (`dynesty.utils.resample_equal`), `rng.choice` thinning, bootstrap and KDE-sampling utilities default to fresh OS entropy. They usually sit right after a carefully seeded sampler call, so headline numbers (logZ, raw samples) reproduce and a spot check passes, while the saved chain and everything derived from it changes on every rerun; parity diffs show noise-level drift that is dismissed as noise. What to flag: any third-party call with an optional RNG parameter left unset on a path whose caller takes a seed; when one copy is fixed, grep sibling modules for the same call; check every determinism claim in help text or docstrings against all the inputs it depends on (seed, pool size, thread count), and require each of those inputs to be in the run record.
+
+## Safety gate dropped when porting a tool to a simplified variant
+
+- **Guards proven in the source version vanish in the port.** When a pack/fetch/upload (or similar) script is ported and simplified, checks such as symlink and duplicate-member rejection, build-file cleanliness, resume and stray-file refusal, dry-run and archive-vs-manifest equality disappear with the removed features, and the new tests don't cover them. What to flag: diff the port against its source; every check or flag in the source must be present in the port or explicitly argued away.
+
+## Provenance stamp that ignores the uncommitted code defining the artifact
+
+- **A recorded commit and clean flag that cannot reproduce the artifact.** A git-state check that ignores untracked files records the repo's commit while the packer, shipped README or metadata that shape the deposit are untracked or modified. What to flag: any recorded commit/dirty stamp whose producing script or shipped documents are not required to be committed at that commit.
+
+## Security test that triggers in an earlier layer
+
+- **The malicious value is also present in the pre-check input.** A traversal or integrity test feeds the same bad path to the manifest and the archive, so the manifest check always raises first and the archive-level defence is never reached; removing it leaves the suite green. What to flag: defence-in-depth tests whose fixture gives every layer the same bad input; require a case per layer in which only that layer sees it.
+
+## Overview doc that drops the detailed doc's qualifiers
+
+- **Summaries restate a detailed document without its scope.** "Reproduced wherever compared" becomes "bit for bit"; "for some runs" becomes "all". The short doc is the one readers act on. What to flag: any absolute ("every", "all", "bit for bit", "deterministic") in a README or help text whose source states a scope; require the scope to travel with it, or a pointer to it. Spelled-out counts with no command or test behind them belong here too: recount at review.
+
+## Assertion satisfied by incidental text
+
+- **A negative test asserts a substring that another message also contains.** The expected error is checked with `'symlink' in out`, but a different guard's message (a count mismatch embedding a tmp path named after the test) contains the same word, so the guard under test can be deleted with the suite green. Fixtures that change a counted quantity make the count guard fire first. What to flag: substring assertions that don't pin the guard's own message; negative fixtures that perturb more than the one property under test; prove each such test by disabling its guard.
+
+## Superseded fields left beside regenerated products
+
+- **A run directory is partly regenerated under new defaults and the old metadata stays.** Derived products recomputed with a new configuration (e.g. a per-draw tidal radius in a new host potential) sit next to audit/log fields describing the old one (a fixed 1 kpc radius), and the new configuration is recorded nowhere. Readers take the stale field as describing the shipped numbers. What to flag: any partial regeneration of a run directory; require stale fields to be named as superseded (or rewritten) and the new configuration to be recorded in the regenerated product.
+
+## Partial rewrite of a multi-file output directory
+
+- **A rerun writes only some of a directory's files.** The docs say a run "replaces whatever is there", but the writer skips a sibling (e.g. `derived.npz`) that downstream code reads, so an old file survives beside a new chain. What to flag: compare each writer's file list with the directory's contract and with its downstream readers.
+
+## Verification evidence produced by a different code state than the one cited
+
+- **A claim cites code that never ran.** Reruns made before a fix are cited as evidence for post-fix behaviour, scratch copies are cited as runs of the tracked script, or "at HEAD" describes checks that predate HEAD. What to flag: check evidence timestamps and recorded fields (a field the new code writes is missing) against commit times; diff any scratch copy against the tracked script; require claims to cite a commit, not HEAD.
+
+## Install route that does not cover the documented commands
+
+- **The pip/pyproject dependencies omit imports needed by commands the same README shows**, or by test modules that bare `pytest` collects (a module-level import of an optional dependency). What to flag: for each documented command and collected test, confirm its imports are in the route the README offers.
+
+## Batch-driver default that silently changes a result-determining parameter
+
+- **A sweep launcher's defaults differ from the per-item configuration of the artifact it is presented as regenerating** (cores → `npool`, a default prior). What to flag: check every documented launcher invocation against the run record's per-item parameters.
+
+## Selection described by its intent instead of its rule
+
+- **A subset is labelled by what it is meant to be ("the classical dwarfs") rather than by the rule that defines it** (a launcher list with N_post > 100). Readers apply the usual meaning and get the membership wrong. What to flag: any named subset in docs; require the defining rule or the explicit list.
