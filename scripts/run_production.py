@@ -223,7 +223,7 @@ def _cli() -> argparse.Namespace:
                         "--cpus-per-task on SLURM. A run is reproducible "
                         "given (--rseed, --npool), but a different --npool "
                         "gives a different chain (queue_size changes the "
-                        "proposals; medians shift ~1%% vs --npool 1).")
+                        "proposals).")
     return p.parse_args()
 
 

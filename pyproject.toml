@@ -18,6 +18,9 @@ dependencies = [
     "matplotlib",
     "pandas",
     "pyyaml",
+    "corner",
+    "h5py",
+    "requests",
 ]
 
 [project.optional-dependencies]
