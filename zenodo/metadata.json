@@ -1,0 +1,57 @@
+{
+  "upload_type": "dataset",
+  "title": "Data for: DwarfJeansAnalysis production posteriors (Semi-analytic Inference of Satellite Densities in the Cold Dark Matter Model, Part II)",
+  "creators": [
+    {
+      "name": "Raman, Kailash"
+    },
+    {
+      "name": "Folsom, Dylan"
+    },
+    {
+      "name": "Kaplinghat, Manoj"
+    },
+    {
+      "name": "Lisanti, Mariangela"
+    },
+    {
+      "name": "Safdi, Benjamin R."
+    }
+  ],
+  "description": "<p>Spherical-Jeans production posteriors for 39 Milky Way dwarf spheroidal galaxies under 8 prior configurations (312 runs; per run: posterior samples, derived quantities, summary table, audit and run log), produced by the DwarfJeansAnalysis code repository and accompanying the two-part paper series \"Semi-analytic Inference of Satellite Densities in the Cold Dark Matter Model\" (Part I: Comparison to Ultra-faint Dwarf Kinematics; Part II: Implications for Dark Matter Indirect Detection Constraints).</p><p>The single archive <code>dja_production.tar.gz</code> unpacks at the root of the DwarfJeansAnalysis repository (under <code>results/production/</code>) and is consumed by the SatelliteDensityInference repository.</p><p>See README_DATA.md and MANIFEST.json (per-file sha256, packing commit) in the record, and use scripts/zenodo_fetch.py in the code repository to download and unpack.</p>",
+  "license": "cc-by-4.0",
+  "access_right": "open",
+  "keywords": [
+    "dark matter",
+    "dwarf spheroidal galaxies",
+    "Jeans analysis",
+    "J-factors",
+    "satellite galaxies"
+  ],
+  "related_identifiers": [
+    {
+      "identifier": "https://github.com/kailashraman/DwarfJeansAnalysis",
+      "relation": "isSupplementTo",
+      "resource_type": "software",
+      "scheme": "url"
+    },
+    {
+      "identifier": "arXiv:2607.27316",
+      "relation": "isSupplementTo",
+      "resource_type": "publication-preprint",
+      "scheme": "arxiv"
+    },
+    {
+      "identifier": "arXiv:2607.27326",
+      "relation": "isSupplementTo",
+      "resource_type": "publication-preprint",
+      "scheme": "arxiv"
+    },
+    {
+      "identifier": "https://github.com/kailashraman/SatelliteDensityInference",
+      "relation": "isRequiredBy",
+      "resource_type": "software",
+      "scheme": "url"
+    }
+  ]
+}
