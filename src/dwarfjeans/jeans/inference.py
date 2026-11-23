@@ -411,7 +411,13 @@ def run_inference(
     samples = res["samples"]
     logwt = res["logwt"] - res["logz"][-1]  # normalize log weights
     weights = np.exp(logwt)
-    samples_eq = dynesty.utils.resample_equal(samples, weights)
+    # Fresh generator seeded from rseed (independent of how many draws the
+    # sampler consumed, and distinct from the sampler's stream), so samples_eq
+    # is reproducible given (rseed, npool); npool sets dynesty's queue_size,
+    # so a different npool gives a different chain.
+    samples_eq = dynesty.utils.resample_equal(
+        samples, weights, rstate=np.random.default_rng([rseed, 1])
+    )
 
     return {
         "samples": samples,

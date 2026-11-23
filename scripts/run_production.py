@@ -163,6 +163,7 @@ def run(lvdb_key: str,
         "prepare_jeans_input_audit": ctx.selection_audit,
         "dynesty": {
             "nlive": nlive, "dlogz": dlogz, "rseed": rseed,
+            "npool": npool,
             "logZ": float(result["logz"]),
             "logZ_err": float(result["logz_err"]),
             "n_eq": int(result["n_eq"]),
@@ -219,8 +220,10 @@ def _cli() -> argparse.Namespace:
     p.add_argument("--npool", type=int, default=1,
                    help="Multiprocessing pool size for dynesty likelihood "
                         "evaluations (default 1 = serial). Set to match "
-                        "--cpus-per-task on SLURM. Pool order is non-deterministic, "
-                        "so posterior medians shift at the ~1%% level vs --npool 1.")
+                        "--cpus-per-task on SLURM. A run is reproducible "
+                        "given (--rseed, --npool), but a different --npool "
+                        "gives a different chain (queue_size changes the "
+                        "proposals; medians shift ~1%% vs --npool 1).")
     return p.parse_args()
 
 
