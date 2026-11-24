@@ -227,6 +227,28 @@ Densities in the Cold Dark Matter Model*:
   Same authors (2026),
   [arXiv:2607.27326](https://arxiv.org/abs/2607.27326).
 
+```bibtex
+@article{Raman:2026mky,
+    author = "Raman, Kailash and Folsom, Dylan and Kaplinghat, Manoj and Lisanti, Mariangela and Safdi, Benjamin R.",
+    title = "{Semi-analytic Inference of Satellite Densities in the Cold Dark Matter Model Part I. Comparison to Ultra-faint Dwarf Kinematics}",
+    eprint = "2607.27316",
+    archivePrefix = "arXiv",
+    primaryClass = "astro-ph.GA",
+    month = "7",
+    year = "2026"
+}
+
+@article{Raman:2026zbr,
+    author = "Raman, Kailash and Folsom, Dylan and Kaplinghat, Manoj and Lisanti, Mariangela and Safdi, Benjamin R.",
+    title = "{Semi-analytic Inference of Satellite Densities in the Cold Dark Matter Model Part II. Implications for Dark Matter Indirect Detection Constraints}",
+    eprint = "2607.27326",
+    archivePrefix = "arXiv",
+    primaryClass = "astro-ph.HE",
+    month = "7",
+    year = "2026"
+}
+```
+
 The posteriors produced here are consumed by
 [SatelliteDensityInference](https://github.com/kailashraman/SatelliteDensityInference),
 which generates the figures for both papers.
