@@ -63,6 +63,10 @@ A run directory contains:
 | `audit.json` | registry inputs, selection policy, sampler configuration |
 | `run.log` | run stdout |
 
+The commands below that read `results/production/` (reprocessing and
+plotting the production runs) need the posteriors fetched first; see
+"Production posteriors (Zenodo)" below.
+
 `scripts/reprocess.py` regenerates the derived views from a saved chain without
 re-running the sampler, and additionally writes `derived.npz` — the per-draw
 derived arrays that external consumers read. A bare `scripts/reprocess.py`
@@ -121,8 +125,9 @@ loguniform`, `--prior satgen`, `--prior satgen_box`, and `--prior satgen_shmr
 The 312 production runs (39 dwarfs by 8 priors; about 0.97 GB) are not in git.
 They are in a Zenodo record,
 [doi:10.5281/zenodo.24508809](https://doi.org/10.5281/zenodo.24508809)
-(record 24508809), described by `zenodo/README_DATA.md`, which gives the file formats, what reproduces and how
-far, and the provenance gaps. Fetch them from the repository root:
+(record 24508809), described by `zenodo/README_DATA.md`, which gives the file
+formats, what reproduces and how far, and the provenance gaps. Fetch them from
+the repository root:
 
 ```bash
 python scripts/zenodo_fetch.py --record 24508809
@@ -131,7 +136,15 @@ python scripts/zenodo_fetch.py --record 24508809
 This unpacks into `results/production/` and checks the archive's checksums
 (`--help` for the options). `results/production/README.md` describes the
 layout. `scripts/zenodo_pack.py` and `scripts/zenodo_upload.py` are the
-authors' packing and upload tools; a user does not need them.
+authors' packing and upload tools; a user does not need them. To load one
+run's posteriors:
+
+```python
+import numpy as np
+derived = np.load('results/production/draco_1/jeffreys/derived.npz')
+derived['log10_J_0p5deg']                     # per-draw J within 0.5 deg
+samples = np.load('results/production/draco_1/jeffreys/posterior_samples.npz')['samples_eq']
+```
 
 ### Reproducibility caveats
 
@@ -226,6 +239,9 @@ Densities in the Cold Dark Matter Model*:
 - **Part II — Implications for Dark Matter Indirect Detection Constraints.**
   Same authors (2026),
   [arXiv:2607.27326](https://arxiv.org/abs/2607.27326).
+
+If you use the production posteriors, also cite their Zenodo record,
+[doi:10.5281/zenodo.24508809](https://doi.org/10.5281/zenodo.24508809).
 
 ```bibtex
 @article{Raman:2026mky,

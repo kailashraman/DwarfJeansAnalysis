@@ -155,10 +155,13 @@ fixed `r_t=1.0 kpc`, is superseded in the same way as `audit.json`'s `r_t_kpc`.
 ```bash
 git clone https://github.com/kailashraman/DwarfJeansAnalysis
 cd DwarfJeansAnalysis
-git checkout <dja_git_commit from MANIFEST.json>             # optional, exact match
 conda env create -f environment.yml && conda activate DwarfJeans
 python scripts/zenodo_fetch.py --record 24508809
 ```
+
+The record was packed from commit `039512c` (`dja_git_commit` in the record's
+`MANIFEST.json`); `git checkout 039512c` gives an exact match (optional; later
+commits normally change only documentation and tooling).
 
 `environment.yml` is the tested route; `pip install -e .` also works but was
 not what the record was checked with. Options (`python scripts/zenodo_fetch.py
@@ -282,9 +285,10 @@ pisces_2), `satgen_box` or `satgen_shmr_*` priors, or for any `npool=8` run.
   `satgen_shmr_*`) are built from SatelliteDensityInference's SatGen catalog
   `data/satgen_catalogs/m12res8_10k_Diemer+scatter_sim.h5` and, for the SHMR
   priors, its frozen weights `data/halo_weights_published/Diemer/`, both in
-  that record's `inputs` tier. Both builders take `--h5` (the SHMR builder
-  also `--weights-dir`), defaulting to a sibling SatelliteDensityInference
-  checkout.
+  that record's `inputs` tier (record 24511712,
+  [doi:10.5281/zenodo.24511712](https://doi.org/10.5281/zenodo.24511712)).
+  Both builders take `--h5` (the SHMR builder also `--weights-dir`),
+  defaulting to a sibling SatelliteDensityInference checkout.
 - **Outputs.** SatelliteDensityInference reads `derived.npz` through
   `Dwarf.get_Jeans_results`: the J-factor panels for 7 of the 8 priors (all
   but `jeffreys`), and the Fermi recasting, tables, contours and
@@ -356,8 +360,13 @@ from the authors' checkouts, data or conda environment.
   the same size, text and fonts, using the authors' cluster TeX Live 2016.
   The files' bytes differ (including the creation date).
 
-Not run: the network fetch path, the remaining 307 runs' postprocessing, and
-any `npool=8` sampling rerun.
+- **Network fetch:** after publication, `scripts/zenodo_fetch.py --record
+  24508809` into a fresh directory verified the archive against Zenodo's md5
+  and `MANIFEST.json`, and unpacked 1560 files identical to the authors'
+  `results/production/`.
+
+Not run: the remaining 307 runs' postprocessing and any `npool=8` sampling
+rerun.
 
 ## Licence
 

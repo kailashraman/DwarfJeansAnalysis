@@ -101,7 +101,7 @@ reproduce only statistically.
   `scripts/build_satgen_shmr_prior_tables.py` take `--h5` (the SHMR builder
   also `--weights-dir`), defaulting to a sibling
   SatelliteDensityInference checkout (the inputs are in that record's `inputs`
-  tier).
+  tier: record 24511712, doi:10.5281/zenodo.24511712).
 
 ## Things that will bite
 
