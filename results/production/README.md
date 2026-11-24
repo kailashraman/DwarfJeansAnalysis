@@ -7,8 +7,8 @@ and how far, and its provenance gaps. Read it before relying on anything here.
 
 ## Deposit
 
-- **DOI:** added on publication.
-- **Record:** `https://zenodo.org/records/<RECORD_ID>`, added on publication.
+- **DOI:** [10.5281/zenodo.24508809](https://doi.org/10.5281/zenodo.24508809)
+- **Record:** https://zenodo.org/records/24508809
 - **Version:** `MANIFEST.json`'s `dja_git_commit` is the packing commit (the
   tools and documents), not the code that produced the runs.
 - **Contents:** 312 runs: 39 galaxies times 8 prior directories (`jeffreys`,
@@ -40,7 +40,7 @@ gaps. See `ARCHITECTURE.md` for the output-path convention.
 From the repository root, in the environment built from `environment.yml`:
 
 ```bash
-python scripts/zenodo_fetch.py --record <RECORD_ID>
+python scripts/zenodo_fetch.py --record 24508809
 ```
 
 This unpacks into `results/production/`, checks the archive's checksums and
@@ -91,4 +91,4 @@ Kaplinghat, Lisanti & Safdi, 2026):
 - Part II — Implications for Dark Matter Indirect Detection Constraints,
   arXiv:2607.27326
 
-The Zenodo citation (DOI) is added on publication.
+Cite the Zenodo record as doi:10.5281/zenodo.24508809.

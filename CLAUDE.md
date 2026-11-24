@@ -42,11 +42,11 @@ tests/            pytest suite
 
 The 312 production runs (39 dwarfs by 8 priors, 5 files each, about 0.97 GB
 before compression) are one archive, `dja_production.tar.gz`, in a Zenodo
-record (`zenodo/README_DATA.md` is its README; the DOI and record ID are added
-to `README.md` on publication). Fetch from the repository root:
+record (`zenodo/README_DATA.md` is its README; DOI 10.5281/zenodo.24508809,
+record ID 24508809). Fetch from the repository root:
 
 ```bash
-python scripts/zenodo_fetch.py --record <RECORD_ID>
+python scripts/zenodo_fetch.py --record 24508809
 ```
 
 It unpacks into `results/production/`. It checks the archive against Zenodo's

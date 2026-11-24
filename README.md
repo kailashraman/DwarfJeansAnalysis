@@ -119,12 +119,13 @@ loguniform`, `--prior satgen`, `--prior satgen_box`, and `--prior satgen_shmr
 ## Production posteriors (Zenodo)
 
 The 312 production runs (39 dwarfs by 8 priors; about 0.97 GB) are not in git.
-They are in a Zenodo record (DOI added on publication) described by
-`zenodo/README_DATA.md`, which gives the file formats, what reproduces and how
+They are in a Zenodo record,
+[doi:10.5281/zenodo.24508809](https://doi.org/10.5281/zenodo.24508809)
+(record 24508809), described by `zenodo/README_DATA.md`, which gives the file formats, what reproduces and how
 far, and the provenance gaps. Fetch them from the repository root:
 
 ```bash
-python scripts/zenodo_fetch.py --record <RECORD_ID>
+python scripts/zenodo_fetch.py --record 24508809
 ```
 
 This unpacks into `results/production/` and checks the archive's checksums

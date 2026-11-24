@@ -3,6 +3,7 @@
 Raman, Folsom, Kaplinghat, Lisanti & Safdi.
 Part I: arXiv:2607.27316. Part II: arXiv:2607.27326.
 Code: https://github.com/kailashraman/DwarfJeansAnalysis
+This record: https://doi.org/10.5281/zenodo.24508809
 
 This record holds the spherical-Jeans production posteriors that the
 DwarfJeansAnalysis repository produced for the two papers: 39 Milky Way dwarf
@@ -156,7 +157,7 @@ git clone https://github.com/kailashraman/DwarfJeansAnalysis
 cd DwarfJeansAnalysis
 git checkout <dja_git_commit from MANIFEST.json>             # optional, exact match
 conda env create -f environment.yml && conda activate DwarfJeans
-python scripts/zenodo_fetch.py --record <RECORD_ID>
+python scripts/zenodo_fetch.py --record 24508809
 ```
 
 `environment.yml` is the tested route; `pip install -e .` also works but was
@@ -365,4 +366,4 @@ catalogs that are not in this record and keep their own terms (the Local
 Volume Database is CC0); cite the original works listed in the repository
 `README.md`.
 
-Cite the two papers above; the Zenodo DOI is added on publication.
+Cite the two papers above and this record, doi:10.5281/zenodo.24508809.
