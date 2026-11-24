@@ -159,7 +159,12 @@ def upload(build_dir, base, token, deposition=None, session=None,
         raise
 
     doi = ((dep.get('metadata') or {}).get('prereserve_doi') or {}).get('doi')
-    print(f'reserved DOI: {doi}')
+    # prereserve_doi only reports the DOI the record will get; on current Zenodo
+    # it does not reserve it (the draft's pids stay empty), so say so.
+    print(f'DOI on publication: {doi} -- NOT yet reserved. Before publishing, in the '
+          'draft\'s web form answer "No" to "Do you already have a DOI?" and click '
+          '"Get a DOI now!" (load the page only after this upload finishes; saving '
+          'a form loaded earlier can blank the metadata)')
     return dep
 
 

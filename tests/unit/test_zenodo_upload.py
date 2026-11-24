@@ -96,6 +96,7 @@ def test_creates_draft_and_never_publishes(build, capsys):
     assert {m for m, _ in s.calls} <= {'POST', 'GET', 'PUT'}
     out = capsys.readouterr().out
     assert '10.5072/zenodo.7' in out and 'tok' not in out
+    assert 'NOT yet reserved' in out and 'reserved DOI' not in out
     assert 'deposition 7' in out and 'https://x/7' in out
 
 
